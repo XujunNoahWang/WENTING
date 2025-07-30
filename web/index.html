@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WENTING - 家庭健康管理</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background-color: #F2F2F7;
+            color: #333;
+        }
+        #root {
+            height: 100vh;
+        }
+        .loading {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+        }
+        .loading h1 {
+            color: #007AFF;
+            margin-bottom: 20px;
+        }
+        .spinner {
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #007AFF;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 2s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+    </style>
+    
+    <!-- Firebase SDK 现在通过ES modules导入，不需要CDN -->
+    <!-- Firebase 配置将通过webpack bundle加载 -->
+</head>
+<body>
+    <div id="root">
+        <div class="loading">
+            <h1>WENTING 健康管理应用</h1>
+            <div class="spinner"></div>
+            <p>正在启动应用...</p>
+        </div>
+    </div>
+    <script src="bundle.js"></script>
+</body>
+</html>

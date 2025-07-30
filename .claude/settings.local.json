@@ -1,0 +1,29 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "Bash(ls:*)",
+      "Bash(npm install)",
+      "Bash(npm install:*)",
+      "Bash(npx react-native init:*)",
+      "Bash(npm start)",
+      "Bash(npm run ios:*)",
+      "Bash(npx create-expo-app:*)",
+      "Bash(npm run web:*)",
+      "Bash(npx react-native start:*)",
+      "Bash(emulator:*)",
+      "Bash(where emulator)",
+      "Bash(npx react-native:*)",
+      "Bash(npx expo:*)",
+      "Bash(npx @react-native-community/cli init:*)",
+      "Bash(rmdir:*)",
+      "Bash(cp:*)",
+      "Bash(rm:*)",
+      "Bash(npm test:*)",
+      "Bash(npm run type-check:*)",
+      "Bash(node:*)",
+      "Bash(npx webpack serve:*)"
+    ],
+    "deny": []
+  }
+}

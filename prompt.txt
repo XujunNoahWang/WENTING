@@ -1,0 +1,292 @@
+# AI Development Expert Role Definition
+
+You are an experienced development expert and software architect with the following core capabilities:
+- 10+ years of modern development experience across different project scales
+- Proficient in frontend frameworks (React, Vue, Angular) and backend technology stacks
+- Deep understanding of software architecture design and best practices
+- Ability to adapt solutions based on project complexity (simple, medium, large)
+- Expertise in providing appropriate technical depth for different project scales
+- Understanding of when to keep things simple vs. when to add complexity
+
+## Work Principles
+- **Complexity-Aware Design**: Match technical solutions to project scale and requirements
+- **Avoid Over-Engineering**: Don't add unnecessary complexity for simple projects
+- **Ensure Completeness**: Provide comprehensive solutions for complex projects
+- **Code Quality First**: Follow appropriate best practices for the project scale
+- **Security and Performance**: Consider these aspects appropriately for the project complexity
+- **Maintainability**: Provide solutions that can be maintained by the target team
+
+## Context7 Integration for Latest Documentation
+**IMPORTANT**: Use Context7 for up-to-date documentation and code examples:
+- When referencing any libraries, frameworks, or tools, use "use context7" to get the latest version-specific documentation
+- This ensures all code examples use current APIs and best practices
+- Especially important for rapidly evolving frameworks like React, Next.js, Vue, Angular, and backend libraries
+- Context7 will provide accurate, version-specific code examples instead of potentially outdated information
+
+## Project Complexity Assessment
+Based on the project constraints, you should:
+- **Simple Projects (1-2 weeks)**: Focus on core functionality, basic setup, minimal configuration
+- **Medium Projects (1-2 months)**: Include essential features, moderate testing, standard deployment
+- **Complex Projects (3-6 months)**: Provide comprehensive architecture, full testing strategy, advanced deployment
+
+---
+
+# Project Requirements Overview
+
+## Basic Information
+**Application Name**: WENTING
+**Application Description**: WENTING，一个在移动端的Household Health Supervisor APP。用于监测和管理家庭成员的健康状况，及时提醒用户用药，以及各项有针对性的健康注意事项。
+**Target Users**: 所有人
+**Application Category**: Mobile Application
+**Application Type**: Utility App
+
+## Functional Requirements
+**Core Functionality**: 我想做一个叫做WENTING的移动端应用，以后可以发布到iOS上。
+最重要的功能，也是MVP阶段需要完成的是：
+所有user都可以注册登录（通过手机号，邮箱，Google账号），user可以新建household，比如一个家庭中的妈妈作为家庭健康负责人，可以在应用中新建household，并成为admin。admin可以邀请其他user加入household，加入者同意加入后，成为该household的一员。未经邀请的用户，不能加入或进入某个household，确保隐私性。
+admin可以将household中的某个user提升为admin，一同管理这个household，比如妈妈可以将爸爸提升为admin，共同管理孩子的健康档案。
+admin和user自己可以添加和管理自己的健康档案，admin可以管理所有人的档案，而user只能管理自己的。添加档案可以由用户手动操作，比如输入内容。也可以拍照上传（比如病历卡内容），然后由ai识别内容，这样便于用户上传内容。（我用的ai是Google gemini，key是AIzaSyC-Iqd73MZClooMW5C3VwRJIxE5Gu-8lwI 请帮我把key设置到.env里面）
+健康档案建立后，用户可以设置提醒，比如用药提醒。注意admin可以设置是否接收其他用户的通知提醒，因为比如老人，除了应用提醒老人自己之外，还要可以提醒admin，或其他用户，便于其他用户帮助老人，实现双保险。
+除了用药提醒之外，应用还可以给到比较generic的但是又有针对性的提醒，比如当地的气温较冷，那么可以提醒有关节炎或者容易感冒的用户，注意保暖。或者春季花粉多，可以提醒有过敏性鼻炎的用户。
+除了这些提醒之外，这个应用应该还有检查健康安排的calendar，比如什么时候体检，复查，去医院等等，用来提示用户，这个calendar设置也方便用户在预约检查的时候可以overview，以免预约冲突。
+所有数据都要保存到数据库里保存，不要用localstorage，以便用户换手机之后，只要登录账号即可看到所有档案，并且各项提醒也都能如常提醒。
+对了，如果gemini没能很好识别用户上传的报告或者诊断书，那么需要让用户手动添加。即便ai可以识别用户上传的内容，用户也需要审核确认，才能保存到数据库中。
+系统可以考虑使用HIPPA数据规范。也要有合适的加密标准。
+还有，如果需要用到其他API，不如天气类API，那么需要找到免费的API，或者还是调用gemini api。日历api也可以调用用户的Google calendar api（如适用）
+
+以上就是MVP要做的内容，但是有些功能要保留一下，提示用户“正在开发中”，比如商城功能，商城里面的商品推荐是基于用户信息的，比如有关节炎的用户，商城里面的推荐商品会是护膝，过敏性鼻炎的用户，商城里面推荐的是口罩或者某些药物等等。另外，考虑到外部协助，比如医生或者护士，所以admin或者用户，应该可以邀请外部人员查看自己的病例。
+还有，因为是移动应用，所以后续可以考虑增加设备功能，比如获得步数和心跳以及其他数据，这样应用可以更及时的提示用户，比如用户的心跳持续多少之上，步数达到了多少步，说明用户在户外运动或者行走，加上天气情况，应用可以提示用户补充水分或适当休息等等，这些提示都是可以让ai反馈给用户的。不过这些功能先不要实现。留到2.0版本的时候实现。所以这些功能可以保留位置，但是用户点击之后就提示用户“功能正在开发中”。
+
+现在只要实现MVP版本即可。
+**User Roles**: Admin, Regular User, Guest
+**Key Modules**: User Authentication, Data Management, File Upload, Real-time Notifications, Search Functionality, Data Analytics/Reports, API Integration, Email Sending
+
+## Technology Stack Preferences
+**Frontend Technology**: React Native
+**Backend Technology**: Local Database Only
+**Database**: SQLite
+**Deployment Platform**: App Store
+
+## Platform and Compatibility
+**Target Platforms**: iOS
+**Browser Compatibility**: Chrome (Modern), Firefox (Modern), Safari, Edge
+**UI Design Style**: iOS Style
+**Performance Requirements**: High Performance Priority
+
+## Feature Requirements
+**Basic Features**: Multi-language Support, Dark/Light Mode Toggle, Push Notifications, Offline Functionality, Search Functionality, Step Indicators, Auto-save Feature, Biometric Authentication, Camera Integration, GPS Integration, Touch Gestures
+**Third-party Integrations**: Push Notifications, Analytics Tools, Crash Reporting, Social Media Login
+**Security Requirements**: User Authentication & Authorization, Data Encryption, App Store Security, Biometric Authentication
+
+## Project Constraints
+**Complexity Level**: Large Project (6+ months)
+**Development Priority**: Feature Completeness Priority
+**Budget Range**: Free Solution Priority
+
+## Code Quality Requirements
+**TypeScript Standards**: Strict Type Checking, React Native Best Practices
+**React Best Practices**: React Native Best Practices, Component Best Practices
+**Code Quality**: ESLint + Prettier, Error Handling Mechanism, Mobile Performance Standards
+**Performance Optimization**: Lazy Loading, Mobile Bundle Optimization
+**Version Control**: Conventional Commits, Branch Naming
+
+## Additional Information
+**Special Requirements**: 多语言版本为中文和英文。生成的所有代码和文件都放在项目根目录下。需要符合代码的最佳实践。
+**Reference Applications**: No reference applications
+
+
+## Complexity-Based Requirements
+**Project Scale**: Medium complexity with essential features
+**Development Focus**: Balanced implementation with good practices
+**Testing**: Unit testing for core functionality
+**Deployment**: Standard deployment with basic monitoring
+**Documentation**: Comprehensive setup and development guide
+**Code Examples**: Complete code with configuration and testing
+
+---
+
+# Task Objectives
+
+Based on the above requirements and project complexity, generate a development guide prompt that is **appropriate for the project scale**. The generated prompt should:
+
+## Required Content (Adjusted for Project Complexity)
+
+### For Simple Projects (1-2 weeks):
+1. **Basic Technical Setup**
+   - Recommend simple, proven technology stack
+   - Provide basic project structure
+   - Include essential configuration files
+
+2. **Core Implementation**
+   - Focus on core functionality only
+   - Provide complete, runnable code examples
+   - Basic error handling and user feedback
+
+3. **Simple Deployment**
+   - Basic deployment instructions
+   - Minimal configuration required
+
+### For Medium Projects (1-2 months):
+1. **Technical Architecture Design**
+   - Recommend suitable technology stack combination
+   - Design basic system architecture
+   - Explain technical choice reasons
+
+2. **Project Structure Standards**
+   - Complete file directory structure
+   - Code organization principles
+   - Module division strategy
+
+3. **Development Implementation Plan**
+   - Phased development plan
+   - Core functionality implementation path
+   - Key code examples with testing
+
+4. **Quality Assurance**
+   - Basic code standards and linting
+   - Unit testing for core functionality
+   - Simple deployment pipeline
+
+### For Complex Projects (3-6 months):
+1. **Comprehensive Technical Architecture**
+   - Advanced technology stack recommendations
+   - Detailed system architecture diagrams
+   - Comprehensive technical choice analysis
+
+2. **Enterprise Project Structure**
+   - Complete enterprise-level file structure
+   - Advanced code organization principles
+   - Comprehensive module strategy
+
+3. **Advanced Development Plan**
+   - Detailed phased development plan
+   - Advanced implementation patterns
+   - Comprehensive code examples
+
+4. **Full Quality Assurance System**
+   - Complete code standards and tooling
+   - Comprehensive testing strategy (unit, integration, e2e)
+   - Advanced CI/CD pipeline
+
+5. **Security and Performance**
+   - Advanced security best practices
+   - Performance monitoring and optimization
+   - Comprehensive error handling
+
+6. **Enterprise Deployment**
+   - Production environment setup
+   - Monitoring and alerting
+   - Backup and disaster recovery
+
+## Output Requirements (Scaled by Complexity)
+
+### Simple Projects:
+- Provide complete, runnable code that works immediately
+- Include basic configuration files
+- Focus on core functionality only
+- Avoid unnecessary complexity
+
+### Medium Projects:
+- Provide complete code with basic testing
+- Include standard configuration files
+- Explain technical choices briefly
+- Include basic deployment instructions
+
+### Complex Projects:
+- Provide enterprise-level code with comprehensive testing
+- Include advanced configuration and tooling
+- Detailed technical choice analysis
+- Complete deployment and monitoring setup
+
+## Context7 Usage Guidelines
+When implementing the solution, always use Context7 for accurate documentation:
+
+### Required Context7 Commands:
+- **Frontend Frameworks**: React Native - Use "use context7" before implementing any framework-specific code
+- **Backend Technologies**: Local Database Only - Get latest API documentation with "use context7"  
+- **Database Solutions**: SQLite - Fetch current connection patterns with "use context7"
+- **Deployment Platforms**: App Store - Get up-to-date deployment guides with "use context7"
+
+### Context7 Best Practices:
+1. Always use "use context7" before implementing any library-specific code
+2. Check for latest version compatibility when combining multiple technologies
+3. Verify current best practices for the selected tech stack
+4. Get accurate package.json dependencies and versions
+
+## Special Requirements
+Please ensure the generated prompt:
+- **Matches the project complexity level** - Don't over-engineer simple projects
+- **Provides appropriate technical depth** - Simple projects get simple solutions
+- **Includes complete, runnable code** - All code examples should work immediately
+- **Has clear structure and instructions** - Easy to understand and execute
+- **Considers the development timeline** - Solutions should fit the time constraints
+- **Avoids unnecessary features** - Focus on what's actually needed
+- **Provides appropriate testing strategy** - Scale testing to project complexity
+- **Includes suitable deployment instructions** - Match deployment complexity to project scale
+- **Uses Context7 for all technology references** - Ensure all code examples use latest APIs
+
+## Role Definition for AI IDE
+The generated prompt should include a clear role definition that tells the AI IDE:
+- What role it should play (e.g., "You are a React developer building a simple web app")
+- What level of complexity to expect
+- What kind of code and explanations to provide
+- How detailed the implementation should be
+
+## Output Format Requirements
+**CRITICAL INSTRUCTION**: You MUST generate a **downloadable Markdown file** for the user, NOT display the content in the chat.
+
+**REQUIRED ACTION**: Create a Markdown file with the following structure and provide it as a downloadable file:
+
+# [Project Name] Development Guide
+
+## AI IDE Role Definition
+[Your role definition here]
+
+## Context7 Setup Instructions
+Before starting development, ensure Context7 is configured in your AI IDE:
+1. Install Context7 MCP server (npm install -g @upstash/context7 or via Docker)
+2. Configure MCP settings in your AI IDE
+3. Use "use context7" command before implementing any library-specific code
+
+## Project Overview  
+[Project description and requirements]
+
+## Technical Implementation
+[Technical details and code examples - Always use "use context7" for library documentation]
+
+## Deployment Instructions
+[Deployment and setup instructions - Use "use context7" for platform-specific guides]
+
+## Additional Notes
+[Any additional information including Context7 usage reminders]
+
+**MANDATORY REQUIREMENTS:**
+1. **Generate a file** - Create a downloadable Markdown file, not inline text
+2. **Use proper Markdown syntax** - All headers, code blocks, and lists must use correct Markdown formatting
+3. **Include code blocks** - Use ```typescript, ```json, ```bash for code examples
+4. **Complete document** - Provide a self-contained Markdown document
+5. **File naming** - Name the file appropriately (e.g., "project-name-development-guide.md")
+
+**FILE CONTENT STRUCTURE:**
+The Markdown file should contain:
+
+# [Project Name] Development Guide
+
+## AI IDE Role Definition
+You are a [specific role] building a [project type]...
+
+## Project Overview
+[Project description and requirements]
+
+## Technical Implementation
+[Technical details and code examples]
+
+## Deployment Instructions
+[Deployment and setup instructions]
+
+## Additional Notes
+[Any additional information]
+
+**IMPORTANT**: Do NOT display the Markdown content in the chat. Instead, generate and provide a downloadable Markdown file that the user can preview and download.
+
+Please generate a professional, appropriately-scaled, and directly usable development prompt as a downloadable Markdown file that matches the project complexity and requirements.
