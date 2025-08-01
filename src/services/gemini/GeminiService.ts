@@ -27,7 +27,7 @@ export class GeminiService {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
   }
 
   static getInstance(): GeminiService {
@@ -49,7 +49,7 @@ export class GeminiService {
         };
       }
       
-      const visionModel = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+      const visionModel = this.genAI.getGenerativeModel({ model: "gemini-2.0-flash-exp" });
 
       const prompt = `
         请仔细分析这份医疗文档，提取以下信息并以JSON格式返回。请确保信息准确，如果无法确定某些信息，请标注为null。
