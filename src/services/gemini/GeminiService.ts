@@ -27,7 +27,7 @@ export class GeminiService {
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
-    this.model = this.genAI.getGenerativeModel({ model: "gemini-pro" });
+    this.model = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
   }
 
   static getInstance(): GeminiService {
@@ -49,7 +49,7 @@ export class GeminiService {
         };
       }
       
-      const visionModel = this.genAI.getGenerativeModel({ model: "gemini-pro-vision" });
+      const visionModel = this.genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
 
       const prompt = `
         请仔细分析这份医疗文档，提取以下信息并以JSON格式返回。请确保信息准确，如果无法确定某些信息，请标注为null。
@@ -260,9 +260,13 @@ export class GeminiService {
         };
       }
 
+      console.log('正在调用Gemini API生成健康建议...');
+      
       const result = await this.model.generateContent(prompt);
       const response = result.response;
       const advice = response.text().trim();
+
+      console.log('Gemini API响应成功');
 
       return {
         success: true,
@@ -272,9 +276,20 @@ export class GeminiService {
 
     } catch (error: any) {
       console.error('Gemini health advice generation error:', error);
+      
+      // 提供更友好的错误信息
+      let errorMessage = '生成健康建议失败';
+      if (error.message?.includes('404')) {
+        errorMessage = 'Gemini模型不可用，请检查API配置';
+      } else if (error.message?.includes('403')) {
+        errorMessage = 'API密钥无权限访问Gemini服务';
+      } else if (error.message?.includes('400')) {
+        errorMessage = '请求格式错误';
+      }
+      
       return {
         success: false,
-        error: error.message || '生成健康建议失败'
+        error: errorMessage
       };
     }
   }

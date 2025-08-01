@@ -1166,29 +1166,29 @@ const App: React.FC = () => {
                         {/* 显示具体数据 */}
                         {record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitalSigns && (
                           <View style={styles.vitalSignsData}>
-                            {record.recordData.vitalSigns.heartRate && (
+                            {record.recordData.vitalSigns.heartRate ? (
                               <Text style={styles.vitalSignItem}>心率: {record.recordData.vitalSigns.heartRate} bpm</Text>
-                            )}
-                            {record.recordData.vitalSigns.temperature && (
+                            ) : null}
+                            {record.recordData.vitalSigns.temperature ? (
                               <Text style={styles.vitalSignItem}>体温: {record.recordData.vitalSigns.temperature}°C</Text>
-                            )}
-                            {record.recordData.vitalSigns.weight && (
+                            ) : null}
+                            {record.recordData.vitalSigns.weight ? (
                               <Text style={styles.vitalSignItem}>体重: {record.recordData.vitalSigns.weight} kg</Text>
-                            )}
-                            {record.recordData.vitalSigns.height && (
+                            ) : null}
+                            {record.recordData.vitalSigns.height ? (
                               <Text style={styles.vitalSignItem}>身高: {record.recordData.vitalSigns.height} cm</Text>
-                            )}
-                            {record.recordData.vitalSigns.bloodPressure && (
+                            ) : null}
+                            {record.recordData.vitalSigns.bloodPressure ? (
                               <Text style={styles.vitalSignItem}>
                                 血压: {record.recordData.vitalSigns.bloodPressure.systolic}/{record.recordData.vitalSigns.bloodPressure.diastolic} mmHg
                               </Text>
-                            )}
-                            {record.recordData.vitalSigns.bloodSugar && (
+                            ) : null}
+                            {record.recordData.vitalSigns.bloodSugar ? (
                               <Text style={styles.vitalSignItem}>血糖: {record.recordData.vitalSigns.bloodSugar} mg/dL</Text>
-                            )}
-                            {record.recordData.vitalSigns.oxygenSaturation && (
+                            ) : null}
+                            {record.recordData.vitalSigns.oxygenSaturation ? (
                               <Text style={styles.vitalSignItem}>血氧: {record.recordData.vitalSigns.oxygenSaturation}%</Text>
-                            )}
+                            ) : null}
                           </View>
                         )}
                         
