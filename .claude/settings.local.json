@@ -1,4 +1,5 @@
 {
+  "$schema": "https://json.schemastore.org/claude-code-settings.json",
   "permissions": {
     "allow": [
       "Bash(mkdir:*)",
@@ -22,7 +23,21 @@
       "Bash(npm test:*)",
       "Bash(npm run type-check:*)",
       "Bash(node:*)",
-      "Bash(npx webpack serve:*)"
+      "Bash(npx webpack serve:*)",
+      "Bash(dir)",
+      "Bash(mv:*)",
+      "Bash(taskkill:*)",
+      "Bash(cmd //c:*)",
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(powershell:*)",
+      "Bash(touch:*)",
+      "Bash(npx eslint:*)",
+      "Bash(npx tsc:*)",
+      "Bash(npx @babel/parser:*)",
+      "Bash(timeout 10 npx webpack:*)",
+      "Bash(npx webpack:*)",
+      "Bash(timeout 5 npm run web)"
     ],
     "deny": []
   }

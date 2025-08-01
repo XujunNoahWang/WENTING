@@ -120,11 +120,12 @@ const App: React.FC = () => {
               setIsLoggedIn(true);
               setCurrentScreen('home');
               
-              // 本地存储用户信息
+              // 存储用户信息
               localStorage.setItem('wenting_user', JSON.stringify({
                 uid: user.uid,
                 email: user.email,
                 displayName: user.displayName,
+                fullName: user.displayName,
                 photoURL: user.photoURL,
                 emailVerified: user.emailVerified,
                 provider: user.photoURL ? 'google' : 'email',
@@ -140,31 +141,16 @@ const App: React.FC = () => {
           
           return unsubscribe;
         } else {
-          // Firebase 初始化失败，使用本地存储检查
-          console.warn('Firebase 未初始化，使用本地模式');
-          checkStoredUser();
+          // Firebase 初始化失败
+          console.error('Firebase 未初始化，无法使用应用功能');
+          setLoading(false);
         }
       } catch (error) {
         console.error('Firebase 初始化错误:', error);
-        checkStoredUser();
+        setLoading(false);
       }
     };
 
-    const checkStoredUser = () => {
-      try {
-        const storedUser = localStorage.getItem('wenting_user');
-        if (storedUser) {
-          const userData = JSON.parse(storedUser);
-          setUsername(userData.displayName || userData.email || 'User');
-          setIsLoggedIn(true);
-          setCurrentScreen('home');
-        }
-        setLoading(false);
-      } catch (error) {
-        console.error('检查存储用户失败:', error);
-        setLoading(false);
-      }
-    };
 
     initFirebase();
   }, []);
@@ -179,27 +165,20 @@ const App: React.FC = () => {
   // 加载用户的家庭列表
   const loadHouseholds = async () => {
     try {
-      const storedHouseholds = localStorage.getItem('wenting_households');
+      // 从Firebase加载家庭数据
       const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
       
+      if (!currentUser.uid) {
+        console.warn('用户未登录或没有用户ID');
+        return;
+      }
+
+      // 这里应该调用Firebase API获取用户的家庭列表
+      // 暂时使用本地存储作为缓存，但数据应该来自Firebase
+      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
+      
       if (storedHouseholds) {
-        const allHouseholds = JSON.parse(storedHouseholds);
-        // 改进用户匹配逻辑 - 使用更精确的匹配
-        const userIdentifier = currentUser.email || currentUser.username;
-        const userHouseholds = allHouseholds.filter((h: any) => {
-          // 检查是否是创建者
-          if (h.createdBy === userIdentifier) return true;
-          
-          // 检查是否是成员（优先使用email匹配）
-          if (h.members?.some((m: any) => {
-            if (m.email && currentUser.email) {
-              return m.email.toLowerCase() === currentUser.email.toLowerCase();
-            }
-            return m.name === (currentUser.fullName || currentUser.displayName || currentUser.username);
-          })) return true;
-          
-          return false;
-        });
+        const userHouseholds = JSON.parse(storedHouseholds);
         setHouseholds(userHouseholds);
         
         // 如果有家庭，设置第一个为当前家庭
@@ -217,10 +196,17 @@ const App: React.FC = () => {
   const loadHouseholdMembers = async (householdId: string) => {
     try {
       console.log('加载家庭成员，householdId:', householdId);
-      const storedHouseholds = localStorage.getItem('wenting_households');
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      
+      if (!currentUser.uid) {
+        console.warn('用户未登录');
+        return;
+      }
+
+      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
       if (storedHouseholds) {
         const allHouseholds = JSON.parse(storedHouseholds);
-        console.log('所有家庭数据:', allHouseholds);
+        console.log('用户家庭数据:', allHouseholds);
         const household = allHouseholds.find((h: any) => h.id === householdId);
         console.log('找到的家庭:', household);
         if (household && household.members) {
@@ -248,15 +234,18 @@ const App: React.FC = () => {
 
     // 检查用户是否已经创建过家庭
     const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-    const storedHouseholds = localStorage.getItem('wenting_households');
+    
+    if (!currentUser.uid) {
+      alert('错误：用户未登录');
+      return;
+    }
+
+    const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
     if (storedHouseholds) {
-      const allHouseholds = JSON.parse(storedHouseholds);
-      const userCreatedHouseholds = allHouseholds.filter((h: any) => 
-        h.createdBy === (currentUser.username || currentUser.email)
-      );
+      const userHouseholds = JSON.parse(storedHouseholds);
       
-      if (userCreatedHouseholds.length > 0) {
-        Alert.alert('提示', '您已经创建过家庭了。每个用户只能创建一个家庭。');
+      if (userHouseholds.length > 0) {
+        alert('提示：您已经创建过家庭了。每个用户只能创建一个家庭。');
         setShowCreateHousehold(false);
         return;
       }
@@ -270,11 +259,11 @@ const App: React.FC = () => {
         id: householdId,
         name: householdForm.name.trim(),
         description: householdForm.description.trim(),
-        createdBy: currentUser.username || currentUser.email,
+        createdBy: currentUser.uid,
         createdAt: new Date().toISOString(),
         members: [{
           id: `member_${Date.now()}`,
-          name: currentUser.fullName || currentUser.displayName || currentUser.username || currentUser.email,
+          name: currentUser.displayName || currentUser.fullName || currentUser.email,
           email: currentUser.email || '',
           phone: '',
           relationship: '户主',
@@ -283,11 +272,9 @@ const App: React.FC = () => {
         }]
       };
 
-      // 保存到本地存储
-      const storedHouseholds = localStorage.getItem('wenting_households');
-      const allHouseholds = storedHouseholds ? JSON.parse(storedHouseholds) : [];
-      allHouseholds.push(newHousehold);
-      localStorage.setItem('wenting_households', JSON.stringify(allHouseholds));
+      // 保存到用户特定的本地存储
+      const userHouseholds = [newHousehold];
+      localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(userHouseholds));
 
       // 更新状态
       setHouseholds([...households, newHousehold]);
@@ -298,13 +285,14 @@ const App: React.FC = () => {
       setHouseholdForm({ name: '', description: '' });
       setShowCreateHousehold(false);
       
-      Alert.alert('成功', '家庭创建成功！');
+      alert('成功：家庭创建成功！');
       
-      // 尝试使用Firebase创建（如果可用）
+      // 同步到Firebase
       try {
-        await firebaseWebAuthService.createTestHousehold(currentUser.uid || currentUser.username);
+        await firebaseWebAuthService.createTestHousehold(currentUser.uid);
+        console.log('家庭数据已同步到Firebase');
       } catch (error) {
-        console.log('Firebase创建家庭失败，使用本地模式');
+        console.warn('Firebase同步失败，数据仅保存在本地:', error);
       }
       
     } catch (error) {
@@ -374,14 +362,15 @@ const App: React.FC = () => {
       };
 
       // 更新本地存储
-      const storedHouseholds = localStorage.getItem('wenting_households');
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
       const allHouseholds = JSON.parse(storedHouseholds || '[]');
       const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
       
       if (householdIndex !== -1) {
         // 更新本地存储
         allHouseholds[householdIndex].members.push(newMember);
-        localStorage.setItem('wenting_households', JSON.stringify(allHouseholds));
+        localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
         
         // 更新状态
         const updatedMembers = [...householdMembers, newMember];
@@ -398,13 +387,13 @@ const App: React.FC = () => {
         setShowAddMember(false);
         
         
-        Alert.alert('成功', '家庭成员添加成功！');
+        alert('成功：家庭成员添加成功！');
       } else {
-        Alert.alert('错误', '找不到当前家庭，请刷新页面重试');
+        alert('错误：找不到当前家庭，请刷新页面重试');
       }
     } catch (error) {
       console.error('添加成员失败:', error);
-      Alert.alert('错误', '添加成员失败，请重试');
+      alert('错误：添加成员失败，请重试');
     }
     setLoading(false);
   };
@@ -458,7 +447,8 @@ const App: React.FC = () => {
       };
 
       // 更新本地存储
-      const storedHouseholds = localStorage.getItem('wenting_households');
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
       const allHouseholds = JSON.parse(storedHouseholds || '[]');
       const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
       
@@ -466,7 +456,7 @@ const App: React.FC = () => {
         const memberIndex = allHouseholds[householdIndex].members.findIndex((m: any) => m.id === editingMember.id);
         if (memberIndex !== -1) {
           allHouseholds[householdIndex].members[memberIndex] = updatedMember;
-          localStorage.setItem('wenting_households', JSON.stringify(allHouseholds));
+          localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
           
           // 更新状态
           const updatedMembers = householdMembers.map((m: HouseholdMember) => 
@@ -489,16 +479,16 @@ const App: React.FC = () => {
           setEditingMember(null);
           setShowAddMember(false);
           
-          Alert.alert('成功', '成员信息更新成功！');
+          alert('成功：成员信息更新成功！');
         } else {
-          Alert.alert('错误', '找不到要更新的成员');
+          alert('错误：找不到要更新的成员');
         }
       } else {
-        Alert.alert('错误', '找不到当前家庭');
+        alert('错误：找不到当前家庭');
       }
     } catch (error) {
       console.error('更新成员失败:', error);
-      Alert.alert('错误', '更新成员失败，请重试');
+      alert('错误：更新成员失败，请重试');
     }
     setLoading(false);
   };
@@ -530,9 +520,10 @@ const App: React.FC = () => {
       console.log('开始删除成员:', memberToDelete.name);
 
       // 更新本地存储
-      const storedHouseholds = localStorage.getItem('wenting_households');
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
       const allHouseholds = JSON.parse(storedHouseholds || '[]');
-      console.log('从存储加载的所有家庭:', allHouseholds);
+      console.log('从存储加载的用户家庭:', allHouseholds);
       
       const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
       console.log('找到的家庭索引:', householdIndex);
@@ -553,7 +544,7 @@ const App: React.FC = () => {
           return;
         }
         
-        localStorage.setItem('wenting_households', JSON.stringify(allHouseholds));
+        localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
         console.log('本地存储更新完成');
         
         // 更新状态
@@ -593,7 +584,7 @@ const App: React.FC = () => {
   // 用户登录验证
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
-      Alert.alert('错误', '请输入用户名和密码');
+      alert('错误：请输入用户名和密码');
       return;
     }
 
@@ -607,51 +598,16 @@ const App: React.FC = () => {
         setUsername(result.user.displayName || result.user.email || 'User');
         setIsLoggedIn(true);
         setCurrentScreen('home');
-        Alert.alert('成功', `欢迎回来！`);
+        alert('成功：欢迎回来！');
       } else {
-        // Firebase 登录失败，尝试本地登录（演示模式）
-        await handleLocalLogin();
+        alert(`登录失败：${result.error || '请检查用户名和密码'}`);
       }
     } catch (error) {
       console.error('Firebase 登录错误:', error);
-      // 退回到本地登录
-      await handleLocalLogin();
+      alert('登录失败：网络错误或服务不可用，请稍后重试');
     }
     
     setLoading(false);
-  };
-
-  // 本地登录（演示模式）
-  const handleLocalLogin = async () => {
-    // 检查预设账号或已注册用户
-    const users = JSON.parse(localStorage.getItem('wenting_users') || '[]');
-    const predefinedUsers = [
-      { username: 'admin', password: '123456', fullName: '管理员', email: 'admin@wenting.com' },
-      { username: 'demo', password: 'demo123', fullName: '演示用户', email: 'demo@wenting.com' }
-    ];
-    
-    const allUsers = [...predefinedUsers, ...users];
-    const user = allUsers.find((u: any) => 
-      (u.username?.toLowerCase() === username.toLowerCase() || u.email?.toLowerCase() === username.toLowerCase()) 
-      && u.password === password
-    );
-
-    if (user) {
-      // 存储用户会话
-      localStorage.setItem('wenting_user', JSON.stringify({
-        username: user.username || user.email,
-        fullName: user.fullName,
-        email: user.email,
-        loginTime: new Date().toISOString(),
-        mode: 'local'
-      }));
-      
-      setIsLoggedIn(true);
-      setCurrentScreen('home');
-      Alert.alert('成功', `欢迎回来，${user.fullName}！\n\n注意：使用本地演示模式`);
-    } else {
-      Alert.alert('错误', '用户名或密码不正确\n\n可以尝试：\n1. 使用有效邮箱注册 Firebase 账户\n2. 使用演示账号：\n   - 用户名：admin 密码：123456\n   - 用户名：demo 密码：demo123');
-    }
   };
 
   // 用户注册
@@ -659,17 +615,17 @@ const App: React.FC = () => {
     const { fullName, email, password, confirmPassword } = registerForm;
     
     if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
-      Alert.alert('错误', '请填写所有字段');
+      alert('错误：请填写所有字段');
       return;
     }
 
     if (password !== confirmPassword) {
-      Alert.alert('错误', '密码确认不匹配');
+      alert('错误：密码确认不匹配');
       return;
     }
 
     if (password.length < 6) {
-      Alert.alert('错误', '密码长度至少6位');
+      alert('错误：密码长度至少6位');
       return;
     }
 
@@ -691,63 +647,16 @@ const App: React.FC = () => {
         setIsLoggedIn(true);
         setCurrentScreen('home');
         setShowRegister(false);
-        Alert.alert('成功', '注册成功！欢迎使用 WENTING Firebase 版本\n\n用户数据已保存到 Firestore');
+        alert('成功：注册成功！欢迎使用 WENTING');
       } else {
-        // Firebase 注册失败，尝试本地注册
-        await handleLocalRegister();
+        alert(`注册失败：${result.error || '请检查网络连接'}`);
       }
     } catch (error) {
       console.error('Firebase 注册错误:', error);
-      await handleLocalRegister();
+      alert('注册失败：网络错误或服务不可用，请稍后重试');
     }
     
     setLoading(false);
-  };
-
-  // 本地注册（演示模式）
-  const handleLocalRegister = async () => {
-    const { fullName, email } = registerForm;
-    
-    try {
-      // 检查用户是否已存在
-      const users = JSON.parse(localStorage.getItem('wenting_users') || '[]');
-      const existingUser = users.find((u: any) => u.email.toLowerCase() === email.toLowerCase());
-      
-      if (existingUser) {
-        Alert.alert('错误', '该邮箱已被本地注册');
-        return;
-      }
-
-      // 添加新用户
-      const newUser = {
-        id: Date.now().toString(),
-        fullName,
-        email,
-        username: email.split('@')[0],
-        password: registerForm.password,
-        createdAt: new Date().toISOString()
-      };
-
-      users.push(newUser);
-      localStorage.setItem('wenting_users', JSON.stringify(users));
-
-      // 自动登录
-      localStorage.setItem('wenting_user', JSON.stringify({
-        username: newUser.username,
-        fullName: newUser.fullName,
-        email: newUser.email,
-        loginTime: new Date().toISOString(),
-        mode: 'local'
-      }));
-
-      setUsername(newUser.username);
-      setIsLoggedIn(true);
-      setCurrentScreen('home');
-      setShowRegister(false);
-      Alert.alert('成功', '本地注册成功！欢迎使用 WENTING 演示模式');
-    } catch (error) {
-      Alert.alert('错误', '注册失败，请重试');
-    }
   };
 
   // Google 登录
@@ -762,35 +671,16 @@ const App: React.FC = () => {
         setUsername(result.user.displayName || result.user.email || 'Google User');
         setIsLoggedIn(true);
         setCurrentScreen('home');
-        Alert.alert('成功', 'Google 登录成功！');
+        alert('成功：Google 登录成功！');
       } else {
-        // Firebase Google 登录失败，使用模拟登录
-        await handleMockGoogleLogin();
+        alert(`Google登录失败：${result.error || 'Google服务不可用'}`);
       }
     } catch (error) {
       console.error('Firebase Google 登录错误:', error);
-      await handleMockGoogleLogin();
+      alert('Google登录失败：请检查网络连接或稍后重试');
     }
     
     setLoading(false);
-  };
-
-  // 模拟 Google 登录（演示模式）
-  const handleMockGoogleLogin = async () => {
-    const googleUser = {
-      username: 'google_user',
-      fullName: 'Google 演示用户',
-      email: 'demo@gmail.com',
-      loginTime: new Date().toISOString(),
-      provider: 'google',
-      mode: 'local'
-    };
-
-    localStorage.setItem('wenting_user', JSON.stringify(googleUser));
-    setUsername(googleUser.fullName);
-    setIsLoggedIn(true);
-    setCurrentScreen('home');
-    Alert.alert('成功', 'Google 登录成功！\n\n注意：使用演示模式');
   };
 
   const handleLogout = async () => {
@@ -928,13 +818,6 @@ const App: React.FC = () => {
               </Text>
             </TouchableOpacity>
 
-            {!showRegister && (
-              <View style={styles.demoInfo}>
-                <Text style={styles.demoTitle}>演示账号</Text>
-                <Text style={styles.demoText}>管理员 - 用户名：admin 密码：123456</Text>
-                <Text style={styles.demoText}>演示用户 - 用户名：demo 密码：demo123</Text>
-              </View>
-            )}
           </View>
         </ScrollView>
       );
@@ -1594,25 +1477,6 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 18,
     fontWeight: '600',
-  },
-  demoInfo: {
-    marginTop: 24,
-    padding: 16,
-    backgroundColor: '#f0f8ff',
-    borderRadius: 8,
-    borderLeftWidth: 4,
-    borderLeftColor: COLORS.PRIMARY,
-  },
-  demoTitle: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: COLORS.PRIMARY,
-    marginBottom: 8,
-  },
-  demoText: {
-    fontSize: 14,
-    color: '#666',
-    marginBottom: 4,
   },
   googleButton: {
     backgroundColor: '#fff',
