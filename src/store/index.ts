@@ -1,7 +1,22 @@
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import { persistStore, persistReducer } from 'redux-persist';
-import EncryptedStorage from 'react-native-encrypted-storage';
 import { TypedUseSelectorHook, useDispatch, useSelector } from 'react-redux';
+import { Platform } from 'react-native';
+
+// Platform-specific storage
+let storage: any;
+if (Platform.OS === 'web') {
+  // Use localStorage for web
+  storage = {
+    getItem: (key: string) => Promise.resolve(localStorage.getItem(key)),
+    setItem: (key: string, value: string) => Promise.resolve(localStorage.setItem(key, value)),
+    removeItem: (key: string) => Promise.resolve(localStorage.removeItem(key)),
+  };
+} else {
+  // Use EncryptedStorage for mobile
+  const EncryptedStorage = require('react-native-encrypted-storage').default;
+  storage = EncryptedStorage;
+}
 
 // Import slices
 import authReducer from './slices/authSlice';
@@ -9,7 +24,7 @@ import authReducer from './slices/authSlice';
 // Persist configuration
 const persistConfig = {
   key: 'root',
-  storage: EncryptedStorage,
+  storage: storage,
   whitelist: ['auth'], // Only persist auth state
   blacklist: [], // Don't persist these slices
 };

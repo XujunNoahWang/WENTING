@@ -1,7 +1,7 @@
 import { Platform } from 'react-native';
-import { firebaseAuthService } from '@config/firebase';
-import { User, Household, HouseholdMember, HealthRecord, HealthCalendarEvent, UserRole, ApiResponse } from '@types/index';
-import { EncryptionManager } from '@utils/encryption/EncryptionManager';
+import { firebaseAuthService } from '../../config/firebase';
+import { User, Household, HouseholdMember, HealthRecord, HealthCalendarEvent, UserRole, ApiResponse } from '../../types/index';
+import { EncryptionManager } from '../../utils/encryption/EncryptionManager';
 import DatabaseService from './DatabaseService';
 
 export class FirebaseDatabaseService {

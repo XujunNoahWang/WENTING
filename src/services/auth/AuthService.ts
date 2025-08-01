@@ -1,11 +1,11 @@
 import { Platform } from 'react-native';
 import TouchID from 'react-native-touch-id';
 import EncryptedStorage from 'react-native-encrypted-storage';
-import { User, LoginForm, RegisterForm, ApiResponse } from '@types/index';
-import { SECURITY_CONFIG, STORAGE_KEYS, ERROR_MESSAGES } from '@constants/index';
-import DatabaseService from '@services/database/DatabaseService';
-import { EncryptionManager } from '@utils/encryption/EncryptionManager';
-import { firebaseAuthService } from '@config/firebase';
+import { User, LoginForm, RegisterForm, ApiResponse } from '../../types/index';
+import { SECURITY_CONFIG, STORAGE_KEYS, ERROR_MESSAGES } from '../../constants/index';
+import FirebaseDatabaseService from '../database/FirebaseDatabaseService';
+import { EncryptionManager } from '../../utils/encryption/EncryptionManager';
+import { firebaseAuthService } from '../../config/firebase';
 
 export class AuthService {
   private static instance: AuthService;
@@ -28,19 +28,32 @@ export class AuthService {
    */
   private async initializeServices(): Promise<void> {
     try {
+      // Check if firebaseAuthService is available
+      if (!firebaseAuthService || typeof firebaseAuthService.initialize !== 'function') {
+        console.warn('Firebase auth service not available, some features may not work');
+        return;
+      }
+      
       // Initialize Firebase auth service
-      await firebaseAuthService.initialize();
+      const initialized = await firebaseAuthService.initialize();
+      if (!initialized) {
+        console.warn('Firebase initialization failed, some features may not work');
+      }
       
       // Initialize Google Sign-In for React Native
       if (Platform.OS !== 'web') {
-        const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
-        GoogleSignin.configure({
-          webClientId: process.env.GOOGLE_WEB_CLIENT_ID,
-          iosClientId: process.env.GOOGLE_IOS_CLIENT_ID,
-          offlineAccess: true,
-          hostedDomain: '',
-          forceCodeForRefreshToken: true,
-        });
+        try {
+          const { GoogleSignin } = await import('@react-native-google-signin/google-signin');
+          GoogleSignin.configure({
+            webClientId: process.env.GOOGLE_WEB_CLIENT_ID,
+            iosClientId: process.env.GOOGLE_IOS_CLIENT_ID,
+            offlineAccess: true,
+            hostedDomain: '',
+            forceCodeForRefreshToken: true,
+          });
+        } catch (googleError) {
+          console.warn('Google Sign-In configuration failed:', googleError);
+        }
       }
     } catch (error) {
       console.error('Service initialization error:', error);
@@ -60,7 +73,14 @@ export class AuthService {
         };
       }
 
-      // Use Firebase auth service
+      // Use Firebase auth service (with safety check)
+      if (!firebaseAuthService || typeof firebaseAuthService.signInWithEmail !== 'function') {
+        return {
+          success: false,
+          error: 'Firebase服务不可用'
+        };
+      }
+      
       const firebaseResult = await firebaseAuthService.signInWithEmail(email, password);
       
       if (!firebaseResult.success || !firebaseResult.user) {
@@ -72,7 +92,7 @@ export class AuthService {
       }
 
       // Get user from database
-      let user = await DatabaseService.getUserByEmail(email);
+      let user = await FirebaseDatabaseService.getUserByEmail(email);
 
       if (!user) {
         // Create user in database if doesn't exist
@@ -107,6 +127,16 @@ export class AuthService {
    */
   async signInWithPhoneNumber(phoneNumber: string): Promise<ApiResponse<any>> {
     try {
+      // Phone number authentication is not supported in Web environment
+      if (Platform.OS === 'web') {
+        return {
+          success: false,
+          error: 'Web环境不支持手机号登录，请使用邮箱或Google登录'
+        };
+      }
+
+      // For React Native, use Firebase phone auth
+      const { default: auth } = await import('@react-native-firebase/auth');
       const confirmation = await auth().signInWithPhoneNumber(phoneNumber);
       
       return {
@@ -151,7 +181,7 @@ export class AuthService {
       }
 
       // Get or create user in database
-      let user = await DatabaseService.getUserById(firebaseUser.uid);
+      let user = await FirebaseDatabaseService.getUserById(firebaseUser.uid);
 
       if (!user) {
         user = await this.createUserInDatabase(firebaseUser);
@@ -199,7 +229,7 @@ export class AuthService {
       }
 
       // Get or create user in database
-      let user = await DatabaseService.getUserById(firebaseResult.user.uid);
+      let user = await FirebaseDatabaseService.getUserById(firebaseResult.user.uid);
 
       if (!user) {
         user = await this.createUserInDatabase(firebaseResult.user);
@@ -232,7 +262,7 @@ export class AuthService {
       const { email, password, fullName } = registerForm;
 
       // Check if user already exists
-      const existingUser = await DatabaseService.getUserByEmail(email!);
+      const existingUser = await FirebaseDatabaseService.getUserByEmail(email!);
       if (existingUser) {
         return {
           success: false,
@@ -330,7 +360,7 @@ export class AuthService {
       });
 
       // Update user biometric setting in database
-      await DatabaseService.updateUser(userId, { biometricEnabled: true });
+      await FirebaseDatabaseService.updateUser(userId, { biometricEnabled: true });
 
       // Store biometric preference
       await EncryptedStorage.setItem(STORAGE_KEYS.BIOMETRIC_ENABLED, 'true');
@@ -421,10 +451,12 @@ export class AuthService {
         return JSON.parse(userData);
       }
 
-      // Fallback to Firebase current user
-      const firebaseUser = firebaseAuthService.getCurrentUser();
-      if (firebaseUser) {
-        return await DatabaseService.getUserById(firebaseUser.uid);
+      // Fallback to Firebase current user (with safety check)
+      if (firebaseAuthService && typeof firebaseAuthService.getCurrentUser === 'function') {
+        const firebaseUser = firebaseAuthService.getCurrentUser();
+        if (firebaseUser) {
+          return await FirebaseDatabaseService.getUserById(firebaseUser.uid);
+        }
       }
 
       return null;
@@ -484,7 +516,7 @@ export class AuthService {
       biometricEnabled: false,
     };
 
-    await DatabaseService.createUser(user);
+    await FirebaseDatabaseService.createUser(user);
     
     return {
       ...user,

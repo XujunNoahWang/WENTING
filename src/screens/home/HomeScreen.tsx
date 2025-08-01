@@ -7,17 +7,18 @@ import {
   TouchableOpacity,
   Alert,
 } from 'react-native';
-import { useAppSelector, selectUser } from '@store/index';
+import { SafeAreaView } from 'react-native-safe-area-context';
+import { useAppSelector, selectUser } from '../../store/index';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 // Components
-import Button from '@components/common/Button';
+import Button from '../../components/common/Button';
 
 // Constants
-import { COLORS, FONTS, SPACING } from '@constants/index';
+import { COLORS, FONTS, SPACING } from '../../constants/index';
 
 // Services
-import GeminiService from '@services/gemini/GeminiService';
+import GeminiService from '../../services/gemini/GeminiService';
 
 const HomeScreen: React.FC = () => {
   const user = useAppSelector(selectUser);
@@ -79,7 +80,8 @@ const HomeScreen: React.FC = () => {
   ];
 
   return (
-    <ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
+    <SafeAreaView style={styles.container} edges={['top']}>
+      <ScrollView style={styles.scrollView} showsVerticalScrollIndicator={false}>
       {/* Header */}
       <View style={styles.header}>
         <View style={styles.welcomeSection}>
@@ -180,7 +182,8 @@ const HomeScreen: React.FC = () => {
       </View>
 
       <View style={styles.bottomSpacing} />
-    </ScrollView>
+      </ScrollView>
+    </SafeAreaView>
   );
 };
 
@@ -188,6 +191,9 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: COLORS.BACKGROUND,
+  },
+  scrollView: {
+    flex: 1,
   },
   header: {
     flexDirection: 'row',

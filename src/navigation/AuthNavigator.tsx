@@ -2,16 +2,16 @@ import React from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
 
 // Types
-import { RootStackParamList } from '@types/index';
+import { RootStackParamList } from '../types/index';
 
 // Screens
-import LoginScreen from '@screens/auth/LoginScreen';
-import RegisterScreen from '@screens/auth/RegisterScreen';
-import ForgotPasswordScreen from '@screens/auth/ForgotPasswordScreen';
-import PhoneVerificationScreen from '@screens/auth/PhoneVerificationScreen';
+import LoginScreen from '../screens/auth/LoginScreen';
+import RegisterScreen from '../screens/auth/RegisterScreen';
+import ForgotPasswordScreen from '../screens/auth/ForgotPasswordScreen';
+import PhoneVerificationScreen from '../screens/auth/PhoneVerificationScreen';
 
 // Constants
-import { COLORS } from '@constants/index';
+import { COLORS } from '../constants/index';
 
 const Stack = createStackNavigator<RootStackParamList>();
 

@@ -5,10 +5,10 @@ import {
   UserRole,
   ApiResponse,
   HouseholdForm,
-} from '@types/index';
-import DatabaseService from '@services/database/DatabaseService';
-import { EncryptionManager } from '@utils/encryption/EncryptionManager';
-import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@constants/index';
+} from '../../types/index';
+import FirebaseDatabaseService from '../database/FirebaseDatabaseService';
+import { EncryptionManager } from '../../utils/encryption/EncryptionManager';
+import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '../../constants/index';
 
 export class HouseholdService {
   private static instance: HouseholdService;
@@ -39,9 +39,22 @@ export class HouseholdService {
         createdBy,
       };
 
-      await DatabaseService.createHousehold(household);
+      // Create the household
+      await FirebaseDatabaseService.createHousehold(household);
 
-      const createdHousehold = await DatabaseService.getHouseholdById(householdId);
+      // Add the creator as the first member with admin role
+      const memberId = this.generateMemberId();
+      const creatorMember: Omit<HouseholdMember, 'user'> = {
+        id: memberId,
+        householdId,
+        userId: createdBy,
+        role: UserRole.ADMIN,
+        joinedAt: new Date().toISOString(),
+      };
+
+      await FirebaseDatabaseService.addHouseholdMember(creatorMember);
+
+      const createdHousehold = await FirebaseDatabaseService.getHouseholdById(householdId);
       
       if (!createdHousehold) {
         return {
@@ -70,7 +83,7 @@ export class HouseholdService {
    */
   async getUserHouseholds(userId: string): Promise<ApiResponse<Household[]>> {
     try {
-      const households = await DatabaseService.getUserHouseholds(userId);
+      const households = await FirebaseDatabaseService.getUserHouseholds(userId);
       
       return {
         success: true,
@@ -91,7 +104,7 @@ export class HouseholdService {
    */
   async getHouseholdById(householdId: string): Promise<ApiResponse<Household>> {
     try {
-      const household = await DatabaseService.getHouseholdById(householdId);
+      const household = await FirebaseDatabaseService.getHouseholdById(householdId);
       
       if (!household) {
         return {
@@ -119,7 +132,7 @@ export class HouseholdService {
    */
   async getHouseholdMembers(householdId: string): Promise<ApiResponse<HouseholdMember[]>> {
     try {
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       
       return {
         success: true,
@@ -146,7 +159,7 @@ export class HouseholdService {
   ): Promise<ApiResponse<string>> {
     try {
       // Check if inviter has admin privileges
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const inviter = members.find(m => m.userId === inviterUserId);
       
       if (!inviter || inviter.role !== UserRole.ADMIN) {
@@ -160,10 +173,10 @@ export class HouseholdService {
       let inviteeUser: User | null = null;
       
       if (inviteeIdentifier.includes('@')) {
-        inviteeUser = await DatabaseService.getUserByEmail(inviteeIdentifier);
+        inviteeUser = await FirebaseDatabaseService.getUserByEmail(inviteeIdentifier);
       } else {
         // Assume it's a phone number - would need a getUserByPhone method
-        // inviteeUser = await DatabaseService.getUserByPhone(inviteeIdentifier);
+        // inviteeUser = await FirebaseDatabaseService.getUserByPhone(inviteeIdentifier);
       }
 
       if (!inviteeUser) {
@@ -237,7 +250,7 @@ export class HouseholdService {
       }
 
       // Check if user is already a member
-      const members = await DatabaseService.getHouseholdMembers(invitation.householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(invitation.householdId);
       const existingMember = members.find(m => m.userId === userId);
       
       if (existingMember) {
@@ -257,10 +270,10 @@ export class HouseholdService {
         joinedAt: new Date().toISOString(),
       };
 
-      await DatabaseService.addHouseholdMember(newMember);
+      await FirebaseDatabaseService.addHouseholdMember(newMember);
 
       // Get the created member with user details
-      const updatedMembers = await DatabaseService.getHouseholdMembers(invitation.householdId);
+      const updatedMembers = await FirebaseDatabaseService.getHouseholdMembers(invitation.householdId);
       const createdMember = updatedMembers.find(m => m.id === memberId);
 
       if (!createdMember) {
@@ -295,7 +308,7 @@ export class HouseholdService {
   ): Promise<ApiResponse<void>> {
     try {
       // Check if current user is admin
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const adminMember = members.find(m => m.userId === adminUserId);
       
       if (!adminMember || adminMember.role !== UserRole.ADMIN) {
@@ -322,7 +335,7 @@ export class HouseholdService {
       }
 
       // Update user role in database
-      await DatabaseService.updateHouseholdMemberRole(targetMember.id, UserRole.ADMIN);
+      await FirebaseDatabaseService.updateHouseholdMemberRole(targetMember.id, UserRole.ADMIN);
 
       return {
         success: true,
@@ -348,7 +361,7 @@ export class HouseholdService {
   ): Promise<ApiResponse<void>> {
     try {
       // Check if current user is admin
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const adminMember = members.find(m => m.userId === adminUserId);
       
       if (!adminMember || adminMember.role !== UserRole.ADMIN) {
@@ -368,7 +381,7 @@ export class HouseholdService {
       }
 
       // Prevent removing the household creator (would need additional logic)
-      const household = await DatabaseService.getHouseholdById(householdId);
+      const household = await FirebaseDatabaseService.getHouseholdById(householdId);
       if (household && household.createdBy === targetUserId) {
         return {
           success: false,
@@ -377,7 +390,7 @@ export class HouseholdService {
       }
 
       // Remove user from household
-      await DatabaseService.removeHouseholdMember(targetMember.id);
+      await FirebaseDatabaseService.removeHouseholdMember(targetMember.id);
 
       return {
         success: true,
@@ -401,7 +414,7 @@ export class HouseholdService {
     userId: string
   ): Promise<ApiResponse<void>> {
     try {
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const userMember = members.find(m => m.userId === userId);
       
       if (!userMember) {
@@ -412,7 +425,7 @@ export class HouseholdService {
       }
 
       // Prevent household creator from leaving if there are other members
-      const household = await DatabaseService.getHouseholdById(householdId);
+      const household = await FirebaseDatabaseService.getHouseholdById(householdId);
       if (household && household.createdBy === userId && members.length > 1) {
         return {
           success: false,
@@ -421,7 +434,7 @@ export class HouseholdService {
       }
 
       // Remove user from household
-      await DatabaseService.removeHouseholdMember(userMember.id);
+      await FirebaseDatabaseService.removeHouseholdMember(userMember.id);
 
       return {
         success: true,
@@ -447,7 +460,7 @@ export class HouseholdService {
   ): Promise<ApiResponse<Household>> {
     try {
       // Check if current user is admin
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const adminMember = members.find(m => m.userId === adminUserId);
       
       if (!adminMember || adminMember.role !== UserRole.ADMIN) {
@@ -458,10 +471,10 @@ export class HouseholdService {
       }
 
       // Update household
-      await DatabaseService.updateHousehold(householdId, updates);
+      await FirebaseDatabaseService.updateHousehold(householdId, updates);
 
       // Get updated household
-      const updatedHousehold = await DatabaseService.getHouseholdById(householdId);
+      const updatedHousehold = await FirebaseDatabaseService.getHouseholdById(householdId);
       
       if (!updatedHousehold) {
         return {
@@ -490,7 +503,7 @@ export class HouseholdService {
    */
   async isHouseholdAdmin(householdId: string, userId: string): Promise<boolean> {
     try {
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const userMember = members.find(m => m.userId === userId);
       
       return userMember?.role === UserRole.ADMIN;
@@ -505,7 +518,7 @@ export class HouseholdService {
    */
   async getUserRoleInHousehold(householdId: string, userId: string): Promise<UserRole | null> {
     try {
-      const members = await DatabaseService.getHouseholdMembers(householdId);
+      const members = await FirebaseDatabaseService.getHouseholdMembers(householdId);
       const userMember = members.find(m => m.userId === userId);
       
       return userMember?.role || null;

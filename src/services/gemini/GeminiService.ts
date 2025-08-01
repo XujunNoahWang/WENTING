@@ -15,9 +15,15 @@ export class GeminiService {
   private model: any;
 
   private constructor() {
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
     if (!apiKey) {
-      throw new Error('Gemini API key not configured');
+      console.warn('Gemini API key not configured, health analysis features will be limited');
+      // Create a mock instance to prevent crashes
+      this.genAI = null as any;
+      this.model = {
+        generateContent: () => Promise.reject(new Error('Gemini API not configured'))
+      };
+      return;
     }
 
     this.genAI = new GoogleGenerativeAI(apiKey);
@@ -36,6 +42,13 @@ export class GeminiService {
    */
   async analyzeHealthDocument(imageBase64: string): Promise<ApiResponse<HealthDocumentAnalysis>> {
     try {
+      if (!this.genAI) {
+        return {
+          success: false,
+          error: 'Gemini API not configured'
+        };
+      }
+      
       const visionModel = this.genAI.getGenerativeModel({ model: "gemini-pro-vision" });
 
       const prompt = `

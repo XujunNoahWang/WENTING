@@ -8,7 +8,7 @@ import {
   AIProcessedData,
   HealthDocumentAnalysis,
 } from '@types/index';
-import DatabaseService from '@services/database/DatabaseService';
+import FirebaseFirebaseDatabaseService from '@services/database/FirebaseFirebaseDatabaseService';
 import { EncryptionManager } from '@utils/encryption/EncryptionManager';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@constants/index';
 
@@ -66,7 +66,7 @@ export class HealthRecordService {
       };
 
       // Save to database with encryption
-      await DatabaseService.createHealthRecord(healthRecord, encryptionKey);
+      await FirebaseDatabaseService.createHealthRecord(healthRecord, encryptionKey);
 
       // Retrieve the created record
       const createdRecord = await this.getHealthRecordById(recordId, createdByUserId, userRole);
@@ -105,7 +105,7 @@ export class HealthRecordService {
       // Generate encryption key for this user
       const encryptionKey = EncryptionManager.generateUserKey(userId);
 
-      const records = await DatabaseService.getHealthRecords(
+      const records = await FirebaseDatabaseService.getHealthRecords(
         householdId,
         userId,
         userRole,
@@ -137,7 +137,7 @@ export class HealthRecordService {
     try {
       // Get the record first to check permissions
       const encryptionKey = EncryptionManager.generateUserKey(userId);
-      const record = await DatabaseService.getHealthRecordById(recordId, encryptionKey);
+      const record = await FirebaseDatabaseService.getHealthRecordById(recordId, encryptionKey);
 
       if (!record) {
         return {
@@ -197,7 +197,7 @@ export class HealthRecordService {
 
       // Update the record
       const encryptionKey = EncryptionManager.generateUserKey(existingRecord.data.userId);
-      await DatabaseService.updateHealthRecord(recordId, updates, encryptionKey);
+      await FirebaseDatabaseService.updateHealthRecord(recordId, updates, encryptionKey);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, userRole);
@@ -246,7 +246,7 @@ export class HealthRecordService {
       }
 
       // Delete the record
-      await DatabaseService.deleteHealthRecord(recordId);
+      await FirebaseDatabaseService.deleteHealthRecord(recordId);
 
       return {
         success: true,
@@ -288,7 +288,7 @@ export class HealthRecordService {
 
       // Update verification status
       const encryptionKey = EncryptionManager.generateUserKey(userId);
-      await DatabaseService.verifyHealthRecord(recordId, verified);
+      await FirebaseDatabaseService.verifyHealthRecord(recordId, verified);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, UserRole.MEMBER);
@@ -335,7 +335,7 @@ export class HealthRecordService {
 
       // Update the record with AI data
       const encryptionKey = EncryptionManager.generateUserKey(existingRecord.data.userId);
-      await DatabaseService.updateHealthRecordAIData(recordId, aiProcessedData, encryptionKey);
+      await FirebaseDatabaseService.updateHealthRecordAIData(recordId, aiProcessedData, encryptionKey);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, UserRole.MEMBER);

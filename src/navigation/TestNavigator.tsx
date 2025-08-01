@@ -3,6 +3,12 @@ import { createStackNavigator } from '@react-navigation/stack';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 
+// Import actual screens
+import HealthRecordsScreen from '@screens/health/HealthRecordsScreen';
+import HouseholdScreen from '@screens/household/HouseholdScreen';
+import CalendarScreen from '@screens/calendar/CalendarScreen';
+import SettingsScreen from '@screens/settings/SettingsScreen';
+
 const Stack = createStackNavigator();
 
 // Home screen with menu options
@@ -39,28 +45,10 @@ const TestHomeScreen: React.FC = () => {
   );
 };
 
-// Health Records Screen
-const HealthScreen: React.FC = () => {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.screenTitle}>健康记录</Text>
-      <Text style={styles.screenContent}>这里将显示健康记录功能</Text>
-    </View>
-  );
-};
+// We'll use the actual screens imported above
 
-// Family Members Screen
-const FamilyScreen: React.FC = () => {
-  return (
-    <View style={styles.screenContainer}>
-      <Text style={styles.screenTitle}>家庭成员</Text>
-      <Text style={styles.screenContent}>这里将显示家庭成员管理功能</Text>
-    </View>
-  );
-};
-
-// Calendar Screen
-const CalendarScreen: React.FC = () => {
+// Placeholder screens for Calendar and Settings
+const TestCalendarScreen: React.FC = () => {
   return (
     <View style={styles.screenContainer}>
       <Text style={styles.screenTitle}>日历提醒</Text>
@@ -69,8 +57,7 @@ const CalendarScreen: React.FC = () => {
   );
 };
 
-// Settings Screen
-const SettingsScreen: React.FC = () => {
+const TestSettingsScreen: React.FC = () => {
   return (
     <View style={styles.screenContainer}>
       <Text style={styles.screenTitle}>设置</Text>
@@ -100,22 +87,22 @@ const TestNavigator: React.FC = () => {
       />
       <Stack.Screen 
         name="Health" 
-        component={HealthScreen}
+        component={HealthRecordsScreen}
         options={{ title: '健康记录' }}
       />
       <Stack.Screen 
         name="Family" 
-        component={FamilyScreen}
+        component={HouseholdScreen}
         options={{ title: '家庭成员' }}
       />
       <Stack.Screen 
         name="Calendar" 
-        component={CalendarScreen}
+        component={TestCalendarScreen}
         options={{ title: '日历提醒' }}
       />
       <Stack.Screen 
         name="Settings" 
-        component={SettingsScreen}
+        component={TestSettingsScreen}
         options={{ title: '设置' }}
       />
     </Stack.Navigator>

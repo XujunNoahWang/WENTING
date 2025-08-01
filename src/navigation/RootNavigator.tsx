@@ -1,18 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { createStackNavigator } from '@react-navigation/stack';
-import { useAppDispatch, useAppSelector, selectIsAuthenticated, selectAuthLoading } from '@store/index';
-import { getCurrentUser } from '@store/slices/authSlice';
+import { useAppDispatch, useAppSelector, selectIsAuthenticated, selectAuthLoading } from '../store/index';
+import { getCurrentUser } from '../store/slices/authSlice';
 
 // Navigation Types
-import { RootStackParamList } from '@types/index';
+import { RootStackParamList } from '../types/index';
 
 // Navigators
 import AuthNavigator from './AuthNavigator';
 import MainNavigator from './MainNavigator';
 
 // Components
-import LoadingScreen from '@components/common/LoadingScreen';
-import SplashScreen from '@components/common/SplashScreen';
+import LoadingScreen from '../components/common/LoadingScreen';
+import SplashScreen from '../components/common/SplashScreen';
 
 const Stack = createStackNavigator<RootStackParamList>();
 

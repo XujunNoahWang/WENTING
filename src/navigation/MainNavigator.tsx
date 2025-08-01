@@ -4,26 +4,26 @@ import { createStackNavigator } from '@react-navigation/stack';
 import Icon from 'react-native-vector-icons/Ionicons';
 
 // Types
-import { RootStackParamList } from '@types/index';
+import { RootStackParamList } from '../types/index';
 
 // Screens
-import HomeScreen from '@screens/home/HomeScreen';
-import HouseholdScreen from '@screens/household/HouseholdScreen';
-import HealthRecordsScreen from '@screens/health/HealthRecordsScreen';
-import CalendarScreen from '@screens/calendar/CalendarScreen';
-import ProfileScreen from '@screens/profile/ProfileScreen';
+import HomeScreen from '../screens/home/HomeScreen';
+import HouseholdScreen from '../screens/household/HouseholdScreen';
+import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
+import CalendarScreen from '../screens/calendar/CalendarScreen';
+import ProfileScreen from '../screens/profile/ProfileScreen';
 
 // Detail Screens
-import AddHealthRecordScreen from '@screens/health/AddHealthRecordScreen';
-import ViewHealthRecordScreen from '@screens/health/ViewHealthRecordScreen';
-import AddReminderScreen from '@screens/reminders/AddReminderScreen';
-import AddAppointmentScreen from '@screens/calendar/AddAppointmentScreen';
-import HouseholdMembersScreen from '@screens/household/HouseholdMembersScreen';
-import InviteMemberScreen from '@screens/household/InviteMemberScreen';
-import SettingsScreen from '@screens/settings/SettingsScreen';
+import AddHealthRecordScreen from '../screens/health/AddHealthRecordScreen';
+import ViewHealthRecordScreen from '../screens/health/ViewHealthRecordScreen';
+import AddReminderScreen from '../screens/reminders/AddReminderScreen';
+import AddAppointmentScreen from '../screens/calendar/AddAppointmentScreen';
+import HouseholdMembersScreen from '../screens/household/HouseholdMembersScreen';
+import InviteMemberScreen from '../screens/household/InviteMemberScreen';
+import SettingsScreen from '../screens/settings/SettingsScreen';
 
 // Constants
-import { COLORS, FONTS } from '@constants/index';
+import { COLORS, FONTS } from '../constants/index';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator<RootStackParamList>();
