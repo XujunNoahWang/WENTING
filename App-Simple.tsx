@@ -1,6 +1,7 @@
 import React from 'react';
 import { StatusBar, StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { firebaseWebAuthService } from './src/config/firebase-web';
+import { GeminiService } from './src/services/gemini/GeminiService';
 
 // 类型定义
 interface User {
@@ -54,6 +55,84 @@ interface MemberForm {
   role: 'admin' | 'member';
 }
 
+// 健康记录类型定义
+enum HealthRecordType {
+  MEDICATION = 'medication',
+  DIAGNOSIS = 'diagnosis',
+  ALLERGY = 'allergy',
+  VACCINATION = 'vaccination',
+  VITAL_SIGNS = 'vital_signs',
+  LAB_RESULT = 'lab_result',
+  MEDICAL_HISTORY = 'medical_history'
+}
+
+interface VitalSignsData {
+  bloodPressure?: {
+    systolic: number;
+    diastolic: number;
+  };
+  heartRate?: number;
+  temperature?: number;
+  weight?: number;
+  height?: number;
+  bloodSugar?: number;
+  oxygenSaturation?: number;
+}
+
+interface MedicationData {
+  name: string;
+  dosage: string;
+  frequency: string;
+  duration?: string;
+  instructions?: string;
+  sideEffects?: string[];
+}
+
+interface DiagnosisData {
+  condition: string;
+  severity?: string;
+  diagnosedDate: string;
+  doctor?: string;
+  hospital?: string;
+  notes?: string;
+}
+
+interface AllergyData {
+  allergen: string;
+  severity: 'mild' | 'moderate' | 'severe';
+  symptoms: string[];
+  treatment?: string;
+}
+
+interface HealthRecordData {
+  medication?: MedicationData;
+  diagnosis?: DiagnosisData;
+  allergy?: AllergyData;
+  vitalSigns?: VitalSignsData;
+  notes?: string;
+}
+
+interface HealthRecord {
+  id: string;
+  userId: string;
+  householdId: string;
+  memberName: string;
+  title: string;
+  description?: string;
+  recordType: HealthRecordType;
+  recordData: HealthRecordData;
+  createdBy: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+interface HealthRecordForm {
+  title: string;
+  description: string;
+  recordType: HealthRecordType;
+  recordData: HealthRecordData;
+}
+
 // Constants
 const COLORS = {
   PRIMARY: '#007AFF',
@@ -102,6 +181,28 @@ const App: React.FC = () => {
   });
   const [showDeleteConfirm, setShowDeleteConfirm] = React.useState(false);
   const [memberToDelete, setMemberToDelete] = React.useState<HouseholdMember | null>(null);
+
+  // 健康记录相关状态
+  const [healthRecords, setHealthRecords] = React.useState<HealthRecord[]>([]);
+  const [currentMemberForHealth, setCurrentMemberForHealth] = React.useState<HouseholdMember | null>(null);
+  const [showAddHealthRecord, setShowAddHealthRecord] = React.useState(false);
+  const [healthRecordForm, setHealthRecordForm] = React.useState<HealthRecordForm>({
+    title: '',
+    description: '',
+    recordType: HealthRecordType.VITAL_SIGNS,
+    recordData: {
+      vitalSigns: {
+        heartRate: undefined,
+        temperature: undefined,
+        weight: undefined,
+        height: undefined,
+        bloodPressure: undefined,
+        bloodSugar: undefined,
+        oxygenSaturation: undefined
+      }
+    }
+  });
+  const [geminiAdvice, setGeminiAdvice] = React.useState<string>('');
 
   // 初始化 Firebase 并检查认证状态
   React.useEffect(() => {
@@ -581,6 +682,158 @@ const App: React.FC = () => {
     setMemberToDelete(null);
   };
 
+  // 健康记录管理功能
+  
+  // 加载健康记录
+  const loadHealthRecords = async (memberId?: string) => {
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      
+      if (!currentUser.uid) {
+        console.warn('用户未登录');
+        return;
+      }
+
+      const storedRecords = localStorage.getItem(`wenting_health_records_${currentUser.uid}`);
+      if (storedRecords) {
+        const allRecords = JSON.parse(storedRecords);
+        
+        // 如果指定了成员ID，只显示该成员的记录
+        const filteredRecords = memberId 
+          ? allRecords.filter((record: HealthRecord) => record.userId === memberId)
+          : allRecords;
+          
+        setHealthRecords(filteredRecords);
+      }
+    } catch (error) {
+      console.error('加载健康记录失败:', error);
+    }
+  };
+
+  // 创建健康记录
+  const handleCreateHealthRecord = async () => {
+    if (!currentMemberForHealth || !currentHousehold) {
+      alert('错误：请选择成员和家庭');
+      return;
+    }
+
+    if (!healthRecordForm.title.trim()) {
+      alert('错误：请输入记录标题');
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
+      
+      const newRecord: HealthRecord = {
+        id: `health_record_${Date.now()}`,
+        userId: currentMemberForHealth.id,
+        householdId: currentHousehold.id,
+        memberName: currentMemberForHealth.name,
+        title: healthRecordForm.title.trim(),
+        description: healthRecordForm.description.trim(),
+        recordType: healthRecordForm.recordType,
+        recordData: healthRecordForm.recordData,
+        createdBy: currentUser.uid,
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString()
+      };
+
+      // 保存到本地存储
+      const storedRecords = localStorage.getItem(`wenting_health_records_${currentUser.uid}`);
+      const allRecords = storedRecords ? JSON.parse(storedRecords) : [];
+      allRecords.push(newRecord);
+      localStorage.setItem(`wenting_health_records_${currentUser.uid}`, JSON.stringify(allRecords));
+
+      // 更新状态
+      setHealthRecords([...healthRecords, newRecord]);
+      
+      // 重置表单
+      setHealthRecordForm({
+        title: '',
+        description: '',
+        recordType: HealthRecordType.VITAL_SIGNS,
+        recordData: {
+          vitalSigns: {
+            heartRate: undefined,
+            temperature: undefined,
+            weight: undefined,
+            height: undefined,
+            bloodPressure: undefined,
+            bloodSugar: undefined,
+            oxygenSaturation: undefined
+          }
+        }
+      });
+      setShowAddHealthRecord(false);
+      
+      // 获取AI建议
+      await getGeminiAdvice(newRecord);
+      
+      alert('成功：健康记录创建成功！');
+    } catch (error) {
+      console.error('创建健康记录失败:', error);
+      alert('错误：创建健康记录失败，请重试');
+    }
+    setLoading(false);
+  };
+
+  // 获取Gemini AI建议
+  const getGeminiAdvice = async (record: HealthRecord) => {
+    try {
+      const geminiService = GeminiService.getInstance();
+      
+      let prompt = `基于以下健康记录为${record.memberName}提供健康建议：\n\n`;
+      prompt += `记录类型：${getRecordTypeLabel(record.recordType)}\n`;
+      prompt += `标题：${record.title}\n`;
+      
+      if (record.description) {
+        prompt += `描述：${record.description}\n`;
+      }
+      
+      // 根据记录类型添加具体数据
+      if (record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitalSigns) {
+        const vs = record.recordData.vitalSigns;
+        prompt += `生命体征数据：\n`;
+        if (vs.heartRate) prompt += `- 心率：${vs.heartRate} bpm\n`;
+        if (vs.temperature) prompt += `- 体温：${vs.temperature}°C\n`;
+        if (vs.weight) prompt += `- 体重：${vs.weight} kg\n`;
+        if (vs.height) prompt += `- 身高：${vs.height} cm\n`;
+        if (vs.bloodPressure) prompt += `- 血压：${vs.bloodPressure.systolic}/${vs.bloodPressure.diastolic} mmHg\n`;
+        if (vs.bloodSugar) prompt += `- 血糖：${vs.bloodSugar} mg/dL\n`;
+        if (vs.oxygenSaturation) prompt += `- 血氧饱和度：${vs.oxygenSaturation}%\n`;
+      }
+      
+      prompt += `\n请提供具体的健康建议和注意事项，包括：\n1. 对当前数据的评估\n2. 生活方式建议\n3. 需要注意的健康风险\n4. 建议的后续行动\n\n请用中文回答，保持专业但易懂。`;
+
+      const result = await geminiService.generateHealthAdvice(prompt);
+      
+      if (result.success && result.data) {
+        setGeminiAdvice(result.data);
+      } else {
+        setGeminiAdvice('AI建议暂时不可用，请稍后重试。');
+      }
+    } catch (error) {
+      console.error('获取AI建议失败:', error);
+      setGeminiAdvice('获取AI建议时出现错误，请稍后重试。');
+    }
+  };
+
+  // 获取记录类型标签
+  const getRecordTypeLabel = (type: HealthRecordType): string => {
+    const labels = {
+      [HealthRecordType.VITAL_SIGNS]: '生命体征',
+      [HealthRecordType.MEDICATION]: '用药记录',
+      [HealthRecordType.DIAGNOSIS]: '诊断记录',
+      [HealthRecordType.ALLERGY]: '过敏信息',
+      [HealthRecordType.VACCINATION]: '疫苗接种',
+      [HealthRecordType.LAB_RESULT]: '检验结果',
+      [HealthRecordType.MEDICAL_HISTORY]: '病史记录'
+    };
+    return labels[type] || type;
+  };
+
   // 用户登录验证
   const handleLogin = async () => {
     if (!username.trim() || !password.trim()) {
@@ -825,16 +1078,380 @@ const App: React.FC = () => {
     switch (currentScreen) {
       case 'health':
         return (
-          <View style={styles.screenContainer}>
+          <ScrollView style={styles.screenContainer}>
             <TouchableOpacity 
               style={styles.backButton} 
-              onPress={() => setCurrentScreen('home')}
+              onPress={() => {
+                setCurrentScreen('home');
+                setCurrentMemberForHealth(null);
+                setHealthRecords([]);
+                setGeminiAdvice('');
+              }}
             >
               <Text style={styles.backButtonText}>← 返回</Text>
             </TouchableOpacity>
             <Text style={styles.screenTitle}>健康记录</Text>
-            <Text style={styles.screenContent}>这里将显示健康记录功能</Text>
-          </View>
+            
+            {/* 如果没有选择成员，显示成员选择界面 */}
+            {!currentMemberForHealth ? (
+              <View>
+                <Text style={styles.sectionTitle}>选择家庭成员</Text>
+                <Text style={styles.sectionSubtitle}>为哪位成员添加健康记录？</Text>
+                
+                <View style={styles.memberSelectList}>
+                  {householdMembers.map((member) => (
+                    <TouchableOpacity
+                      key={member.id}
+                      style={styles.memberSelectCard}
+                      onPress={() => {
+                        setCurrentMemberForHealth(member);
+                        loadHealthRecords(member.id);
+                      }}
+                    >
+                      <Text style={styles.memberSelectName}>{member.name}</Text>
+                      <Text style={styles.memberSelectRole}>
+                        {member.role === 'admin' ? '管理员' : '成员'} • {member.relationship}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+              </View>
+            ) : (
+              /* 显示选中成员的健康记录 */
+              <View>
+                <View style={styles.memberHealthHeader}>
+                  <View>
+                    <Text style={styles.memberHealthName}>{currentMemberForHealth.name}</Text>
+                    <Text style={styles.memberHealthInfo}>
+                      {currentMemberForHealth.relationship} • 共 {healthRecords.length} 条记录
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={styles.addHealthRecordButton}
+                    onPress={() => setShowAddHealthRecord(true)}
+                  >
+                    <Text style={styles.addHealthRecordButtonText}>+ 添加记录</Text>
+                  </TouchableOpacity>
+                </View>
+
+                {/* AI建议卡片 */}
+                {geminiAdvice && (
+                  <View style={styles.aiAdviceCard}>
+                    <Text style={styles.aiAdviceTitle}>🤖 AI健康建议</Text>
+                    <Text style={styles.aiAdviceContent}>{geminiAdvice}</Text>
+                  </View>
+                )}
+
+                {/* 健康记录列表 */}
+                <View style={styles.healthRecordsList}>
+                  {healthRecords.length === 0 ? (
+                    <View style={styles.noRecordsContainer}>
+                      <Text style={styles.noRecordsTitle}>还没有健康记录</Text>
+                      <Text style={styles.noRecordsText}>开始为{currentMemberForHealth.name}记录健康数据吧</Text>
+                    </View>
+                  ) : (
+                    healthRecords.map((record) => (
+                      <View key={record.id} style={styles.healthRecordCard}>
+                        <View style={styles.healthRecordHeader}>
+                          <Text style={styles.healthRecordTitle}>{record.title}</Text>
+                          <Text style={styles.healthRecordType}>
+                            {getRecordTypeLabel(record.recordType)}
+                          </Text>
+                        </View>
+                        
+                        {record.description && (
+                          <Text style={styles.healthRecordDescription}>{record.description}</Text>
+                        )}
+                        
+                        {/* 显示具体数据 */}
+                        {record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitalSigns && (
+                          <View style={styles.vitalSignsData}>
+                            {record.recordData.vitalSigns.heartRate && (
+                              <Text style={styles.vitalSignItem}>心率: {record.recordData.vitalSigns.heartRate} bpm</Text>
+                            )}
+                            {record.recordData.vitalSigns.temperature && (
+                              <Text style={styles.vitalSignItem}>体温: {record.recordData.vitalSigns.temperature}°C</Text>
+                            )}
+                            {record.recordData.vitalSigns.weight && (
+                              <Text style={styles.vitalSignItem}>体重: {record.recordData.vitalSigns.weight} kg</Text>
+                            )}
+                            {record.recordData.vitalSigns.height && (
+                              <Text style={styles.vitalSignItem}>身高: {record.recordData.vitalSigns.height} cm</Text>
+                            )}
+                            {record.recordData.vitalSigns.bloodPressure && (
+                              <Text style={styles.vitalSignItem}>
+                                血压: {record.recordData.vitalSigns.bloodPressure.systolic}/{record.recordData.vitalSigns.bloodPressure.diastolic} mmHg
+                              </Text>
+                            )}
+                            {record.recordData.vitalSigns.bloodSugar && (
+                              <Text style={styles.vitalSignItem}>血糖: {record.recordData.vitalSigns.bloodSugar} mg/dL</Text>
+                            )}
+                            {record.recordData.vitalSigns.oxygenSaturation && (
+                              <Text style={styles.vitalSignItem}>血氧: {record.recordData.vitalSigns.oxygenSaturation}%</Text>
+                            )}
+                          </View>
+                        )}
+                        
+                        <Text style={styles.healthRecordDate}>
+                          记录时间: {new Date(record.createdAt).toLocaleString('zh-CN')}
+                        </Text>
+                      </View>
+                    ))
+                  )}
+                </View>
+              </View>
+            )}
+
+            {/* 添加健康记录模态框 */}
+            {showAddHealthRecord && currentMemberForHealth && (
+              <View style={styles.modalOverlay}>
+                <View style={styles.modalContainer}>
+                  <ScrollView style={styles.modalScrollView}>
+                    <Text style={styles.modalTitle}>为 {currentMemberForHealth.name} 添加健康记录</Text>
+                    
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>记录标题 *</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={healthRecordForm.title || ''}
+                        onChangeText={(text) => setHealthRecordForm({...healthRecordForm, title: text})}
+                        placeholder="例如：体检记录、血压监测"
+                        placeholderTextColor="#999"
+                      />
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>记录类型</Text>
+                      <View style={styles.pickerContainer}>
+                        {Object.values(HealthRecordType).map((type) => (
+                          <TouchableOpacity
+                            key={type}
+                            style={[
+                              styles.pickerOption,
+                              healthRecordForm.recordType === type && styles.pickerOptionSelected
+                            ]}
+                            onPress={() => setHealthRecordForm({
+                              ...healthRecordForm, 
+                              recordType: type,
+                              recordData: type === HealthRecordType.VITAL_SIGNS ? {
+                                vitalSigns: {
+                                  heartRate: undefined,
+                                  temperature: undefined,
+                                  weight: undefined,
+                                  height: undefined,
+                                  bloodPressure: undefined,
+                                  bloodSugar: undefined,
+                                  oxygenSaturation: undefined
+                                }
+                              } : {}
+                            })}
+                          >
+                            <Text style={[
+                              styles.pickerOptionText,
+                              healthRecordForm.recordType === type && styles.pickerOptionTextSelected
+                            ]}>
+                              {getRecordTypeLabel(type)}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    {/* 生命体征数据输入 */}
+                    {healthRecordForm.recordType === HealthRecordType.VITAL_SIGNS && (
+                      <View>
+                        <Text style={styles.inputLabel}>生命体征数据</Text>
+                        
+                        <View style={styles.vitalSignsInputGrid}>
+                          <View style={styles.vitalSignInputItem}>
+                            <Text style={styles.vitalSignLabel}>心率 (bpm)</Text>
+                            <TextInput
+                              style={styles.vitalSignInput}
+                              value={healthRecordForm.recordData.vitalSigns?.heartRate?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    heartRate: text ? parseInt(text) : undefined
+                                  }
+                                }
+                              })}
+                              placeholder="72"
+                              placeholderTextColor="#999"
+                              keyboardType="numeric"
+                            />
+                          </View>
+
+                          <View style={styles.vitalSignInputItem}>
+                            <Text style={styles.vitalSignLabel}>体温 (°C)</Text>
+                            <TextInput
+                              style={styles.vitalSignInput}
+                              value={healthRecordForm.recordData.vitalSigns?.temperature?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    temperature: text ? parseFloat(text) : undefined
+                                  }
+                                }
+                              })}
+                              placeholder="36.5"
+                              placeholderTextColor="#999"
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+
+                          <View style={styles.vitalSignInputItem}>
+                            <Text style={styles.vitalSignLabel}>体重 (kg)</Text>
+                            <TextInput
+                              style={styles.vitalSignInput}
+                              value={healthRecordForm.recordData.vitalSigns?.weight?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    weight: text ? parseFloat(text) : undefined
+                                  }
+                                }
+                              })}
+                              placeholder="65.0"
+                              placeholderTextColor="#999"
+                              keyboardType="decimal-pad"
+                            />
+                          </View>
+
+                          <View style={styles.vitalSignInputItem}>
+                            <Text style={styles.vitalSignLabel}>身高 (cm)</Text>
+                            <TextInput
+                              style={styles.vitalSignInput}
+                              value={healthRecordForm.recordData.vitalSigns?.height?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    height: text ? parseInt(text) : undefined
+                                  }
+                                }
+                              })}
+                              placeholder="170"
+                              placeholderTextColor="#999"
+                              keyboardType="numeric"
+                            />
+                          </View>
+                        </View>
+
+                        {/* 血压输入 */}
+                        <View style={styles.bloodPressureContainer}>
+                          <Text style={styles.vitalSignLabel}>血压 (mmHg)</Text>
+                          <View style={styles.bloodPressureInputs}>
+                            <TextInput
+                              style={styles.bloodPressureInput}
+                              value={healthRecordForm.recordData.vitalSigns?.bloodPressure?.systolic?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    bloodPressure: {
+                                      systolic: text ? parseInt(text) : 0,
+                                      diastolic: healthRecordForm.recordData.vitalSigns?.bloodPressure?.diastolic || 0
+                                    }
+                                  }
+                                }
+                              })}
+                              placeholder="120"
+                              placeholderTextColor="#999"
+                              keyboardType="numeric"
+                            />
+                            <Text style={styles.bloodPressureSeparator}>/</Text>
+                            <TextInput
+                              style={styles.bloodPressureInput}
+                              value={healthRecordForm.recordData.vitalSigns?.bloodPressure?.diastolic?.toString() || ''}
+                              onChangeText={(text) => setHealthRecordForm({
+                                ...healthRecordForm,
+                                recordData: {
+                                  ...healthRecordForm.recordData,
+                                  vitalSigns: {
+                                    ...healthRecordForm.recordData.vitalSigns,
+                                    bloodPressure: {
+                                      systolic: healthRecordForm.recordData.vitalSigns?.bloodPressure?.systolic || 0,
+                                      diastolic: text ? parseInt(text) : 0
+                                    }
+                                  }
+                                }
+                              })}
+                              placeholder="80"
+                              placeholderTextColor="#999"
+                              keyboardType="numeric"
+                            />
+                          </View>
+                        </View>
+                      </View>
+                    )}
+
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>备注</Text>
+                      <TextInput
+                        style={[styles.input, styles.textArea]}
+                        value={healthRecordForm.description || ''}
+                        onChangeText={(text) => setHealthRecordForm({...healthRecordForm, description: text})}
+                        placeholder="记录其他相关信息..."
+                        placeholderTextColor="#999"
+                        multiline
+                        numberOfLines={3}
+                      />
+                    </View>
+                  </ScrollView>
+
+                  <View style={styles.modalActions}>
+                    <TouchableOpacity
+                      style={styles.cancelButton}
+                      onPress={() => {
+                        setShowAddHealthRecord(false);
+                        setHealthRecordForm({
+                          title: '',
+                          description: '',
+                          recordType: HealthRecordType.VITAL_SIGNS,
+                          recordData: {
+                            vitalSigns: {
+                              heartRate: undefined,
+                              temperature: undefined,
+                              weight: undefined,
+                              height: undefined,
+                              bloodPressure: undefined,
+                              bloodSugar: undefined,
+                              oxygenSaturation: undefined
+                            }
+                          }
+                        });
+                      }}
+                    >
+                      <Text style={styles.cancelButtonText}>取消</Text>
+                    </TouchableOpacity>
+                    
+                    <TouchableOpacity
+                      style={[styles.confirmButton, loading && styles.disabledButton]}
+                      onPress={handleCreateHealthRecord}
+                      disabled={loading}
+                    >
+                      <Text style={styles.confirmButtonText}>
+                        {loading ? '创建中...' : '创建记录'}
+                      </Text>
+                    </TouchableOpacity>
+                  </View>
+                </View>
+              </View>
+            )}
+          </ScrollView>
         );
       case 'family':
         return (
@@ -1871,6 +2488,223 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '600',
+  },
+
+  // 健康记录样式
+  sectionTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  sectionSubtitle: {
+    fontSize: 16,
+    color: '#666',
+    marginBottom: 20,
+    textAlign: 'center',
+  },
+  memberSelectList: {
+    marginBottom: 20,
+  },
+  memberSelectCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  memberSelectName: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 4,
+  },
+  memberSelectRole: {
+    fontSize: 14,
+    color: '#666',
+  },
+  memberHealthHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 4,
+    elevation: 3,
+  },
+  memberHealthName: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: COLORS.PRIMARY,
+    marginBottom: 4,
+  },
+  memberHealthInfo: {
+    fontSize: 14,
+    color: '#666',
+  },
+  addHealthRecordButton: {
+    backgroundColor: COLORS.SUCCESS,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  addHealthRecordButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  aiAdviceCard: {
+    backgroundColor: '#f0f8ff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.PRIMARY,
+  },
+  aiAdviceTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: COLORS.PRIMARY,
+    marginBottom: 8,
+  },
+  aiAdviceContent: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 20,
+  },
+  healthRecordsList: {
+    marginBottom: 20,
+  },
+  noRecordsContainer: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#fff',
+    borderRadius: 12,
+  },
+  noRecordsTitle: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
+    marginBottom: 8,
+  },
+  noRecordsText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+  },
+  healthRecordCard: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 12,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  healthRecordHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 8,
+  },
+  healthRecordTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    flex: 1,
+  },
+  healthRecordType: {
+    fontSize: 12,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 4,
+    backgroundColor: '#e3f2fd',
+    color: '#1976d2',
+    fontWeight: '500',
+  },
+  healthRecordDescription: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+    lineHeight: 20,
+  },
+  vitalSignsData: {
+    backgroundColor: '#f9f9f9',
+    padding: 12,
+    borderRadius: 8,
+    marginBottom: 12,
+  },
+  vitalSignItem: {
+    fontSize: 14,
+    color: '#333',
+    marginBottom: 4,
+    fontWeight: '500',
+  },
+  healthRecordDate: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'right',
+  },
+  vitalSignsInputGrid: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 12,
+    marginTop: 8,
+  },
+  vitalSignInputItem: {
+    flex: 1,
+    minWidth: '45%',
+  },
+  vitalSignLabel: {
+    fontSize: 14,
+    fontWeight: '500',
+    color: '#333',
+    marginBottom: 4,
+  },
+  vitalSignInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 14,
+    backgroundColor: '#fff',
+    textAlign: 'center',
+  },
+  bloodPressureContainer: {
+    marginTop: 12,
+  },
+  bloodPressureInputs: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginTop: 4,
+  },
+  bloodPressureInput: {
+    borderWidth: 1,
+    borderColor: '#ddd',
+    borderRadius: 6,
+    padding: 8,
+    fontSize: 14,
+    backgroundColor: '#fff',
+    textAlign: 'center',
+    width: 80,
+  },
+  bloodPressureSeparator: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#333',
   },
 });
 

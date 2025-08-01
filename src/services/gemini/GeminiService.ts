@@ -249,6 +249,37 @@ export class GeminiService {
   }
 
   /**
+   * Generate health advice based on health records
+   */
+  async generateHealthAdvice(prompt: string): Promise<ApiResponse<string>> {
+    try {
+      if (!this.genAI) {
+        return {
+          success: false,
+          error: 'Gemini API not configured'
+        };
+      }
+
+      const result = await this.model.generateContent(prompt);
+      const response = result.response;
+      const advice = response.text().trim();
+
+      return {
+        success: true,
+        data: advice,
+        message: '健康建议生成成功'
+      };
+
+    } catch (error: any) {
+      console.error('Gemini health advice generation error:', error);
+      return {
+        success: false,
+        error: error.message || '生成健康建议失败'
+      };
+    }
+  }
+
+  /**
    * Analyze health trends and generate insights
    */
   async generateHealthInsights(healthRecords: HealthRecord[]): Promise<ApiResponse<string[]>> {
