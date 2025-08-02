@@ -1,8 +1,21 @@
 import { Platform } from 'react-native';
-import { firebaseAuthService } from '../../config/firebase';
 import { User, Household, HouseholdMember, HealthRecord, HealthCalendarEvent, UserRole, ApiResponse } from '../../types/index';
 import { EncryptionManager } from '../../utils/encryption/EncryptionManager';
-import DatabaseService from './DatabaseService';
+
+// 平台特定的Firebase服务导入  
+let firebaseAuthService: any = null;
+if (Platform.OS === 'web') {
+  firebaseAuthService = require('../../config/firebase-web').firebaseWebAuthService;
+} else {
+  firebaseAuthService = require('../../config/firebase').firebaseAuthService;
+}
+
+// 只在非Web环境下导入DatabaseService
+let DatabaseService: any = null;
+// 在Web环境下不导入DatabaseService模块
+if (Platform.OS !== 'web') {
+  DatabaseService = require('./DatabaseService').default;
+}
 
 export class FirebaseDatabaseService {
   private static instance: FirebaseDatabaseService;
@@ -171,7 +184,7 @@ export class FirebaseDatabaseService {
 
       const householdData = {
         ...household,
-        createdAt: new Date()
+        createdAt: Platform.OS === 'web' ? new Date().toISOString() : new Date()
       };
 
       // Create household in Firestore
@@ -184,7 +197,7 @@ export class FirebaseDatabaseService {
         householdId: household.id,
         userId: household.createdBy,
         role: UserRole.ADMIN,
-        joinedAt: new Date()
+        joinedAt: Platform.OS === 'web' ? new Date().toISOString() : new Date()
       };
 
       await firebaseAuthService.createDocument('household_members', membershipData, membershipId);
@@ -278,7 +291,7 @@ export class FirebaseDatabaseService {
 
       const memberData = {
         ...member,
-        joinedAt: new Date()
+        joinedAt: member.joinedAt || (Platform.OS === 'web' ? new Date().toISOString() : new Date())
       };
 
       // Add member in Firestore
@@ -518,6 +531,57 @@ export class FirebaseDatabaseService {
     }
   }
 
+  async updateHealthRecordAIData(recordId: string, aiData: any, encryptionKey: string): Promise<void> {
+    try {
+      if (!this.initialized) {
+        throw new Error('Firebase Database Service not initialized');
+      }
+
+      // Encrypt AI data
+      const encryptedAIData = await EncryptionManager.encryptHealthData(aiData, encryptionKey);
+
+      const updateData = {
+        aiProcessedData: encryptedAIData,
+        updatedAt: new Date()
+      };
+
+      // Update in Firestore
+      await firebaseAuthService.updateDocument('health_records', recordId, updateData);
+
+      // Also update in local SQLite if on mobile
+      if (Platform.OS !== 'web') {
+        await DatabaseService.updateHealthRecordAIData(recordId, aiData, encryptionKey);
+      }
+    } catch (error) {
+      console.error('Update health record AI data error:', error);
+      throw error;
+    }
+  }
+
+  async verifyHealthRecord(recordId: string, verified: boolean): Promise<void> {
+    try {
+      if (!this.initialized) {
+        throw new Error('Firebase Database Service not initialized');
+      }
+
+      const updateData = {
+        verified,
+        updatedAt: new Date()
+      };
+
+      // Update in Firestore
+      await firebaseAuthService.updateDocument('health_records', recordId, updateData);
+
+      // Also update in local SQLite if on mobile
+      if (Platform.OS !== 'web') {
+        await DatabaseService.verifyHealthRecord(recordId, verified);
+      }
+    } catch (error) {
+      console.error('Verify health record error:', error);
+      throw error;
+    }
+  }
+
   async deleteHealthRecord(recordId: string): Promise<void> {
     try {
       if (!this.initialized) {
@@ -660,6 +724,73 @@ export class FirebaseDatabaseService {
     }
   }
 
+  async updateHouseholdMemberRole(memberId: string, role: UserRole): Promise<void> {
+    try {
+      if (!this.initialized) {
+        throw new Error('Firebase Database Service not initialized');
+      }
+
+      const updateData = {
+        role,
+        updatedAt: new Date()
+      };
+
+      // Update in Firestore
+      await firebaseAuthService.updateDocument('household_members', memberId, updateData);
+
+      // Also update in local SQLite if on mobile
+      if (Platform.OS !== 'web') {
+        await DatabaseService.updateHouseholdMemberRole(memberId, role);
+      }
+    } catch (error) {
+      console.error('Update household member role error:', error);
+      throw error;
+    }
+  }
+
+  async removeHouseholdMember(memberId: string): Promise<void> {
+    try {
+      if (!this.initialized) {
+        throw new Error('Firebase Database Service not initialized');
+      }
+
+      // Delete from Firestore
+      await firebaseAuthService.deleteDocument('household_members', memberId);
+
+      // Also delete from local SQLite if on mobile
+      if (Platform.OS !== 'web') {
+        await DatabaseService.removeHouseholdMember(memberId);
+      }
+    } catch (error) {
+      console.error('Remove household member error:', error);
+      throw error;
+    }
+  }
+
+  async updateHousehold(householdId: string, updates: any): Promise<void> {
+    try {
+      if (!this.initialized) {
+        throw new Error('Firebase Database Service not initialized');
+      }
+
+      const updateData = {
+        ...updates,
+        updatedAt: new Date()
+      };
+
+      // Update in Firestore
+      await firebaseAuthService.updateDocument('households', householdId, updateData);
+
+      // Also update in local SQLite if on mobile
+      if (Platform.OS !== 'web') {
+        await DatabaseService.updateHousehold(householdId, updates);
+      }
+    } catch (error) {
+      console.error('Update household error:', error);
+      throw error;
+    }
+  }
+
   // Sync local data with Firebase (for offline support)
   async syncWithFirebase(): Promise<void> {
     try {
@@ -678,4 +809,4 @@ export class FirebaseDatabaseService {
   }
 }
 
-export default FirebaseDatabaseService.getInstance();
+export default FirebaseDatabaseService;

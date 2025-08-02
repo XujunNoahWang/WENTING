@@ -7,8 +7,8 @@ import {
   ApiResponse,
   AIProcessedData,
   HealthDocumentAnalysis,
-} from '@types/index';
-import FirebaseFirebaseDatabaseService from '@services/database/FirebaseFirebaseDatabaseService';
+} from '../../types/index';
+import FirebaseDatabaseService from '@services/database/FirebaseDatabaseService';
 import { EncryptionManager } from '@utils/encryption/EncryptionManager';
 import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@constants/index';
 
@@ -66,7 +66,9 @@ export class HealthRecordService {
       };
 
       // Save to database with encryption
-      await FirebaseDatabaseService.createHealthRecord(healthRecord, encryptionKey);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      await dbService.createHealthRecord(healthRecord, encryptionKey);
 
       // Retrieve the created record
       const createdRecord = await this.getHealthRecordById(recordId, createdByUserId, userRole);
@@ -102,19 +104,44 @@ export class HealthRecordService {
     userRole: UserRole
   ): Promise<ApiResponse<HealthRecord[]>> {
     try {
-      // Generate encryption key for this user
-      const encryptionKey = EncryptionManager.generateUserKey(userId);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      
+      // Get records with individual decryption for each record
+      let conditions = [
+        { field: 'householdId', operator: '==', value: householdId }
+      ];
 
-      const records = await FirebaseDatabaseService.getHealthRecords(
-        householdId,
-        userId,
-        userRole,
-        encryptionKey
-      );
+      // Members can only see their own records
+      if (userRole === UserRole.MEMBER) {
+        conditions.push({ field: 'userId', operator: '==', value: userId });
+      }
+
+      const firebaseAuthService = require('../../config/firebase-web').firebaseWebAuthService;
+      const rawRecords = await firebaseAuthService.queryDocuments('health_records', conditions);
+      const healthRecords: HealthRecord[] = [];
+
+      for (const rawRecord of rawRecords) {
+        try {
+          // Use the record owner's key for decryption
+          const encryptionKey = EncryptionManager.generateUserKey(rawRecord.userId);
+          const decryptedRecord = await dbService.getHealthRecordById(rawRecord.id, encryptionKey);
+          
+          if (decryptedRecord) {
+            healthRecords.push(decryptedRecord);
+          }
+        } catch (decryptError) {
+          console.error('Failed to decrypt health record:', rawRecord.id, decryptError);
+          // Skip this record if decryption fails
+        }
+      }
+
+      // Sort by creation date (newest first)
+      healthRecords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
       return {
         success: true,
-        data: records
+        data: healthRecords
       };
 
     } catch (error: any) {
@@ -135,11 +162,15 @@ export class HealthRecordService {
     userRole: UserRole
   ): Promise<ApiResponse<HealthRecord>> {
     try {
-      // Get the record first to check permissions
-      const encryptionKey = EncryptionManager.generateUserKey(userId);
-      const record = await FirebaseDatabaseService.getHealthRecordById(recordId, encryptionKey);
-
-      if (!record) {
+      // First get the record metadata without decryption to check permissions
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      
+      // Get raw record first to check ownership - call firebaseAuthService directly
+      const firebaseAuthService = require('../../config/firebase-web').firebaseWebAuthService;
+      const rawRecord = await firebaseAuthService.getDocument('health_records', recordId);
+      
+      if (!rawRecord) {
         return {
           success: false,
           error: '健康档案不存在'
@@ -147,11 +178,27 @@ export class HealthRecordService {
       }
 
       // Check if user has permission to view this record
-      const canView = await this.checkViewPermission(record, userId, userRole);
+      const canView = await this.checkViewPermission({
+        ...rawRecord,
+        recordData: {}, // Dummy data for permission check
+        aiProcessedData: null
+      } as HealthRecord, userId, userRole);
+      
       if (!canView) {
         return {
           success: false,
           error: '没有权限查看此健康档案'
+        };
+      }
+
+      // Now decrypt using the record owner's key
+      const encryptionKey = EncryptionManager.generateUserKey(rawRecord.userId);
+      const record = await dbService.getHealthRecordById(recordId, encryptionKey);
+
+      if (!record) {
+        return {
+          success: false,
+          error: '健康档案解密失败'
         };
       }
 
@@ -197,7 +244,9 @@ export class HealthRecordService {
 
       // Update the record
       const encryptionKey = EncryptionManager.generateUserKey(existingRecord.data.userId);
-      await FirebaseDatabaseService.updateHealthRecord(recordId, updates, encryptionKey);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      await dbService.updateHealthRecord(recordId, updates, encryptionKey);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, userRole);
@@ -246,7 +295,9 @@ export class HealthRecordService {
       }
 
       // Delete the record
-      await FirebaseDatabaseService.deleteHealthRecord(recordId);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      await dbService.deleteHealthRecord(recordId);
 
       return {
         success: true,
@@ -288,7 +339,9 @@ export class HealthRecordService {
 
       // Update verification status
       const encryptionKey = EncryptionManager.generateUserKey(userId);
-      await FirebaseDatabaseService.verifyHealthRecord(recordId, verified);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      await dbService.verifyHealthRecord(recordId, verified);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, UserRole.MEMBER);
@@ -335,7 +388,9 @@ export class HealthRecordService {
 
       // Update the record with AI data
       const encryptionKey = EncryptionManager.generateUserKey(existingRecord.data.userId);
-      await FirebaseDatabaseService.updateHealthRecordAIData(recordId, aiProcessedData, encryptionKey);
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      await dbService.updateHealthRecordAIData(recordId, aiProcessedData, encryptionKey);
 
       // Get updated record
       const updatedRecord = await this.getHealthRecordById(recordId, userId, UserRole.MEMBER);
@@ -609,4 +664,4 @@ export class HealthRecordService {
   }
 }
 
-export default HealthRecordService.getInstance();
+export default HealthRecordService;

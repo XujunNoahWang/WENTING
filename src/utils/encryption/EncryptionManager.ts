@@ -55,11 +55,11 @@ export class EncryptionManager {
       // Convert data to JSON string
       const jsonData = JSON.stringify(data);
 
-      // Encrypt using AES-256-GCM
+      // Encrypt using AES-256-CBC (GCM not supported in crypto-js web)
       const encrypted = CryptoJS.AES.encrypt(jsonData, key, {
         iv: iv,
-        mode: CryptoJS.mode.GCM,
-        padding: CryptoJS.pad.NoPadding
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
       });
 
       return {
@@ -85,11 +85,11 @@ export class EncryptionManager {
       // Derive key using PBKDF2 with the same parameters
       const key = this.deriveKey(userKey, salt);
 
-      // Decrypt using AES-256-GCM
+      // Decrypt using AES-256-CBC (GCM not supported in crypto-js web)
       const decrypted = CryptoJS.AES.decrypt(encryptedData.encryptedData, key, {
         iv: iv,
-        mode: CryptoJS.mode.GCM,
-        padding: CryptoJS.pad.NoPadding
+        mode: CryptoJS.mode.CBC,
+        padding: CryptoJS.pad.Pkcs7
       });
 
       const jsonString = decrypted.toString(CryptoJS.enc.Utf8);

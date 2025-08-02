@@ -32,7 +32,7 @@ export const DATABASE_CONFIG = {
 // Security Constants
 export const SECURITY_CONFIG = {
   ENCRYPTION: {
-    ALGORITHM: 'AES-256-GCM',
+    ALGORITHM: 'AES-256-CBC',
     KEY_DERIVATION: 'PBKDF2',
     SALT_LENGTH: 32,
     IV_LENGTH: 16,
