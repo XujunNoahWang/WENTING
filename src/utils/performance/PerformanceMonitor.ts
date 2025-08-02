@@ -73,6 +73,15 @@ export class PerformanceMonitor {
     console.table(report);
   }
 
+  // 记录单次指标
+  recordMetric(label: string, value: number): void {
+    if (!this.metrics.has(label)) {
+      this.metrics.set(label, []);
+    }
+    this.metrics.get(label)!.push(value);
+    console.log(`📈 [Performance] Recorded: ${label} - ${value}ms`);
+  }
+
   // 清除所有数据
   clear(): void {
     this.timers.clear();

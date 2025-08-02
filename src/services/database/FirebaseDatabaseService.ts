@@ -8,7 +8,7 @@ let firebaseAuthService: any = null;
 if (Platform.OS === 'web') {
   firebaseAuthService = require('../../config/firebase-web').firebaseWebAuthService;
 } else {
-  firebaseAuthService = require('../../config/firebase').firebaseAuthService;
+  firebaseAuthService = require('../../config/firebase-web').firebaseWebAuthService;
 }
 
 // 只在非Web环境下导入DatabaseService
@@ -1134,6 +1134,118 @@ export class FirebaseDatabaseService {
       console.error('Sync with Firebase failed:', error);
     }
   }
+
+  // 获取单个文档
+  async getDocument(collection: string, docId: string): Promise<any> {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      
+      return await firebaseAuthService.getDocument(collection, docId);
+    } catch (error) {
+      console.error(`Get document error (${collection}/${docId}):`, error);
+      throw error;
+    }
+  }
+
+  // 创建文档
+  async createDocument(collection: string, data: any, docId?: string): Promise<string> {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      
+      const timestamp = Platform.OS === 'web' ? new Date().toISOString() : new Date();
+      const documentData = {
+        ...data,
+        createdAt: timestamp,
+        updatedAt: timestamp
+      };
+      
+      if (docId) {
+        await firebaseAuthService.createDocument(collection, documentData, docId);
+        return docId;
+      } else {
+        return await firebaseAuthService.createDocument(collection, documentData);
+      }
+    } catch (error) {
+      console.error(`Create document error (${collection}):`, error);
+      throw error;
+    }
+  }
+
+  // 更新文档
+  async updateDocument(collection: string, docId: string, updates: any): Promise<void> {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      
+      const timestamp = Platform.OS === 'web' ? new Date().toISOString() : new Date();
+      const updateData = {
+        ...updates,
+        updatedAt: timestamp
+      };
+      
+      await firebaseAuthService.updateDocument(collection, docId, updateData);
+    } catch (error) {
+      console.error(`Update document error (${collection}/${docId}):`, error);
+      throw error;
+    }
+  }
+
+  // 删除文档
+  async deleteDocument(collection: string, docId: string): Promise<void> {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      
+      await firebaseAuthService.deleteDocument(collection, docId);
+    } catch (error) {
+      console.error(`Delete document error (${collection}/${docId}):`, error);
+      throw error;
+    }
+  }
+
+  // 查询文档
+  async queryDocuments(collection: string, conditions: Array<{field: string, operator: string, value: any}> = []): Promise<any[]> {
+    try {
+      if (!this.initialized) {
+        await this.initialize();
+      }
+      
+      return await firebaseAuthService.queryDocuments(collection, conditions);
+    } catch (error) {
+      console.error(`Query documents error (${collection}):`, error);
+      throw error;
+    }
+  }
 }
+
+// 创建并导出单例实例
+const firebaseDatabaseService = new FirebaseDatabaseService();
+
+// 为了兼容性，添加静态方法
+FirebaseDatabaseService.getDocument = (collection: string, docId: string) => {
+  return firebaseDatabaseService.getDocument(collection, docId);
+};
+
+FirebaseDatabaseService.createDocument = (collection: string, data: any, docId?: string) => {
+  return firebaseDatabaseService.createDocument(collection, data, docId);
+};
+
+FirebaseDatabaseService.updateDocument = (collection: string, docId: string, updates: any) => {
+  return firebaseDatabaseService.updateDocument(collection, docId, updates);
+};
+
+FirebaseDatabaseService.deleteDocument = (collection: string, docId: string) => {
+  return firebaseDatabaseService.deleteDocument(collection, docId);
+};
+
+FirebaseDatabaseService.queryDocuments = (collection: string, conditions: Array<{field: string, operator: string, value: any}>) => {
+  return firebaseDatabaseService.queryDocuments(collection, conditions);
+};
 
 export default FirebaseDatabaseService;
