@@ -45,7 +45,9 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(timeout 10 npm run web)",
-      "Bash(npx kill-port:*)"
+      "Bash(npx kill-port:*)",
+      "Bash(timeout 30 npm run web)",
+      "Bash(git rm:*)"
     ],
     "deny": []
   }
