@@ -164,7 +164,7 @@ const AddHealthRecordScreen: React.FC = () => {
         recordData,
       };
       
-      const result = await HealthRecordService.createHealthRecord(
+      const result = await HealthRecordService.getInstance().createHealthRecord(
         recordForm,
         selectedHouseholdId,
         userId || currentUser.id,
@@ -205,7 +205,7 @@ const AddHealthRecordScreen: React.FC = () => {
               aiAdviceGeneratedAt: new Date().toISOString(),
             };
 
-            await HealthRecordService.updateHealthRecord(
+            await HealthRecordService.getInstance().updateHealthRecord(
               result.data.id,
               { recordData: updatedRecordData },
               currentUser.id,

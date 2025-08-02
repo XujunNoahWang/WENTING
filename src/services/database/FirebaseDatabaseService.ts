@@ -1,6 +1,7 @@
 import { Platform } from 'react-native';
 import { User, Household, HouseholdMember, HealthRecord, HealthCalendarEvent, UserRole, ApiResponse } from '../../types/index';
 import { EncryptionManager } from '../../utils/encryption/EncryptionManager';
+import { performanceMonitor } from '../../utils/performance/PerformanceMonitor';
 
 // 平台特定的Firebase服务导入  
 let firebaseAuthService: any = null;
@@ -20,6 +21,19 @@ if (Platform.OS !== 'web') {
 export class FirebaseDatabaseService {
   private static instance: FirebaseDatabaseService;
   private initialized = false;
+  private initPromise: Promise<boolean> | null = null;
+  
+  // 缓存系统
+  private cache = new Map<string, { data: any, timestamp: number }>();
+  private readonly CACHE_TTL = 5 * 60 * 1000; // 5分钟缓存
+  
+  // 存储键常量
+  private readonly STORAGE_KEYS = {
+    HOUSEHOLDS: 'wenting_households',
+    MEMBERS: 'wenting_members_',
+    USER_PROFILE: 'wenting_user_profile_',
+    HEALTH_RECORDS: 'wenting_health_records_'
+  };
 
   private constructor() {}
 
@@ -31,15 +45,103 @@ export class FirebaseDatabaseService {
   }
 
   async initialize(): Promise<boolean> {
+    if (this.initialized) return true;
+    if (this.initPromise) return this.initPromise;
+
+    this.initPromise = this._doInitialize();
+    return this.initPromise;
+  }
+
+  private async _doInitialize(): Promise<boolean> {
     try {
       // Initialize Firebase auth service first
       await firebaseAuthService.initialize();
       this.initialized = true;
+      console.log('Firebase Database Service initialized successfully');
       return true;
     } catch (error) {
       console.error('Firebase Database Service initialization failed:', error);
+      this.initPromise = null; // 重置以允许重试
       return false;
     }
+  }
+
+  // 缓存辅助方法
+  private getCacheKey(collection: string, id?: string, params?: any): string {
+    const paramStr = params ? JSON.stringify(params) : '';
+    return id ? `${collection}:${id}:${paramStr}` : `${collection}:${paramStr}`;
+  }
+
+  private getFromCache<T>(key: string): T | null {
+    const cached = this.cache.get(key);
+    if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+      console.log(`Cache hit for key: ${key}`);
+      return cached.data;
+    }
+    return null;
+  }
+
+  private setCache(key: string, data: any): void {
+    this.cache.set(key, { data, timestamp: Date.now() });
+    console.log(`Cache set for key: ${key}`);
+  }
+
+  clearCacheByPattern(pattern: string): void {
+    for (const key of this.cache.keys()) {
+      if (key.includes(pattern)) {
+        this.cache.delete(key);
+        console.log(`Cache cleared for key: ${key}`);
+      }
+    }
+  }
+
+  // 本地存储辅助方法
+  private getFromLocalStorage<T>(key: string): T | null {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored) {
+        const parsed = JSON.parse(stored);
+        // 检查是否过期（本地存储保持更长时间，15分钟）
+        if (Date.now() - parsed.timestamp < 15 * 60 * 1000) {
+          console.log(`LocalStorage hit for key: ${key}`);
+          return parsed.data;
+        }
+      }
+    } catch (error) {
+      console.error('LocalStorage get error:', error);
+    }
+    return null;
+  }
+
+  private setLocalStorage(key: string, data: any): void {
+    try {
+      localStorage.setItem(key, JSON.stringify({
+        data,
+        timestamp: Date.now()
+      }));
+      console.log(`LocalStorage set for key: ${key}`);
+    } catch (error) {
+      console.error('LocalStorage set error:', error);
+    }
+  }
+
+  // 重试机制
+  private async retryRequest<T>(
+    requestFn: () => Promise<T>,
+    maxRetries = 3,
+    delay = 1000
+  ): Promise<T> {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        return await requestFn();
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+        
+        console.log(`Request failed, retrying in ${delay * Math.pow(2, i)}ms... (attempt ${i + 1}/${maxRetries})`);
+        await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+      }
+    }
+    throw new Error('Max retries exceeded');
   }
 
   // User Management
@@ -207,6 +309,16 @@ export class FirebaseDatabaseService {
         await DatabaseService.createHousehold(household);
       }
 
+      // 清除相关缓存
+      this.clearCacheByPattern('user_households');
+      this.clearCacheByPattern('household_members');
+      
+      // 清除本地存储中的家庭数据
+      const localKey = this.STORAGE_KEYS.HOUSEHOLDS + household.createdBy;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(localKey);
+      }
+
       return household.id;
     } catch (error) {
       console.error('Create household error:', error);
@@ -251,35 +363,119 @@ export class FirebaseDatabaseService {
   async getUserHouseholds(userId: string): Promise<Household[]> {
     try {
       if (!this.initialized) {
-        throw new Error('Firebase Database Service not initialized');
+        await this.initialize();
       }
+
+      // 检查缓存
+      const cacheKey = this.getCacheKey('user_households', userId);
+      const cached = this.getFromCache<Household[]>(cacheKey);
+      if (cached) return cached;
+
+      // 检查本地存储
+      const localKey = this.STORAGE_KEYS.HOUSEHOLDS + userId;
+      const localCached = this.getFromLocalStorage<Household[]>(localKey);
+      if (localCached) {
+        this.setCache(cacheKey, localCached);
+        return localCached;
+      }
+
+      console.log('Fetching user households from Firebase for user:', userId);
 
       // First get user's household memberships
       const memberships = await firebaseAuthService.queryDocuments('household_members', [
         { field: 'userId', operator: '==', value: userId }
       ]);
+      
+      console.log('Found memberships:', memberships.length, memberships);
 
-      const households: Household[] = [];
-
-      // Get each household
-      for (const membership of memberships) {
-        const household = await this.getHouseholdById(membership.householdId);
-        if (household) {
-          households.push(household);
-        }
+      if (memberships.length === 0) {
+        const emptyResult: Household[] = [];
+        this.setCache(cacheKey, emptyResult);
+        this.setLocalStorage(localKey, emptyResult);
+        return emptyResult;
       }
 
+      // 批量获取家庭信息
+      const householdIds = memberships.map((m: any) => m.householdId);
+      console.log('Household IDs to fetch:', householdIds);
+      const households = await this.batchGetHouseholds(householdIds);
+      console.log('Fetched households:', households.length, households);
+
       // Sort by creation date
-      households.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+      households.sort((a: any, b: any) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // 缓存结果
+      this.setCache(cacheKey, households);
+      this.setLocalStorage(localKey, households);
 
       return households;
     } catch (error) {
       console.error('Get user households error:', error);
+      
+      // 尝试从本地存储获取过期数据作为后备
+      const localKey = this.STORAGE_KEYS.HOUSEHOLDS + userId;
+      try {
+        const stored = localStorage.getItem(localKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('Using stale households data from localStorage as fallback');
+          return parsed.data || [];
+        }
+      } catch (e) {
+        console.error('Fallback localStorage read error:', e);
+      }
+
       // Fallback to local database on error
       if (Platform.OS !== 'web') {
         return await DatabaseService.getUserHouseholds(userId);
       }
       return [];
+    }
+  }
+
+  // 批量获取家庭信息的新方法
+  private async batchGetHouseholds(householdIds: string[]): Promise<Household[]> {
+    if (householdIds.length === 0) return [];
+
+    try {
+      // Firebase 'in' 查询限制为10个，需要分批处理
+      const batchSize = 10;
+      const batches: string[][] = [];
+      
+      for (let i = 0; i < householdIds.length; i += batchSize) {
+        batches.push(householdIds.slice(i, i + batchSize));
+      }
+
+      const allHouseholds: Household[] = [];
+      
+      // 并行执行所有批次
+      const batchPromises = batches.map(batch => 
+        firebaseAuthService.queryDocuments('households', [
+          { field: 'id', operator: 'in', value: batch }
+        ])
+      );
+
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const households of batchResults) {
+        allHouseholds.push(...households);
+      }
+
+      return allHouseholds;
+    } catch (error) {
+      console.error('Batch get households error:', error);
+      
+      // 降级到单个查询
+      const households: Household[] = [];
+      for (const householdId of householdIds) {
+        try {
+          const household = await this.getHouseholdById(householdId);
+          if (household) households.push(household);
+        } catch (e) {
+          console.error(`Failed to get household ${householdId}:`, e);
+        }
+      }
+      return households;
     }
   }
 
@@ -301,6 +497,16 @@ export class FirebaseDatabaseService {
       if (Platform.OS !== 'web') {
         await DatabaseService.addHouseholdMember(member);
       }
+
+      // 清除相关缓存
+      this.clearCacheByPattern('household_members');
+      
+      // 清除本地存储中的成员数据
+      const localKey = this.STORAGE_KEYS.MEMBERS + member.householdId;
+      if (typeof localStorage !== 'undefined') {
+        localStorage.removeItem(localKey);
+      }
+
     } catch (error) {
       console.error('Add household member error:', error);
       throw error;
@@ -310,30 +516,58 @@ export class FirebaseDatabaseService {
   async getHouseholdMembers(householdId: string): Promise<HouseholdMember[]> {
     try {
       if (!this.initialized) {
-        throw new Error('Firebase Database Service not initialized');
+        await this.initialize();
       }
+
+      // 检查缓存
+      const cacheKey = this.getCacheKey('household_members', householdId);
+      const cached = this.getFromCache<HouseholdMember[]>(cacheKey);
+      if (cached) return cached;
+
+      // 检查本地存储
+      const localKey = this.STORAGE_KEYS.MEMBERS + householdId;
+      const localCached = this.getFromLocalStorage<HouseholdMember[]>(localKey);
+      if (localCached) {
+        this.setCache(cacheKey, localCached);
+        return localCached;
+      }
+
+      console.log('Fetching household members from Firebase...');
+      performanceMonitor.startTimer(`getHouseholdMembers_${householdId}`);
 
       // Get memberships
       const memberships = await firebaseAuthService.queryDocuments('household_members', [
         { field: 'householdId', operator: '==', value: householdId }
       ]);
 
-      const members: HouseholdMember[] = [];
+      if (memberships.length === 0) {
+        const emptyResult: HouseholdMember[] = [];
+        this.setCache(cacheKey, emptyResult);
+        this.setLocalStorage(localKey, emptyResult);
+        return emptyResult;
+      }
 
-      // Get user data for each member
-      for (const membership of memberships) {
-        const user = await this.getUserById(membership.userId);
-        if (user) {
-          members.push({
+      // 批量获取用户信息（优化：一次查询所有用户）
+      const userIds = memberships.map((m: any) => m.userId);
+      const users = await this.batchGetUsers(userIds);
+      const userMap = new Map(users.map((u: any) => [u.id, u]));
+
+      // 在内存中组合数据
+      const members: HouseholdMember[] = memberships
+        .map((membership: any) => {
+          const user = userMap.get(membership.userId);
+          if (!user) return null;
+          
+          return {
             id: membership.id,
             householdId: membership.householdId,
             userId: membership.userId,
             role: membership.role as UserRole,
             joinedAt: membership.joinedAt?.toISOString?.() || membership.joinedAt,
             user
-          });
-        }
-      }
+          };
+        })
+        .filter(Boolean) as HouseholdMember[];
 
       // Sort by role (admin first) then by join date
       members.sort((a, b) => {
@@ -343,14 +577,79 @@ export class FirebaseDatabaseService {
         return new Date(a.joinedAt).getTime() - new Date(b.joinedAt).getTime();
       });
 
+      // 缓存结果
+      this.setCache(cacheKey, members);
+      this.setLocalStorage(localKey, members);
+
+      performanceMonitor.endTimer(`getHouseholdMembers_${householdId}`);
       return members;
     } catch (error) {
       console.error('Get household members error:', error);
+      
+      // 尝试从本地存储获取过期数据作为后备
+      const localKey = this.STORAGE_KEYS.MEMBERS + householdId;
+      try {
+        const stored = localStorage.getItem(localKey);
+        if (stored) {
+          const parsed = JSON.parse(stored);
+          console.log('Using stale data from localStorage as fallback');
+          return parsed.data || [];
+        }
+      } catch (e) {
+        console.error('Fallback localStorage read error:', e);
+      }
+
       // Fallback to local database on error
       if (Platform.OS !== 'web') {
         return await DatabaseService.getHouseholdMembers(householdId);
       }
       return [];
+    }
+  }
+
+  // 批量获取用户信息的新方法
+  private async batchGetUsers(userIds: string[]): Promise<User[]> {
+    if (userIds.length === 0) return [];
+
+    try {
+      // Firebase 'in' 查询限制为10个，需要分批处理
+      const batchSize = 10;
+      const batches: string[][] = [];
+      
+      for (let i = 0; i < userIds.length; i += batchSize) {
+        batches.push(userIds.slice(i, i + batchSize));
+      }
+
+      const allUsers: User[] = [];
+      
+      // 并行执行所有批次
+      const batchPromises = batches.map(batch => 
+        firebaseAuthService.queryDocuments('users', [
+          { field: 'id', operator: 'in', value: batch }
+        ])
+      );
+
+      const batchResults = await Promise.all(batchPromises);
+      
+      for (const users of batchResults) {
+        allUsers.push(...users);
+      }
+
+      return allUsers;
+    } catch (error) {
+      console.error('Batch get users error:', error);
+      
+      // 降级到单个查询
+      const users: User[] = [];
+      for (const userId of userIds) {
+        try {
+          const user = await this.getUserById(userId);
+          if (user) users.push(user);
+        } catch (e) {
+          console.error(`Failed to get user ${userId}:`, e);
+        }
+      }
+      return users;
     }
   }
 
@@ -484,8 +783,8 @@ export class FirebaseDatabaseService {
           aiProcessedData,
           verified: record.verified || false,
           createdBy: record.createdBy,
-          createdAt: record.createdAt?.toISOString?.() || record.createdAt,
-          updatedAt: record.updatedAt?.toISOString?.() || record.updatedAt,
+          createdAt: record.createdAt?.toDate ? record.createdAt.toDate().toISOString() : (record.createdAt || new Date().toISOString()),
+          updatedAt: record.updatedAt?.toDate ? record.updatedAt.toDate().toISOString() : (record.updatedAt || new Date().toISOString()),
         };
       }
 
@@ -591,10 +890,23 @@ export class FirebaseDatabaseService {
       // Delete from Firestore
       await firebaseAuthService.deleteDocument('health_records', recordId);
 
+      // 清除相关缓存
+      this.clearCacheByPattern('health_records');
+      
+      // 清除本地存储中的健康记录数据
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(this.STORAGE_KEYS.HEALTH_RECORDS)) {
+          localStorage.removeItem(key);
+        }
+      }
+
       // Also delete from local SQLite if on mobile
       if (Platform.OS !== 'web') {
         await DatabaseService.deleteHealthRecord(recordId);
       }
+
+      console.log('Health record deleted and caches cleared');
     } catch (error) {
       console.error('Delete health record error:', error);
       throw error;
@@ -660,7 +972,7 @@ export class FirebaseDatabaseService {
 
       const events = await firebaseAuthService.queryDocuments('appointments', conditions);
       
-      return events.map(event => ({
+      return events.map((event: any) => ({
         id: event.id,
         userId: event.userId,
         householdId: event.householdId,
@@ -673,7 +985,7 @@ export class FirebaseDatabaseService {
         googleCalendarEventId: event.googleCalendarEventId,
         createdBy: event.createdBy,
         createdAt: event.createdAt?.toISOString?.() || event.createdAt,
-      })).sort((a, b) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
+      })).sort((a: any, b: any) => new Date(a.scheduledDate).getTime() - new Date(b.scheduledDate).getTime());
     } catch (error) {
       console.error('Get calendar events error:', error);
       // Fallback to local database on error
@@ -751,16 +1063,31 @@ export class FirebaseDatabaseService {
   async removeHouseholdMember(memberId: string): Promise<void> {
     try {
       if (!this.initialized) {
-        throw new Error('Firebase Database Service not initialized');
+        await this.initialize();
       }
 
-      // Delete from Firestore
-      await firebaseAuthService.deleteDocument('household_members', memberId);
+      // Delete from Firestore with retry
+      await this.retryRequest(() => 
+        firebaseAuthService.deleteDocument('household_members', memberId)
+      );
+
+      // 清除相关缓存
+      this.clearCacheByPattern('household_members');
+      
+      // 清除本地存储中的成员数据
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith(this.STORAGE_KEYS.MEMBERS)) {
+          localStorage.removeItem(key);
+        }
+      }
 
       // Also delete from local SQLite if on mobile
       if (Platform.OS !== 'web') {
         await DatabaseService.removeHouseholdMember(memberId);
       }
+
+      console.log('Household member removed and caches cleared');
     } catch (error) {
       console.error('Remove household member error:', error);
       throw error;

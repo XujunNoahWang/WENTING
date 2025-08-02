@@ -24,9 +24,32 @@ const googleProvider = new GoogleAuthProvider();
 googleProvider.addScope('email');
 googleProvider.addScope('profile');
 
+// 请求批处理器
+class RequestBatcher {
+  private batches = new Map<string, Promise<any>>();
+
+  async batchRequest<T>(key: string, requestFn: () => Promise<T>): Promise<T> {
+    if (this.batches.has(key)) {
+      console.log(`Reusing existing request for key: ${key}`);
+      return this.batches.get(key);
+    }
+
+    const promise = requestFn();
+    this.batches.set(key, promise);
+    
+    // 清理已完成的请求
+    promise.finally(() => {
+      setTimeout(() => this.batches.delete(key), 100);
+    });
+
+    return promise;
+  }
+}
+
 // Firebase Web 认证服务
 export class FirebaseWebAuthService {
   private static instance: FirebaseWebAuthService;
+  private requestBatcher = new RequestBatcher();
   
   private constructor() {}
   
@@ -356,25 +379,32 @@ export class FirebaseWebAuthService {
 
   // 查询文档 - 兼容FirebaseDatabaseService的接口
   async queryDocuments(collectionName: string, conditions: Array<{field: string, operator: string, value: any}>) {
-    try {
-      let q = collection(db, collectionName);
-      
-      for (const condition of conditions) {
-        q = query(q, where(condition.field, condition.operator as any, condition.value));
+    // 创建查询的唯一键用于批处理
+    const queryKey = `${collectionName}:${JSON.stringify(conditions)}`;
+    
+    return this.requestBatcher.batchRequest(queryKey, async () => {
+      try {
+        let q = collection(db, collectionName);
+        
+        for (const condition of conditions) {
+          q = query(q, where(condition.field, condition.operator as any, condition.value));
+        }
+        
+        console.log(`Executing query for ${collectionName} with conditions:`, conditions);
+        const querySnapshot = await getDocs(q);
+        const results: any[] = [];
+        
+        querySnapshot.forEach((doc) => {
+          results.push({ id: doc.id, ...doc.data() });
+        });
+        
+        console.log(`Query completed for ${collectionName}, found ${results.length} documents`);
+        return results;
+      } catch (error) {
+        console.error(`查询文档失败 (${collectionName}):`, error);
+        throw error;
       }
-      
-      const querySnapshot = await getDocs(q);
-      const results: any[] = [];
-      
-      querySnapshot.forEach((doc) => {
-        results.push({ id: doc.id, ...doc.data() });
-      });
-      
-      return results;
-    } catch (error) {
-      console.error(`查询文档失败 (${collectionName}):`, error);
-      throw error;
-    }
+    });
   }
 
   // 获取单个文档 - 兼容FirebaseDatabaseService的接口

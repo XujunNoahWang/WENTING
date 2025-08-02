@@ -5,6 +5,7 @@ import { GeminiService } from './src/services/gemini/GeminiService';
 import HealthRecordService from './src/services/health/HealthRecordService';
 import FirebaseDatabaseService from './src/services/database/FirebaseDatabaseService';
 import { UserRole, User, Household, HouseholdMember, HealthRecordData } from './src/types/index';
+import { performanceMonitor } from './src/utils/performance/PerformanceMonitor';
 
 // 本地枚举和接口定义
 enum HealthRecordType {
@@ -145,12 +146,41 @@ const COLORS = {
   ERROR: '#FF3B30',
 };
 
+// 骨架屏组件
+const MemberListSkeleton = () => (
+  <View style={styles.membersList}>
+    {[1, 2, 3].map(i => (
+      <View key={i} style={[styles.memberCard, styles.skeletonCard]}>
+        <View style={styles.skeletonAvatar} />
+        <View style={styles.skeletonContent}>
+          <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+          <View style={[styles.skeletonLine, styles.skeletonSubtitle]} />
+        </View>
+      </View>
+    ))}
+  </View>
+);
+
+const HealthRecordsSkeleton = () => (
+  <View style={styles.healthRecordsList}>
+    {[1, 2, 3, 4].map(i => (
+      <View key={i} style={[styles.healthRecordCard, styles.skeletonCard]}>
+        <View style={[styles.skeletonLine, styles.skeletonTitle]} />
+        <View style={[styles.skeletonLine, styles.skeletonSubtitle]} />
+        <View style={[styles.skeletonLine, styles.skeletonDate]} />
+      </View>
+    ))}
+  </View>
+);
+
 // Simple navigation state
 let renderCount = 0;
 
 const App: React.FC = () => {
   renderCount++;
-  console.log(`[DEBUG] App component render #${renderCount}`);
+  if (renderCount % 10 === 0) { // 只每10次渲染打印一次日志
+    console.log(`[DEBUG] App component render #${renderCount}`);
+  }
 
   const [currentScreen, setCurrentScreen] = React.useState('login');
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
@@ -227,9 +257,24 @@ const App: React.FC = () => {
         // 初始化 Firebase
         const initialized = await firebaseWebAuthService.initialize();
 
-        // 注释掉清空数据操作以提升加载速度
-        // console.log('清空Firebase数据以开始全新测试...');
-        // await firebaseWebAuthService.clearAllData();
+        // 清空Firebase数据以开始全新测试
+        console.log('清空Firebase数据以开始全新测试...');
+        await firebaseWebAuthService.clearAllData();
+
+        // 清除本地存储缓存
+        console.log('清除本地存储缓存...');
+        const keysToRemove = [];
+        for (let i = 0; i < localStorage.length; i++) {
+          const key = localStorage.key(i);
+          if (key && key.startsWith('wenting_')) {
+            keysToRemove.push(key);
+          }
+        }
+        keysToRemove.forEach(key => {
+          localStorage.removeItem(key);
+          console.log(`已清除缓存：${key}`);
+        });
+        console.log('本地存储缓存清除完成！');
 
         if (initialized) {
           // 监听认证状态变化
@@ -319,14 +364,21 @@ const App: React.FC = () => {
 
   // 加载家庭数据
   // 加载用户的家庭列表
-  const loadHouseholds = React.useCallback(async () => {
-    console.log('[DEBUG] loadHouseholds called');
+  const loadHouseholds = React.useCallback(async (forceRefresh = false) => {
+    console.log('[DEBUG] loadHouseholds called, forceRefresh:', forceRefresh);
     try {
       const currentUser = firebaseWebAuthService.getCurrentUser();
 
       if (!currentUser?.uid) {
         console.warn('用户未登录或没有用户ID');
         return;
+      }
+
+      // 如果强制刷新，先清除缓存
+      if (forceRefresh) {
+        const dbService = FirebaseDatabaseService.getInstance();
+        dbService.clearCacheByPattern('user_households');
+        localStorage.removeItem(`wenting_households${currentUser.uid}`);
       }
 
       // 初始化Firebase数据库服务
@@ -340,8 +392,17 @@ const App: React.FC = () => {
         setHouseholds(householdsResult);
 
         // 设置第一个家庭为当前家庭
-        setCurrentHousehold(householdsResult[0]);
-        loadHouseholdMembers(householdsResult[0].id);
+        const firstHousehold = householdsResult[0];
+        setCurrentHousehold(firstHousehold);
+
+        // 预加载第一个家庭的成员数据（不阻塞UI）
+        loadHouseholdMembers(firstHousehold.id);
+
+        // 预加载健康记录（后台进行）
+        setTimeout(() => {
+          loadHealthRecords();
+        }, 500);
+
       } else {
         console.log('用户没有家庭，需要创建');
         setHouseholds([]);
@@ -350,21 +411,78 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('加载家庭数据失败:', error);
+
+      // 尝试从本地存储获取缓存数据
+      try {
+        const cachedHouseholds = localStorage.getItem('wenting_households');
+        if (cachedHouseholds) {
+          const parsed = JSON.parse(cachedHouseholds);
+          if (Date.now() - parsed.timestamp < 10 * 60 * 1000) { // 10分钟内的缓存
+            console.log('Using cached households data');
+            setHouseholds(parsed.data || []);
+          }
+        }
+      } catch (cacheError) {
+        console.error('Failed to load cached households:', cacheError);
+      }
     }
   }, []);
+
+  // 预加载用户数据
+  const preloadUserData = React.useCallback(async () => {
+    if (!isLoggedIn) return;
+
+    console.log('[DEBUG] Starting preload of user data...');
+    performanceMonitor.startTimer('preloadUserData');
+
+    try {
+      // 并行加载多个数据源，不阻塞UI
+      const promises = [
+        loadHouseholds(),
+        // 可以添加其他预加载任务
+      ];
+
+      // 使用 Promise.allSettled 确保即使某个请求失败也不影响其他请求
+      const results = await Promise.allSettled(promises);
+
+      results.forEach((result, index) => {
+        if (result.status === 'rejected') {
+          console.error(`Preload task ${index} failed:`, result.reason);
+        }
+      });
+
+      console.log('[DEBUG] Preload completed');
+      performanceMonitor.endTimer('preloadUserData');
+
+      // 在开发环境下打印性能报告
+      if (process.env.NODE_ENV === 'development') {
+        setTimeout(() => {
+          performanceMonitor.printReport();
+        }, 2000);
+      }
+    } catch (error) {
+      console.error('Preload error:', error);
+      performanceMonitor.endTimer('preloadUserData');
+    }
+  }, [isLoggedIn, loadHouseholds]);
 
   React.useEffect(() => {
     console.log('[DEBUG] useEffect - isLoggedIn changed:', isLoggedIn);
     if (isLoggedIn) {
-      console.log('[DEBUG] Loading households...');
-      loadHouseholds();
+      preloadUserData();
     }
-  }, [isLoggedIn, loadHouseholds]);
+  }, [isLoggedIn, preloadUserData]);
+
+  // 添加成员加载状态
+  const [membersLoading, setMembersLoading] = React.useState(false);
 
   // 加载家庭成员
   const loadHouseholdMembers = async (householdId: string) => {
     try {
       console.log('加载家庭成员，householdId:', householdId);
+      setMembersLoading(true);
+      performanceMonitor.startTimer('loadHouseholdMembers_UI');
+
       const currentUser = firebaseWebAuthService.getCurrentUser();
 
       if (!currentUser?.uid) {
@@ -374,7 +492,6 @@ const App: React.FC = () => {
 
       // 从Firebase获取家庭成员
       const dbService = FirebaseDatabaseService.getInstance();
-      await dbService.initialize();
       const membersResult = await dbService.getHouseholdMembers(householdId);
 
       if (membersResult && membersResult.length > 0) {
@@ -386,6 +503,9 @@ const App: React.FC = () => {
       }
     } catch (error) {
       console.error('加载家庭成员失败:', error);
+    } finally {
+      setMembersLoading(false);
+      performanceMonitor.endTimer('loadHouseholdMembers_UI');
     }
   };
 
@@ -441,8 +561,10 @@ const App: React.FC = () => {
 
       console.log('家庭创建成功，ID:', createdHouseholdId);
 
-      // 重新加载家庭数据
-      await loadHouseholds();
+      // 等待一小段时间确保数据已写入Firebase，然后强制刷新
+      setTimeout(async () => {
+        await loadHouseholds(true); // 强制刷新
+      }, 500);
 
       alert('成功：家庭创建成功！');
 
@@ -537,6 +659,10 @@ const App: React.FC = () => {
       });
 
       console.log('新成员添加成功');
+
+      // 清除缓存并重新加载家庭成员数据
+      // 手动清除相关缓存
+      localStorage.removeItem(`wenting_members_${currentHousehold.id}`);
 
       // 重新加载家庭成员数据
       await loadHouseholdMembers(currentHousehold.id);
@@ -660,40 +786,40 @@ const App: React.FC = () => {
 
   // 确认删除成员
   const confirmDeleteMember = async () => {
-    if (!memberToDelete) return;
+    if (!memberToDelete || !currentHousehold) return;
 
     console.log('用户确认删除，开始执行删除操作');
-    setLoading(true);
     setShowDeleteConfirm(false);
 
+    // 1. 乐观更新：立即从UI中移除成员
+    const memberName = memberToDelete.user?.fullName || memberToDelete.name || '成员';
+    const originalMembers = [...householdMembers];
+    setHouseholdMembers(prev => prev.filter(m => m.id !== memberToDelete.id));
+
+    // 2. 立即显示成功消息，提升用户体验
+    alert(`${memberName} 已从家庭中移除`);
+
     try {
-      if (!currentHousehold) {
-        alert('错误：找不到当前家庭');
-        return;
-      }
+      console.log('后台删除成员:', memberName);
 
-      console.log('开始删除成员:', memberToDelete.user?.fullName || memberToDelete.name || '未知用户');
-      console.log('要删除的成员完整信息:', memberToDelete);
-
-      // 使用Firebase删除成员
+      // 3. 后台执行实际删除操作
       const dbService = FirebaseDatabaseService.getInstance();
-      await dbService.initialize();
-
-      // 删除家庭成员关系
       await dbService.removeHouseholdMember(memberToDelete.id);
 
       console.log('成员关系删除成功');
 
-      // 重新加载家庭成员数据
-      await loadHouseholdMembers(currentHousehold.id);
+      // 4. 静默刷新确保数据一致性（延迟执行，不阻塞UI）
+      setTimeout(() => {
+        loadHouseholdMembers(currentHousehold.id);
+      }, 1000);
 
-      alert(`成功：${memberToDelete.user?.fullName || memberToDelete.name || '成员'} 已从家庭中移除`);
-      console.log('删除操作完成');
     } catch (error) {
       console.error('删除成员失败:', error);
-      alert('错误：删除成员失败，请重试');
+
+      // 5. 失败时回滚UI状态
+      setHouseholdMembers(originalMembers);
+      alert(`错误：删除 ${memberName} 失败，请重试`);
     } finally {
-      setLoading(false);
       setMemberToDelete(null);
     }
   };
@@ -708,7 +834,7 @@ const App: React.FC = () => {
   // 健康记录管理功能
 
   // 加载健康记录
-  const loadHealthRecords = async (memberId?: string) => {
+  const loadHealthRecords = async (memberId?: string, forceRefresh = false) => {
     try {
       const currentUser = firebaseWebAuthService.getCurrentUser();
 
@@ -723,6 +849,12 @@ const App: React.FC = () => {
 
       // 使用HealthRecordService加载健康记录
       const healthService = HealthRecordService.getInstance();
+
+      // 如果需要强制刷新，清除缓存
+      if (forceRefresh) {
+        healthService.clearCache(currentHousehold.id);
+        localStorage.removeItem(`wenting_health_records_${currentHousehold.id}`);
+      }
       const result = await healthService.getHealthRecords(
         currentHousehold.id,
         currentUser.uid,
@@ -781,9 +913,14 @@ const App: React.FC = () => {
       );
 
       if (result.success && result.data) {
-        // 重新加载健康记录
-        await loadHealthRecords();
+        // 清除健康记录缓存并重新加载
+        const healthService = HealthRecordService.getInstance();
+        healthService.clearCache(currentHousehold.id);
 
+        if (currentHousehold) {
+          localStorage.removeItem(`wenting_health_records_${currentHousehold.id}`);
+        }
+        await loadHealthRecords();
 
         // 重置表单
         setHealthRecordForm({
@@ -1279,21 +1416,21 @@ const App: React.FC = () => {
                     </View>
                   ) : (
                     healthRecords.map((record) => (
-                      <div key={record.id} style={styles.healthRecordCard}>
-                        <div
-                          style={{ ...styles.healthRecordContent, cursor: 'pointer' }}
-                          onClick={() => {
+                      <View key={record.id} style={styles.healthRecordCard}>
+                        <TouchableOpacity
+                          style={styles.healthRecordContent}
+                          onPress={() => {
                             console.log('卡片被点击，记录ID:', record.id);
                             setSelectedHealthRecord(record);
                             setCurrentScreen('healthRecordDetail');
                           }}
                         >
-                          <div style={styles.healthRecordHeader}>
+                          <View style={styles.healthRecordHeader}>
                             <Text style={styles.healthRecordTitle}>{record.title}</Text>
                             <Text style={styles.healthRecordType}>
                               {getRecordTypeLabel(record.recordType)}
                             </Text>
-                          </div>
+                          </View>
 
                           {record.description && (
                             <Text style={styles.healthRecordDescription}>{record.description}</Text>
@@ -1301,37 +1438,115 @@ const App: React.FC = () => {
 
                           {/* 显示AI建议指示器 */}
                           {record.recordData.aiAdvice && (
-                            <div style={styles.aiIndicator}>
+                            <View style={styles.aiIndicator}>
                               <Text style={styles.aiIndicatorText}>💡 包含AI建议</Text>
-                            </div>
+                            </View>
                           )}
 
                           <Text style={styles.healthRecordDate}>
-                            记录时间: {new Date(record.createdAt).toLocaleString('zh-CN')}
+                            记录时间: {record.createdAt ? new Date(record.createdAt).toLocaleString('zh-CN') : '未知时间'}
                           </Text>
-                        </div>
+                        </TouchableOpacity>
 
-                        <div
-                          style={{ ...styles.deleteButton, backgroundColor: '#ffebee', cursor: 'pointer' }}
-                          onClick={() => {
+                        <TouchableOpacity
+                          style={[styles.deleteButton, { backgroundColor: '#ffebee' }]}
+                          onPress={() => {
                             console.log('删除按钮被点击，记录ID:', record.id);
                             console.log('当前健康记录数量:', healthRecords.length);
+
                             if (window.confirm(`确定要删除健康记录"${record.title}"吗？此操作无法撤销。`)) {
                               console.log('用户确认删除');
-                              setHealthRecords(prev => {
-                                const newRecords = prev.filter(r => r.id !== record.id);
-                                console.log('删除后记录数量:', newRecords.length);
-                                return newRecords;
-                              });
-                              alert('健康记录已删除');
+
+                              // 1. 乐观更新：立即从UI中移除记录
+                              const recordTitle = record.title;
+                              const originalRecords = [...healthRecords];
+                              setHealthRecords(prev => prev.filter(r => r.id !== record.id));
+
+                              // 2. 立即显示成功消息，提升用户体验
+                              alert(`健康记录"${recordTitle}"已删除`);
+
+                              // 3. 后台执行实际删除操作（异步，不阻塞UI）
+                              (async () => {
+                                try {
+                                  console.log('后台删除健康记录:', recordTitle);
+
+                                  const currentUser = firebaseWebAuthService.getCurrentUser();
+                                  if (currentUser && currentHousehold) {
+                                    // 直接调用Firebase删除，跳过复杂的服务层
+                                    await firebaseWebAuthService.deleteDocument('health_records', record.id);
+
+                                    // 清除所有相关缓存
+                                    const healthService = HealthRecordService.getInstance();
+                                    healthService.clearCache(); // 清除所有缓存，不只是特定模式
+
+                                    // 清除本地存储中所有健康记录相关的数据
+                                    const keysToRemove = [];
+                                    for (let i = 0; i < localStorage.length; i++) {
+                                      const key = localStorage.key(i);
+                                      if (key && (key.includes('health_records') || key.includes('wenting_health'))) {
+                                        keysToRemove.push(key);
+                                      }
+                                    }
+                                    keysToRemove.forEach(key => {
+                                      localStorage.removeItem(key);
+                                      console.log(`已清除缓存：${key}`);
+                                    });
+
+                                    console.log('健康记录已从数据库中删除');
+
+                                    // 4. 静默刷新确保数据一致性（延迟执行，不阻塞UI）
+                                    setTimeout(async () => {
+                                      console.log('开始静默刷新健康记录...');
+
+                                      try {
+                                        // 直接从Firebase获取最新数据，绕过所有缓存
+                                        const conditions = [
+                                          { field: 'householdId', operator: '==', value: currentHousehold.id }
+                                        ];
+
+                                        const rawRecords = await firebaseWebAuthService.queryDocuments('health_records', conditions);
+                                        console.log('从Firebase获取到的原始记录数量:', rawRecords.length);
+
+                                        // 简单处理，不解密，只显示基本信息
+                                        const freshRecords = rawRecords.map((rawRecord: any) => ({
+                                          id: rawRecord.id,
+                                          userId: rawRecord.userId,
+                                          householdId: rawRecord.householdId,
+                                          memberName: '成员', // 简化显示
+                                          title: rawRecord.title || '健康记录',
+                                          description: rawRecord.description || '',
+                                          recordType: rawRecord.recordType || 'vital_signs',
+                                          recordData: rawRecord.recordData || {},
+                                          createdBy: rawRecord.createdBy,
+                                          createdAt: rawRecord.createdAt?.toDate ? rawRecord.createdAt.toDate().toISOString() : (rawRecord.createdAt || new Date().toISOString()),
+                                          updatedAt: rawRecord.updatedAt?.toDate ? rawRecord.updatedAt.toDate().toISOString() : (rawRecord.updatedAt || new Date().toISOString())
+                                        }));
+
+                                        console.log('处理后的记录数量:', freshRecords.length);
+                                        setHealthRecords(freshRecords);
+                                      } catch (refreshError) {
+                                        console.error('静默刷新失败:', refreshError);
+                                        // 如果刷新失败，使用原来的方法
+                                        loadHealthRecords(undefined, true);
+                                      }
+                                    }, 1000);
+                                  }
+                                } catch (error) {
+                                  console.error('后台删除健康记录失败:', error);
+
+                                  // 5. 失败时回滚UI状态
+                                  setHealthRecords(originalRecords);
+                                  alert(`删除失败：${recordTitle} 已恢复显示`);
+                                }
+                              })();
                             } else {
                               console.log('用户取消删除');
                             }
                           }}
                         >
                           <Text style={styles.deleteButtonText}>🗑️</Text>
-                        </div>
-                      </div>
+                        </TouchableOpacity>
+                      </View>
                     ))
                   )}
                 </View>
@@ -1684,7 +1899,7 @@ const App: React.FC = () => {
                 )}
 
                 <Text style={styles.recordDetailDate}>
-                  记录时间: {new Date(selectedHealthRecord.createdAt).toLocaleString('zh-CN')}
+                  记录时间: {selectedHealthRecord.createdAt ? new Date(selectedHealthRecord.createdAt).toLocaleString('zh-CN') : '未知时间'}
                 </Text>
               </View>
             )}
@@ -1753,70 +1968,74 @@ const App: React.FC = () => {
                 </View>
 
                 {/* 成员列表 */}
-                <View style={styles.membersList}>
-                  {householdMembers.map((member, index) => {
-                    if (!member || !member.id) {
-                      console.error('Invalid member data:', member);
-                      return null;
-                    }
-                    return (
-                      <View key={member.id} style={styles.memberCard}>
-                        <View style={styles.memberInfo}>
-                          <View style={styles.memberHeader}>
-                            <Text style={styles.memberName}>
-                              {member.user?.fullName || member.user?.displayName || member.name || '未知用户'}
-                            </Text>
-                            <View style={styles.memberBadges}>
-                              <Text style={[
-                                styles.memberBadge,
-                                member.role === 'admin' ? styles.adminBadge : styles.memberBadge
-                              ]}>
-                                {member.role === 'admin' ? '管理员' : '成员'}
+                {membersLoading ? (
+                  <MemberListSkeleton />
+                ) : (
+                  <View style={styles.membersList}>
+                    {householdMembers.map((member, index) => {
+                      if (!member || !member.id) {
+                        console.error('Invalid member data:', member);
+                        return null;
+                      }
+                      return (
+                        <View key={member.id} style={styles.memberCard}>
+                          <View style={styles.memberInfo}>
+                            <View style={styles.memberHeader}>
+                              <Text style={styles.memberName}>
+                                {member.user?.fullName || member.user?.displayName || member.name || '未知用户'}
                               </Text>
-                              <Text style={styles.relationshipBadge}>{member.relationship || '家人'}</Text>
+                              <View style={styles.memberBadges}>
+                                <Text style={[
+                                  styles.memberBadge,
+                                  member.role === 'admin' ? styles.adminBadge : styles.memberBadge
+                                ]}>
+                                  {member.role === 'admin' ? '管理员' : '成员'}
+                                </Text>
+                                <Text style={styles.relationshipBadge}>{member.relationship || '家人'}</Text>
+                              </View>
                             </View>
+
+                            <Text style={styles.memberEmail}>{member.user?.email || member.email || ''}</Text>
+                            {(member.user?.phoneNumber || member.phone) &&
+                              <Text style={styles.memberPhone}>📞 {member.user?.phoneNumber || member.phone}</Text>
+                            }
+                            <Text style={styles.memberJoinDate}>
+                              加入时间：{member && member.joinedAt ? new Date(member.joinedAt).toLocaleDateString('zh-CN') : '未知'}
+                            </Text>
                           </View>
 
-                          <Text style={styles.memberEmail}>{member.user?.email || member.email || ''}</Text>
-                          {(member.user?.phoneNumber || member.phone) &&
-                            <Text style={styles.memberPhone}>📞 {member.user?.phoneNumber || member.phone}</Text>
-                          }
-                          <Text style={styles.memberJoinDate}>
-                            加入时间：{member && member.joinedAt ? new Date(member.joinedAt).toLocaleDateString('zh-CN') : '未知'}
-                          </Text>
-                        </View>
-
-                        <View style={styles.memberActions}>
-                          <TouchableOpacity
-                            style={styles.editButton}
-                            onPress={() => {
-                              console.log('编辑成员，成员详情:', member);
-                              handleEditMember(member);
-                            }}
-                          >
-                            <Text style={styles.editButtonText}>编辑</Text>
-                          </TouchableOpacity>
-
-                          {member.role !== 'admin' ? (
+                          <View style={styles.memberActions}>
                             <TouchableOpacity
-                              style={styles.deleteButton}
+                              style={styles.editButton}
                               onPress={() => {
-                                console.log('准备删除成员:', member);
-                                handleDeleteMember(member);
+                                console.log('编辑成员，成员详情:', member);
+                                handleEditMember(member);
                               }}
                             >
-                              <Text style={styles.deleteButtonText}>移除</Text>
+                              <Text style={styles.editButtonText}>编辑</Text>
                             </TouchableOpacity>
-                          ) : (
-                            <View style={styles.adminOnlyContainer}>
-                              <Text style={styles.adminOnlyText}>管理员不可移除</Text>
-                            </View>
-                          )}
+
+                            {member.role !== 'admin' ? (
+                              <TouchableOpacity
+                                style={styles.deleteButton}
+                                onPress={() => {
+                                  console.log('准备删除成员:', member);
+                                  handleDeleteMember(member);
+                                }}
+                              >
+                                <Text style={styles.deleteButtonText}>移除</Text>
+                              </TouchableOpacity>
+                            ) : (
+                              <View style={styles.adminOnlyContainer}>
+                                <Text style={styles.adminOnlyText}>管理员不可移除</Text>
+                              </View>
+                            )}
+                          </View>
                         </View>
-                      </View>
-                    );
-                  })}
-                </View>
+                      );
+                    })}
+                  </View>
+                )}
 
               </View>
             )}
@@ -2815,6 +3034,7 @@ const styles = StyleSheet.create({
   },
   healthRecordsList: {
     marginBottom: 20,
+    padding: 16,
   },
   noRecordsContainer: {
     alignItems: 'center',
@@ -3095,6 +3315,39 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: '#333',
   },
+
+  // 骨架屏样式
+  skeletonCard: {
+    backgroundColor: '#f5f5f5',
+  },
+  skeletonAvatar: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#e0e0e0',
+    marginRight: 12,
+  },
+  skeletonContent: {
+    flex: 1,
+  },
+  skeletonLine: {
+    height: 12,
+    backgroundColor: '#e0e0e0',
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  skeletonTitle: {
+    width: '70%',
+    height: 16,
+  },
+  skeletonSubtitle: {
+    width: '50%',
+    height: 12,
+  },
+  skeletonDate: {
+    width: '30%',
+    height: 10,
+  },
 });
 
-export default App;
+export default React.memo(App);

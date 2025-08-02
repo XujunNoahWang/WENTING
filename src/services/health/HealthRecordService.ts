@@ -14,6 +14,8 @@ import { ERROR_MESSAGES, SUCCESS_MESSAGES } from '@constants/index';
 
 export class HealthRecordService {
   private static instance: HealthRecordService;
+  private cache = new Map<string, { data: any, timestamp: number }>();
+  private readonly CACHE_TTL = 3 * 60 * 1000; // 3分钟缓存
 
   private constructor() {}
 
@@ -22,6 +24,20 @@ export class HealthRecordService {
       HealthRecordService.instance = new HealthRecordService();
     }
     return HealthRecordService.instance;
+  }
+
+  // 清除缓存
+  clearCache(pattern?: string): void {
+    if (pattern) {
+      for (const key of this.cache.keys()) {
+        if (key.includes(pattern)) {
+          this.cache.delete(key);
+        }
+      }
+    } else {
+      this.cache.clear();
+    }
+    console.log('Health records cache cleared');
   }
 
   /**
@@ -104,6 +120,14 @@ export class HealthRecordService {
     userRole: UserRole
   ): Promise<ApiResponse<HealthRecord[]>> {
     try {
+      // 检查缓存
+      const cacheKey = `health_records_${householdId}_${userId}_${userRole}`;
+      const cached = this.cache.get(cacheKey);
+      if (cached && Date.now() - cached.timestamp < this.CACHE_TTL) {
+        console.log('Using cached health records');
+        return { success: true, data: cached.data };
+      }
+
       const dbService = FirebaseDatabaseService.getInstance();
       await dbService.initialize();
       
@@ -138,6 +162,9 @@ export class HealthRecordService {
 
       // Sort by creation date (newest first)
       healthRecords.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+      // 缓存结果
+      this.cache.set(cacheKey, { data: healthRecords, timestamp: Date.now() });
 
       return {
         success: true,
