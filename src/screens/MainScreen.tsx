@@ -9,7 +9,6 @@ import { FirebaseUser } from '../types/appTypes';
 import AuthScreen from './auth/AuthScreen';
 import FamilyScreen from './household/FamilyScreen';
 import HealthScreen from './health/HealthScreen';
-import CalendarScreen from './calendar/CalendarScreen';
 import SettingsScreen from './settings/SettingsScreen';
 import HealthRecordDetailScreen from './health/HealthRecordDetailScreen';
 
@@ -123,17 +122,6 @@ const MainScreen: React.FC = () => {
                 <Text style={styles.menuItemArrow}>→</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => handleNavigate('calendar')}
-              >
-                <Text style={styles.menuItemIcon}>📅</Text>
-                <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemTitle}>健康日历</Text>
-                  <Text style={styles.menuItemSubtitle}>查看体检和复查安排</Text>
-                </View>
-                <Text style={styles.menuItemArrow}>→</Text>
-              </TouchableOpacity>
 
               <TouchableOpacity 
                 style={styles.menuItem}
@@ -169,13 +157,6 @@ const MainScreen: React.FC = () => {
             user={user} 
             onNavigate={handleNavigate}
             selectedRecord={screenData?.record || null}
-          />
-        );
-      case 'calendar':
-        return (
-          <CalendarScreen 
-            user={user} 
-            onNavigate={handleNavigate}
           />
         );
       case 'settings':
@@ -226,17 +207,6 @@ const MainScreen: React.FC = () => {
                 <Text style={styles.menuItemArrow}>→</Text>
               </TouchableOpacity>
 
-              <TouchableOpacity 
-                style={styles.menuItem}
-                onPress={() => handleNavigate('calendar')}
-              >
-                <Text style={styles.menuItemIcon}>📅</Text>
-                <View style={styles.menuItemContent}>
-                  <Text style={styles.menuItemTitle}>健康日历</Text>
-                  <Text style={styles.menuItemSubtitle}>查看体检和复查安排</Text>
-                </View>
-                <Text style={styles.menuItemArrow}>→</Text>
-              </TouchableOpacity>
 
               <TouchableOpacity 
                 style={styles.menuItem}

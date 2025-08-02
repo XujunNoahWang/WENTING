@@ -68,14 +68,12 @@ const HomeScreen: React.FC = () => {
   const quickActions = [
     { id: 'addRecord', title: '添加健康档案', icon: 'add-circle-outline', color: COLORS.PRIMARY },
     { id: 'addReminder', title: '设置提醒', icon: 'alarm-outline', color: COLORS.SUCCESS },
-    { id: 'viewCalendar', title: '查看日历', icon: 'calendar-outline', color: COLORS.SECONDARY },
     { id: 'addAppointment', title: '预约挂号', icon: 'medical-outline', color: COLORS.WARNING },
   ];
 
   const stats = [
     { label: '健康档案', value: '12', icon: 'document-text-outline' },
     { label: '活跃提醒', value: '5', icon: 'notifications-outline' },
-    { label: '本月预约', value: '3', icon: 'calendar-outline' },
     { label: '家庭成员', value: '4', icon: 'people-outline' },
   ];
 

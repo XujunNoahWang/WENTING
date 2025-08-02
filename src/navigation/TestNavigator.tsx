@@ -6,7 +6,6 @@ import { useNavigation } from '@react-navigation/native';
 // Import actual screens
 import HealthRecordsScreen from '@screens/health/HealthRecordsScreen';
 import HouseholdScreen from '@screens/household/HouseholdScreen';
-import CalendarScreen from '@screens/calendar/CalendarScreen';
 import SettingsScreen from '@screens/settings/SettingsScreen';
 
 const Stack = createStackNavigator();

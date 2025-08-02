@@ -47,7 +47,8 @@
       "Bash(timeout 10 npm run web)",
       "Bash(npx kill-port:*)",
       "Bash(timeout 30 npm run web)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(timeout 15 npm run web)"
     ],
     "deny": []
   }

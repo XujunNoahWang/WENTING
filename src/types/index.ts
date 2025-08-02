@@ -174,29 +174,6 @@ export interface ScheduleData {
   customPattern?: string; // Cron-like pattern
 }
 
-// Health Calendar
-export interface HealthCalendarEvent {
-  id: string;
-  userId: string;
-  householdId: string;
-  title: string;
-  description?: string;
-  appointmentType: AppointmentType;
-  scheduledDate: string;
-  location?: string;
-  doctorInfo?: DoctorInfo;
-  googleCalendarEventId?: string;
-  createdBy: string;
-  createdAt: string;
-}
-
-export enum AppointmentType {
-  CHECKUP = 'checkup',
-  FOLLOW_UP = 'follow_up',
-  PROCEDURE = 'procedure',
-  CONSULTATION = 'consultation',
-  EMERGENCY = 'emergency'
-}
 
 export interface DoctorInfo {
   name: string;
@@ -317,7 +294,6 @@ export interface RootState {
   household: HouseholdState;
   healthRecords: HealthRecordsState;
   reminders: RemindersState;
-  calendar: CalendarState;
 }
 
 export interface HouseholdState {
@@ -339,11 +315,6 @@ export interface RemindersState {
   error: string | null;
 }
 
-export interface CalendarState {
-  events: HealthCalendarEvent[];
-  isLoading: boolean;
-  error: string | null;
-}
 
 // Navigation Types
 export type RootStackParamList = {
@@ -360,8 +331,6 @@ export type RootStackParamList = {
   ViewHealthRecord: { recordId: string };
   Reminders: undefined;
   AddReminder: { recordId?: string };
-  Calendar: undefined;
-  AddAppointment: undefined;
   Settings: undefined;
 };
 
@@ -373,7 +342,6 @@ export interface LocalizationResources {
     household: any;
     health: any;
     reminders: any;
-    calendar: any;
   };
   zh: {
     common: any;
@@ -381,6 +349,5 @@ export interface LocalizationResources {
     household: any;
     health: any;
     reminders: any;
-    calendar: any;
   };
 }

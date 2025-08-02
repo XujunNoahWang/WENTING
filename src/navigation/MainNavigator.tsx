@@ -10,14 +10,12 @@ import { RootStackParamList } from '../types/index';
 import HomeScreen from '../screens/home/HomeScreen';
 import HouseholdScreen from '../screens/household/HouseholdScreen';
 import HealthRecordsScreen from '../screens/health/HealthRecordsScreen';
-import CalendarScreen from '../screens/calendar/CalendarScreen';
 import ProfileScreen from '../screens/profile/ProfileScreen';
 
 // Detail Screens
 import AddHealthRecordScreen from '../screens/health/AddHealthRecordScreen';
 import ViewHealthRecordScreen from '../screens/health/ViewHealthRecordScreen';
 import AddReminderScreen from '../screens/reminders/AddReminderScreen';
-import AddAppointmentScreen from '../screens/calendar/AddAppointmentScreen';
 import HouseholdMembersScreen from '../screens/household/HouseholdMembersScreen';
 import InviteMemberScreen from '../screens/household/InviteMemberScreen';
 import SettingsScreen from '../screens/settings/SettingsScreen';
@@ -145,38 +143,6 @@ const HealthStackNavigator = () => (
   </Stack.Navigator>
 );
 
-const CalendarStackNavigator = () => (
-  <Stack.Navigator
-    screenOptions={{
-      headerStyle: {
-        backgroundColor: COLORS.PRIMARY,
-        elevation: 0,
-        shadowOpacity: 0,
-      },
-      headerTintColor: COLORS.SURFACE,
-      headerTitleStyle: {
-        fontWeight: 'bold',
-        fontSize: 18,
-      },
-      headerBackTitleVisible: false,
-    }}
-  >
-    <Stack.Screen
-      name="Calendar"
-      component={CalendarScreen}
-      options={{
-        title: '健康日历',
-      }}
-    />
-    <Stack.Screen
-      name="AddAppointment"
-      component={AddAppointmentScreen}
-      options={{
-        title: '添加预约',
-      }}
-    />
-  </Stack.Navigator>
-);
 
 const ProfileStackNavigator = () => (
   <Stack.Navigator
@@ -227,9 +193,6 @@ const MainNavigator: React.FC = () => {
               break;
             case 'HealthTab':
               iconName = focused ? 'heart' : 'heart-outline';
-              break;
-            case 'CalendarTab':
-              iconName = focused ? 'calendar' : 'calendar-outline';
               break;
             case 'ProfileTab':
               iconName = focused ? 'person' : 'person-outline';
@@ -282,13 +245,6 @@ const MainNavigator: React.FC = () => {
         }}
       />
       
-      <Tab.Screen
-        name="CalendarTab"
-        component={CalendarStackNavigator}
-        options={{
-          tabBarLabel: '日历',
-        }}
-      />
       
       <Tab.Screen
         name="ProfileTab"
