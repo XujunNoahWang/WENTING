@@ -4,10 +4,8 @@ import {
   WeatherData,
   ApiResponse,
   MedicationData,
-  DiagnosisData,
   HealthRecord,
-} from '@types/index';
-import { API_ENDPOINTS, ERROR_MESSAGES } from '@constants/index';
+} from '../../types/index';
 
 export class GeminiService {
   private static instance: GeminiService;
@@ -16,6 +14,8 @@ export class GeminiService {
 
   private constructor() {
     const apiKey = process.env.REACT_APP_GEMINI_API_KEY;
+    console.log('Gemini API Key check:', apiKey ? 'Found' : 'Not found', process.env.REACT_APP_GEMINI_API_KEY?.substring(0, 10) + '...');
+
     if (!apiKey) {
       console.warn('Gemini API key not configured, health analysis features will be limited');
       // Create a mock instance to prevent crashes
@@ -48,7 +48,7 @@ export class GeminiService {
           error: 'Gemini API not configured'
         };
       }
-      
+
       const visionModel = this.genAI.getGenerativeModel({ model: "gemini-2.5-flash-lite-preview-06-17" });
 
       const prompt = `
@@ -96,11 +96,11 @@ export class GeminiService {
         patientName: analysisData.patientName || null,
         diagnosis: Array.isArray(analysisData.diagnosis) ? analysisData.diagnosis : [],
         medications: this.validateMedications(analysisData.medications || []),
-        doctorRecommendations: Array.isArray(analysisData.doctorRecommendations) 
+        doctorRecommendations: Array.isArray(analysisData.doctorRecommendations)
           ? analysisData.doctorRecommendations : [],
         followUpDate: analysisData.followUpDate || null,
         notes: Array.isArray(analysisData.notes) ? analysisData.notes : [],
-        confidence: typeof analysisData.confidence === 'number' 
+        confidence: typeof analysisData.confidence === 'number'
           ? Math.min(Math.max(analysisData.confidence, 0), 1) : 0.5,
       };
 
@@ -112,7 +112,7 @@ export class GeminiService {
 
     } catch (error: any) {
       console.error('Gemini document analysis error:', error);
-      
+
       let errorMessage = '文档分析失败';
       if (error.message?.includes('API key')) {
         errorMessage = 'AI服务配置错误';
@@ -133,7 +133,7 @@ export class GeminiService {
    * Generate personalized health tips based on user conditions and weather
    */
   async generateHealthTip(
-    userConditions: string[], 
+    userConditions: string[],
     weatherData: WeatherData,
     userAge?: number,
     allergies?: string[]
@@ -261,7 +261,7 @@ export class GeminiService {
       }
 
       console.log('正在调用Gemini API生成健康建议...');
-      
+
       const result = await this.model.generateContent(prompt);
       const response = result.response;
       const advice = response.text().trim();
@@ -276,7 +276,7 @@ export class GeminiService {
 
     } catch (error: any) {
       console.error('Gemini health advice generation error:', error);
-      
+
       // 提供更友好的错误信息
       let errorMessage = '生成健康建议失败';
       if (error.message?.includes('404')) {
@@ -286,7 +286,7 @@ export class GeminiService {
       } else if (error.message?.includes('400')) {
         errorMessage = '请求格式错误';
       }
-      
+
       return {
         success: false,
         error: errorMessage
@@ -372,7 +372,7 @@ export class GeminiService {
 
         症状：${symptoms.join(', ')}
         ${userAge ? `年龄：${userAge}岁` : ''}
-        ${existingConditions && existingConditions.length > 0 
+        ${existingConditions && existingConditions.length > 0
           ? `已知疾病：${existingConditions.join(', ')}` : ''}
 
         重要要求：

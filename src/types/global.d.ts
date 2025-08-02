@@ -1,0 +1,31 @@
+declare global {
+  namespace NodeJS {
+    interface ProcessEnv {
+      REACT_APP_GEMINI_API_KEY?: string;
+      REACT_APP_FIREBASE_API_KEY?: string;
+      REACT_APP_FIREBASE_AUTH_DOMAIN?: string;
+      REACT_APP_FIREBASE_PROJECT_ID?: string;
+      REACT_APP_FIREBASE_STORAGE_BUCKET?: string;
+      REACT_APP_FIREBASE_MESSAGING_SENDER_ID?: string;
+      REACT_APP_FIREBASE_APP_ID?: string;
+      REACT_APP_FIREBASE_MEASUREMENT_ID?: string;
+      GOOGLE_WEB_CLIENT_ID?: string;
+      GOOGLE_IOS_CLIENT_ID?: string;
+      NODE_ENV?: 'development' | 'production' | 'test';
+    }
+
+    interface Timeout {}
+  }
+
+  var process: {
+    env: NodeJS.ProcessEnv;
+  };
+
+  var Buffer: {
+    from(str: string, encoding?: string): {
+      toString(encoding?: string): string;
+    };
+  };
+}
+
+export {};

@@ -5,10 +5,16 @@ export interface User {
   email?: string;
   googleId?: string;
   fullName: string;
+  displayName?: string;
+  name?: string;
   avatarUrl?: string;
   biometricEnabled: boolean;
-  createdAt: string;
-  updatedAt: string;
+  createdAt?: string;
+  updatedAt?: string;
+  uid?: string;
+  photoURL?: string;
+  emailVerified?: boolean;
+  providerData?: any[];
 }
 
 export interface Household {
@@ -26,6 +32,13 @@ export interface HouseholdMember {
   role: UserRole;
   joinedAt: string;
   user?: User;
+  name?: string;
+  email?: string;
+  phoneNumber?: string;
+  phone?: string;
+  relationship?: string;
+  displayName?: string;
+  providerData?: any[];
 }
 
 export enum UserRole {
@@ -38,13 +51,14 @@ export interface HealthRecord {
   id: string;
   userId: string;
   householdId: string;
+  memberName?: string;
   title: string;
   description?: string;
   recordType: HealthRecordType;
   recordData: HealthRecordData;
   documentPath?: string;
   aiProcessedData?: AIProcessedData;
-  verified: boolean;
+  verified?: boolean;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
@@ -65,6 +79,8 @@ export interface HealthRecordData {
   diagnosis?: DiagnosisData;
   allergy?: AllergyData;
   vitals?: VitalSignsData;
+  aiAdvice?: string;
+  aiAdviceGeneratedAt?: string;
   [key: string]: any;
 }
 

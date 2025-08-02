@@ -37,7 +37,15 @@
       "Bash(npx @babel/parser:*)",
       "Bash(timeout 10 npx webpack:*)",
       "Bash(npx webpack:*)",
-      "Bash(timeout 5 npm run web)"
+      "Bash(timeout 5 npm run web)",
+      "Bash(git commit:*)",
+      "Bash(cmd /c:*)",
+      "Bash(npm ls:*)",
+      "Bash(git reset:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Bash(timeout 10 npm run web)",
+      "Bash(npx kill-port:*)"
     ],
     "deny": []
   }

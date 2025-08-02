@@ -33,6 +33,7 @@
   },
   "include": [
     "src/**/*",
+    "src/types/global.d.ts",
     "index.js",
     "__tests__/**/*",
     "*.ts",

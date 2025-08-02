@@ -1,7 +1,7 @@
 // Firebase Web 配置 - 专门用于 Web 平台
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut, onAuthStateChanged, sendPasswordResetEmail, signInWithPopup, GoogleAuthProvider, updateProfile } from 'firebase/auth';
-import { getFirestore, doc, setDoc, collection, addDoc, getDoc, getDocs, serverTimestamp } from 'firebase/firestore';
+import { getFirestore, doc, setDoc, collection, addDoc, getDoc, getDocs, serverTimestamp, deleteDoc, query, where } from 'firebase/firestore';
 
 // Firebase 配置
 const firebaseConfig = {
@@ -300,7 +300,117 @@ export class FirebaseWebAuthService {
       return { success: false, error: error };
     }
   }
+
+  // 清空所有Firebase数据 (仅用于测试)
+  async clearAllData() {
+    try {
+      console.log('开始清空Firebase数据...');
+      
+      // 删除所有健康记录
+      const healthRecordsSnapshot = await getDocs(collection(db, 'health_records'));
+      const deleteHealthPromises = healthRecordsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteHealthPromises);
+      console.log(`已删除 ${healthRecordsSnapshot.docs.length} 条健康记录`);
+      
+      // 删除所有家庭成员关系
+      const householdMembersSnapshot = await getDocs(collection(db, 'household_members'));
+      const deleteMemberPromises = householdMembersSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteMemberPromises);
+      console.log(`已删除 ${householdMembersSnapshot.docs.length} 条家庭成员关系`);
+      
+      // 删除所有家庭
+      const householdsSnapshot = await getDocs(collection(db, 'households'));
+      const deleteHouseholdPromises = householdsSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteHouseholdPromises);
+      console.log(`已删除 ${householdsSnapshot.docs.length} 个家庭`);
+      
+      // 删除所有用户文档 (保留认证用户)
+      const usersSnapshot = await getDocs(collection(db, 'users'));
+      const deleteUserPromises = usersSnapshot.docs.map(doc => deleteDoc(doc.ref));
+      await Promise.all(deleteUserPromises);
+      console.log(`已删除 ${usersSnapshot.docs.length} 个用户文档`);
+      
+      console.log('Firebase数据清空完成!');
+      return { success: true, message: 'Firebase数据已全部清空' };
+    } catch (error) {
+      console.error('清空Firebase数据失败:', error);
+      return { success: false, error: error };
+    }
+  }
   
+  // 创建文档 - 兼容FirebaseDatabaseService的接口
+  async createDocument(collectionName: string, data: any, docId?: string) {
+    try {
+      if (docId) {
+        await setDoc(doc(db, collectionName, docId), data);
+      } else {
+        const docRef = await addDoc(collection(db, collectionName), data);
+        return docRef.id;
+      }
+      return docId;
+    } catch (error) {
+      console.error(`创建文档失败 (${collectionName}):`, error);
+      throw error;
+    }
+  }
+
+  // 查询文档 - 兼容FirebaseDatabaseService的接口
+  async queryDocuments(collectionName: string, conditions: Array<{field: string, operator: string, value: any}>) {
+    try {
+      let q = collection(db, collectionName);
+      
+      for (const condition of conditions) {
+        q = query(q, where(condition.field, condition.operator as any, condition.value));
+      }
+      
+      const querySnapshot = await getDocs(q);
+      const results: any[] = [];
+      
+      querySnapshot.forEach((doc) => {
+        results.push({ id: doc.id, ...doc.data() });
+      });
+      
+      return results;
+    } catch (error) {
+      console.error(`查询文档失败 (${collectionName}):`, error);
+      throw error;
+    }
+  }
+
+  // 获取单个文档 - 兼容FirebaseDatabaseService的接口
+  async getDocument(collectionName: string, docId: string) {
+    try {
+      const docSnap = await getDoc(doc(db, collectionName, docId));
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() };
+      }
+      return null;
+    } catch (error) {
+      console.error(`获取文档失败 (${collectionName}/${docId}):`, error);
+      throw error;
+    }
+  }
+
+  // 更新文档 - 兼容FirebaseDatabaseService的接口  
+  async updateDocument(collectionName: string, docId: string, updates: any) {
+    try {
+      await setDoc(doc(db, collectionName, docId), updates, { merge: true });
+    } catch (error) {
+      console.error(`更新文档失败 (${collectionName}/${docId}):`, error);
+      throw error;
+    }
+  }
+
+  // 删除文档 - 兼容FirebaseDatabaseService的接口
+  async deleteDocument(collectionName: string, docId: string) {
+    try {
+      await deleteDoc(doc(db, collectionName, docId));
+    } catch (error) {
+      console.error(`删除文档失败 (${collectionName}/${docId}):`, error);
+      throw error;
+    }
+  }
+
   // 格式化错误信息
   private formatErrorMessage(error: any): string {
     const errorCode = error.code || error.message;

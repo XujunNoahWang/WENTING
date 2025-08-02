@@ -13,7 +13,7 @@ module.exports = {
   resolve: {
     extensions: ['.web.js', '.js', '.web.tsx', '.tsx', '.web.ts', '.ts', '.json'],
     alias: {
-      'react-native$': 'react-native-web',
+      'react-native': 'react-native-web',
       '@': path.resolve(__dirname, 'src'),
       '@components': path.resolve(__dirname, 'src/components'),
       '@screens': path.resolve(__dirname, 'src/screens'),
@@ -25,6 +25,10 @@ module.exports = {
       '@store': path.resolve(__dirname, 'src/store'),
       '@constants': path.resolve(__dirname, 'src/constants'),
       '@assets': path.resolve(__dirname, 'src/assets'),
+    },
+    fallback: {
+      "process": require.resolve("process/browser"),
+      "buffer": require.resolve("buffer"),
     },
   },
   module: {
@@ -91,6 +95,14 @@ module.exports = {
         REACT_APP_FIREBASE_MEASUREMENT_ID: JSON.stringify(process.env.REACT_APP_FIREBASE_MEASUREMENT_ID),
       }
     }),
+    new webpack.ProvidePlugin({
+      process: 'process/browser',
+      Buffer: ['buffer', 'Buffer'],
+    }),
+    // Ignore React Native specific modules for web builds
+    new webpack.IgnorePlugin({
+      resourceRegExp: /^react-native-sqlite-storage$/,
+    }),
   ],
   devServer: {
     static: {
@@ -98,7 +110,15 @@ module.exports = {
     },
     compress: true,
     port: 3001,
-    hot: true,
+    host: 'localhost',
+    hot: false,
+    liveReload: false,
     open: true,
+    allowedHosts: 'all',
+    client: {
+      webSocketURL: 'ws://localhost:3001/ws',
+      reconnect: false,
+    },
+    webSocketServer: false,
   },
 };

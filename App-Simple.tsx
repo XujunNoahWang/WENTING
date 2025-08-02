@@ -2,9 +2,22 @@ import React from 'react';
 import { StatusBar, StyleSheet, View, Text, TouchableOpacity, ScrollView, TextInput, Alert } from 'react-native';
 import { firebaseWebAuthService } from './src/config/firebase-web';
 import { GeminiService } from './src/services/gemini/GeminiService';
+import HealthRecordService from './src/services/health/HealthRecordService';
+import FirebaseDatabaseService from './src/services/database/FirebaseDatabaseService';
+import { UserRole, User, Household, HouseholdMember, HealthRecordData } from './src/types/index';
 
-// 类型定义
-interface User {
+// 本地枚举和接口定义
+enum HealthRecordType {
+  MEDICATION = 'medication',
+  DIAGNOSIS = 'diagnosis',
+  ALLERGY = 'allergy',
+  VACCINATION = 'vaccination',
+  VITAL_SIGNS = 'vital_signs',
+  LAB_RESULT = 'lab_result',
+  MEDICAL_HISTORY = 'medical_history'
+}
+
+interface FirebaseUser {
   uid?: string;
   email?: string;
   displayName?: string;
@@ -13,26 +26,6 @@ interface User {
   loginTime?: string;
   provider?: string;
   mode?: string;
-}
-
-interface HouseholdMember {
-  id: string;
-  name: string;
-  email: string;
-  phone: string;
-  relationship: string;
-  role: 'admin' | 'member';
-  joinedAt: string;
-  updatedAt?: string;
-}
-
-interface Household {
-  id: string;
-  name: string;
-  description: string;
-  createdBy: string;
-  createdAt: string;
-  members: HouseholdMember[];
 }
 
 interface RegisterForm {
@@ -47,6 +40,14 @@ interface HouseholdForm {
   description: string;
 }
 
+// 扩展的家庭成员接口，包含显示所需的字段
+interface ExtendedHouseholdMember extends HouseholdMember {
+  name: string;
+  email: string;
+  phone: string;
+  relationship: string;
+}
+
 interface MemberForm {
   name: string;
   email: string;
@@ -55,15 +56,14 @@ interface MemberForm {
   role: 'admin' | 'member';
 }
 
-// 健康记录类型定义
-enum HealthRecordType {
-  MEDICATION = 'medication',
-  DIAGNOSIS = 'diagnosis',
-  ALLERGY = 'allergy',
-  VACCINATION = 'vaccination',
-  VITAL_SIGNS = 'vital_signs',
-  LAB_RESULT = 'lab_result',
-  MEDICAL_HISTORY = 'medical_history'
+// 健康记录相关接口
+interface MedicationData {
+  name: string;
+  dosage: string;
+  frequency: string;
+  startDate: string;
+  endDate?: string;
+  notes?: string;
 }
 
 interface VitalSignsData {
@@ -104,15 +104,19 @@ interface AllergyData {
   treatment?: string;
 }
 
-interface HealthRecordData {
+// 扩展健康记录数据类型，添加AI建议字段
+interface ExtendedHealthRecordData extends HealthRecordData {
   medication?: MedicationData;
   diagnosis?: DiagnosisData;
   allergy?: AllergyData;
   vitalSigns?: VitalSignsData;
   notes?: string;
+  aiAdvice?: string;
+  aiAdviceGeneratedAt?: string;
 }
 
-interface HealthRecord {
+// 本地健康记录接口，包含memberName字段用于显示
+interface LocalHealthRecord {
   id: string;
   userId: string;
   householdId: string;
@@ -120,17 +124,17 @@ interface HealthRecord {
   title: string;
   description?: string;
   recordType: HealthRecordType;
-  recordData: HealthRecordData;
+  recordData: ExtendedHealthRecordData;
   createdBy: string;
   createdAt: string;
   updatedAt: string;
 }
 
-interface HealthRecordForm {
+interface LocalHealthRecordForm {
   title: string;
   description: string;
   recordType: HealthRecordType;
-  recordData: HealthRecordData;
+  recordData: ExtendedHealthRecordData;
 }
 
 // Constants
@@ -142,7 +146,12 @@ const COLORS = {
 };
 
 // Simple navigation state
+let renderCount = 0;
+
 const App: React.FC = () => {
+  renderCount++;
+  console.log(`[DEBUG] App component render #${renderCount}`);
+
   const [currentScreen, setCurrentScreen] = React.useState('login');
   const [isLoggedIn, setIsLoggedIn] = React.useState(false);
   const [username, setUsername] = React.useState('');
@@ -183,15 +192,15 @@ const App: React.FC = () => {
   const [memberToDelete, setMemberToDelete] = React.useState<HouseholdMember | null>(null);
 
   // 健康记录相关状态
-  const [healthRecords, setHealthRecords] = React.useState<HealthRecord[]>([]);
+  const [healthRecords, setHealthRecords] = React.useState<LocalHealthRecord[]>([]);
   const [currentMemberForHealth, setCurrentMemberForHealth] = React.useState<HouseholdMember | null>(null);
   const [showAddHealthRecord, setShowAddHealthRecord] = React.useState(false);
-  const [healthRecordForm, setHealthRecordForm] = React.useState<HealthRecordForm>({
+  const [healthRecordForm, setHealthRecordForm] = React.useState<LocalHealthRecordForm>({
     title: '',
     description: '',
     recordType: HealthRecordType.VITAL_SIGNS,
     recordData: {
-      vitalSigns: {
+      vitals: {
         heartRate: undefined,
         temperature: undefined,
         weight: undefined,
@@ -202,36 +211,88 @@ const App: React.FC = () => {
       }
     }
   });
-  const [geminiAdvice, setGeminiAdvice] = React.useState<string>('');
+  // geminiAdvice状态已移除，AI建议现在保存在记录中
+  const [selectedHealthRecord, setSelectedHealthRecord] = React.useState<LocalHealthRecord | null>(null);
+  const [generatingAIForRecords, setGeneratingAIForRecords] = React.useState<string[]>([]);
+  const [detailPageKey, setDetailPageKey] = React.useState<number>(0);
+
+  // 不再需要复杂的实时更新机制，用户手动生成AI建议
 
   // 初始化 Firebase 并检查认证状态
   React.useEffect(() => {
     const initFirebase = async () => {
       try {
         setLoading(true);
-        
+
         // 初始化 Firebase
         const initialized = await firebaseWebAuthService.initialize();
-        
+
+        // 注释掉清空数据操作以提升加载速度
+        // console.log('清空Firebase数据以开始全新测试...');
+        // await firebaseWebAuthService.clearAllData();
+
         if (initialized) {
           // 监听认证状态变化
-          const unsubscribe = firebaseWebAuthService.onAuthStateChanged((user) => {
+          const unsubscribe = firebaseWebAuthService.onAuthStateChanged(async (user) => {
             if (user) {
-              setUsername(user.displayName || user.email || 'User');
+              console.log('用户认证状态变化:', user);
+
+              // 获取完整的用户文档信息
+              try {
+                const dbService = FirebaseDatabaseService.getInstance();
+                await dbService.initialize();
+                const userDoc = await dbService.getUserById(user.uid);
+
+                if (userDoc) {
+                  console.log('获取到完整用户文档:', userDoc);
+                  setUsername(userDoc.fullName || user.displayName || user.email || 'User');
+
+                  // 存储完整用户信息
+                  localStorage.setItem('wenting_user', JSON.stringify({
+                    uid: user.uid,
+                    email: userDoc.email || user.email,
+                    displayName: user.displayName,
+                    fullName: userDoc.fullName,
+                    photoURL: userDoc.avatarUrl || user.photoURL,
+                    emailVerified: user.emailVerified,
+                    provider: userDoc.googleId ? 'google' : 'email',
+                    loginTime: new Date().toISOString()
+                  }));
+                } else {
+                  console.log('用户文档不存在，使用认证信息');
+                  setUsername(user.displayName || user.email || 'User');
+
+                  // 存储基本认证信息
+                  localStorage.setItem('wenting_user', JSON.stringify({
+                    uid: user.uid,
+                    email: user.email,
+                    displayName: user.displayName,
+                    fullName: user.displayName,
+                    photoURL: user.photoURL,
+                    emailVerified: user.emailVerified,
+                    provider: user.photoURL ? 'google' : 'email',
+                    loginTime: new Date().toISOString()
+                  }));
+                }
+              } catch (error) {
+                console.error('获取用户文档失败:', error);
+                setUsername(user.displayName || user.email || 'User');
+
+                // 使用认证信息作为后备
+                localStorage.setItem('wenting_user', JSON.stringify({
+                  uid: user.uid,
+                  email: user.email,
+                  displayName: user.displayName,
+                  fullName: user.displayName,
+                  photoURL: user.photoURL,
+                  emailVerified: user.emailVerified,
+                  provider: user.photoURL ? 'google' : 'email',
+                  loginTime: new Date().toISOString()
+                }));
+              }
+
               setIsLoggedIn(true);
               setCurrentScreen('home');
-              
-              // 存储用户信息
-              localStorage.setItem('wenting_user', JSON.stringify({
-                uid: user.uid,
-                email: user.email,
-                displayName: user.displayName,
-                fullName: user.displayName,
-                photoURL: user.photoURL,
-                emailVerified: user.emailVerified,
-                provider: user.photoURL ? 'google' : 'email',
-                loginTime: new Date().toISOString()
-              }));
             } else {
               setIsLoggedIn(false);
               setCurrentScreen('login');
@@ -239,7 +300,7 @@ const App: React.FC = () => {
             }
             setLoading(false);
           });
-          
+
           return unsubscribe;
         } else {
           // Firebase 初始化失败
@@ -257,66 +318,71 @@ const App: React.FC = () => {
   }, []);
 
   // 加载家庭数据
-  React.useEffect(() => {
-    if (isLoggedIn) {
-      loadHouseholds();
-    }
-  }, [isLoggedIn]);
-
   // 加载用户的家庭列表
-  const loadHouseholds = async () => {
+  const loadHouseholds = React.useCallback(async () => {
+    console.log('[DEBUG] loadHouseholds called');
     try {
-      // 从Firebase加载家庭数据
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      
-      if (!currentUser.uid) {
+      const currentUser = firebaseWebAuthService.getCurrentUser();
+
+      if (!currentUser?.uid) {
         console.warn('用户未登录或没有用户ID');
         return;
       }
 
-      // 这里应该调用Firebase API获取用户的家庭列表
-      // 暂时使用本地存储作为缓存，但数据应该来自Firebase
-      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-      
-      if (storedHouseholds) {
-        const userHouseholds = JSON.parse(storedHouseholds);
-        setHouseholds(userHouseholds);
-        
-        // 如果有家庭，设置第一个为当前家庭
-        if (userHouseholds.length > 0) {
-          setCurrentHousehold(userHouseholds[0]);
-          loadHouseholdMembers(userHouseholds[0].id);
-        }
+      // 初始化Firebase数据库服务
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 从Firebase获取用户的家庭列表
+      const householdsResult = await dbService.getUserHouseholds(currentUser.uid);
+
+      if (householdsResult && householdsResult.length > 0) {
+        setHouseholds(householdsResult);
+
+        // 设置第一个家庭为当前家庭
+        setCurrentHousehold(householdsResult[0]);
+        loadHouseholdMembers(householdsResult[0].id);
+      } else {
+        console.log('用户没有家庭，需要创建');
+        setHouseholds([]);
+        setCurrentHousehold(null);
+        setHouseholdMembers([]);
       }
     } catch (error) {
       console.error('加载家庭数据失败:', error);
     }
-  };
+  }, []);
+
+  React.useEffect(() => {
+    console.log('[DEBUG] useEffect - isLoggedIn changed:', isLoggedIn);
+    if (isLoggedIn) {
+      console.log('[DEBUG] Loading households...');
+      loadHouseholds();
+    }
+  }, [isLoggedIn, loadHouseholds]);
 
   // 加载家庭成员
   const loadHouseholdMembers = async (householdId: string) => {
     try {
       console.log('加载家庭成员，householdId:', householdId);
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      
-      if (!currentUser.uid) {
+      const currentUser = firebaseWebAuthService.getCurrentUser();
+
+      if (!currentUser?.uid) {
         console.warn('用户未登录');
         return;
       }
 
-      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-      if (storedHouseholds) {
-        const allHouseholds = JSON.parse(storedHouseholds);
-        console.log('用户家庭数据:', allHouseholds);
-        const household = allHouseholds.find((h: any) => h.id === householdId);
-        console.log('找到的家庭:', household);
-        if (household && household.members) {
-          console.log('设置家庭成员:', household.members);
-          setHouseholdMembers(household.members);
-        } else {
-          console.log('未找到家庭或成员数据');
-          setHouseholdMembers([]);
-        }
+      // 从Firebase获取家庭成员
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+      const membersResult = await dbService.getHouseholdMembers(householdId);
+
+      if (membersResult && membersResult.length > 0) {
+        console.log('设置家庭成员:', membersResult);
+        setHouseholdMembers(membersResult);
+      } else {
+        console.log('未找到家庭成员数据');
+        setHouseholdMembers([]);
       }
     } catch (error) {
       console.error('加载家庭成员失败:', error);
@@ -326,76 +392,63 @@ const App: React.FC = () => {
   // 创建家庭
   const handleCreateHousehold = async () => {
     if (!householdForm.name.trim()) {
-      setFieldErrors({...fieldErrors, householdName: true});
+      setFieldErrors({ ...fieldErrors, householdName: true });
       Alert.alert('请完善信息', '• 请输入家庭名称\n\n家庭名称是必填项，用于标识您的家庭。');
       return;
     } else {
-      setFieldErrors({...fieldErrors, householdName: false});
+      setFieldErrors({ ...fieldErrors, householdName: false });
     }
 
-    // 检查用户是否已经创建过家庭
-    const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-    
-    if (!currentUser.uid) {
+    const currentUser = firebaseWebAuthService.getCurrentUser();
+
+    if (!currentUser?.uid) {
       alert('错误：用户未登录');
       return;
     }
 
-    const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-    if (storedHouseholds) {
-      const userHouseholds = JSON.parse(storedHouseholds);
-      
-      if (userHouseholds.length > 0) {
-        alert('提示：您已经创建过家庭了。每个用户只能创建一个家庭。');
-        setShowCreateHousehold(false);
-        return;
-      }
-    }
-
     setLoading(true);
     try {
-      const householdId = `household_${Date.now()}`;
-      
-      const newHousehold = {
+      // 确保Firebase数据库服务已初始化
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 生成家庭ID
+      const householdId = `household_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // 确保用户文档存在（登录时应该已经创建，这里作为备用）
+      try {
+        await dbService.createUser({
+          id: currentUser.uid,
+          phoneNumber: '',
+          email: currentUser.email || '',
+          googleId: '',
+          fullName: currentUser.displayName || currentUser.email || '用户',
+          avatarUrl: currentUser.photoURL || '',
+          biometricEnabled: false
+        });
+      } catch (error) {
+        // 用户文档可能已存在，继续创建家庭
+        console.log('用户文档已存在或创建失败，继续创建家庭:', error);
+      }
+
+      // 使用Firebase数据库服务创建家庭
+      const createdHouseholdId = await dbService.createHousehold({
         id: householdId,
         name: householdForm.name.trim(),
         description: householdForm.description.trim(),
-        createdBy: currentUser.uid,
-        createdAt: new Date().toISOString(),
-        members: [{
-          id: `member_${Date.now()}`,
-          name: currentUser.displayName || currentUser.fullName || currentUser.email,
-          email: currentUser.email || '',
-          phone: '',
-          relationship: '户主',
-          role: 'admin' as const,
-          joinedAt: new Date().toISOString()
-        }]
-      };
+        createdBy: currentUser.uid
+      });
 
-      // 保存到用户特定的本地存储
-      const userHouseholds = [newHousehold];
-      localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(userHouseholds));
+      console.log('家庭创建成功，ID:', createdHouseholdId);
 
-      // 更新状态
-      setHouseholds([...households, newHousehold]);
-      setCurrentHousehold(newHousehold);
-      setHouseholdMembers(newHousehold.members);
-      
+      // 重新加载家庭数据
+      await loadHouseholds();
+
+      alert('成功：家庭创建成功！');
+
       // 重置表单
       setHouseholdForm({ name: '', description: '' });
       setShowCreateHousehold(false);
-      
-      alert('成功：家庭创建成功！');
-      
-      // 同步到Firebase
-      try {
-        await firebaseWebAuthService.createTestHousehold(currentUser.uid);
-        console.log('家庭数据已同步到Firebase');
-      } catch (error) {
-        console.warn('Firebase同步失败，数据仅保存在本地:', error);
-      }
-      
     } catch (error) {
       console.error('创建家庭失败:', error);
       Alert.alert('错误', '创建家庭失败，请重试');
@@ -405,18 +458,18 @@ const App: React.FC = () => {
 
   // 添加家庭成员
   const handleAddMember = async () => {
-    
+
     // 详细的表单验证
     const errors = [];
     const newFieldErrors = { ...fieldErrors };
-    
+
     if (!memberForm.name.trim()) {
       errors.push('• 请填写成员姓名');
       newFieldErrors.memberName = true;
     } else {
       newFieldErrors.memberName = false;
     }
-    
+
     if (!memberForm.email.trim()) {
       errors.push('• 请填写成员邮箱');
       newFieldErrors.memberEmail = true;
@@ -426,9 +479,9 @@ const App: React.FC = () => {
     } else {
       newFieldErrors.memberEmail = false;
     }
-    
+
     setFieldErrors(newFieldErrors);
-    
+
     if (errors.length > 0) {
       Alert.alert('请完善以下信息', errors.join('\n'));
       return;
@@ -441,10 +494,11 @@ const App: React.FC = () => {
     }
 
     // 检查成员是否已存在（排除编辑状态下的当前成员）
-    const existingMember = householdMembers.find(m => 
-      m.email.toLowerCase() === memberForm.email.toLowerCase() && 
-      (!editingMember || m.id !== editingMember.id)
-    );
+    const existingMember = householdMembers.find(m => {
+      const memberEmail = m.user?.email || m.email || '';
+      return memberEmail.toLowerCase() === memberForm.email.toLowerCase() &&
+        (!editingMember || m.id !== editingMember.id);
+    });
     if (existingMember) {
       Alert.alert('错误', '该成员已在家庭中');
       return;
@@ -452,46 +506,52 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
-      const newMember = {
-        id: `member_${Date.now()}`,
-        name: memberForm.name.trim(),
-        email: memberForm.email.trim(),
-        phone: memberForm.phone.trim(),
-        relationship: memberForm.relationship,
-        role: memberForm.role,
-        joinedAt: new Date().toISOString()
-      };
+      console.log('开始添加新成员:', memberForm);
 
-      // 更新本地存储
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-      const allHouseholds = JSON.parse(storedHouseholds || '[]');
-      const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
-      
-      if (householdIndex !== -1) {
-        // 更新本地存储
-        allHouseholds[householdIndex].members.push(newMember);
-        localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
-        
-        // 更新状态
-        const updatedMembers = [...householdMembers, newMember];
-        setHouseholdMembers(updatedMembers);
-        
-        // 重置表单并关闭弹窗
-        setMemberForm({
-          name: '',
-          email: '',
-          phone: '',
-          relationship: '家人',
-          role: 'member'
-        });
-        setShowAddMember(false);
-        
-        
-        alert('成功：家庭成员添加成功！');
-      } else {
-        alert('错误：找不到当前家庭，请刷新页面重试');
-      }
+      // 使用Firebase添加成员
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 生成临时用户ID（实际应该通过邮箱邀请等方式处理）
+      const tempUserId = `temp_user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+      // 创建临时用户文档
+      await dbService.createUser({
+        id: tempUserId,
+        phoneNumber: memberForm.phone.trim(),
+        email: memberForm.email.trim(),
+        googleId: '',
+        fullName: memberForm.name.trim(),
+        avatarUrl: '',
+        biometricEnabled: false
+      });
+
+      // 创建家庭成员关系
+      const membershipId = `${currentHousehold.id}_${tempUserId}`;
+      await dbService.addHouseholdMember({
+        id: membershipId,
+        householdId: currentHousehold.id,
+        userId: tempUserId,
+        role: memberForm.role === 'admin' ? UserRole.ADMIN : UserRole.MEMBER,
+        joinedAt: new Date().toISOString()
+      });
+
+      console.log('新成员添加成功');
+
+      // 重新加载家庭成员数据
+      await loadHouseholdMembers(currentHousehold.id);
+
+      // 重置表单并关闭弹窗
+      setMemberForm({
+        name: '',
+        email: '',
+        phone: '',
+        relationship: '家人',
+        role: 'member'
+      });
+      setShowAddMember(false);
+
+      alert('成功：家庭成员添加成功！');
     } catch (error) {
       console.error('添加成员失败:', error);
       alert('错误：添加成员失败，请重试');
@@ -500,12 +560,16 @@ const App: React.FC = () => {
   };
 
   // 编辑家庭成员
-  const handleEditMember = (member: HouseholdMember) => {
+  const handleEditMember = (member: any) => {
+    console.log('编辑成员，完整数据:', member);
     setEditingMember(member);
+
+    // 处理从Firebase获取的数据结构
+    const memberData = member.user || member;
     setMemberForm({
-      name: member.name || '',
-      email: member.email || '',
-      phone: member.phone || '',
+      name: memberData.fullName || memberData.name || memberData.displayName || '',
+      email: memberData.email || '',
+      phone: memberData.phoneNumber || memberData.phone || '',
       relationship: member.relationship || '家人',
       role: member.role || 'member'
     });
@@ -524,69 +588,59 @@ const App: React.FC = () => {
     } else if (!/\S+@\S+\.\S+/.test(memberForm.email.trim())) {
       errors.push('• 请填写有效的邮箱地址');
     }
-    
+
     if (errors.length > 0) {
       Alert.alert('请完善以下信息', errors.join('\n'));
       return;
     }
 
     if (!currentHousehold || !editingMember) {
-      Alert.alert('错误', '更新失败，请重试');
+      console.error('更新成员失败:', {
+        currentHousehold: currentHousehold,
+        editingMember: editingMember,
+        hasCurrentHousehold: !!currentHousehold,
+        hasEditingMember: !!editingMember
+      });
+      Alert.alert('错误', !currentHousehold ? '找不到当前家庭，请重新选择家庭' : '更新失败，请重试');
       return;
     }
 
     setLoading(true);
     try {
-      const updatedMember = {
-        ...editingMember,
-        name: memberForm.name.trim(),
-        email: memberForm.email.trim(),
-        phone: memberForm.phone.trim(),
-        relationship: memberForm.relationship,
-        role: memberForm.role,
-        updatedAt: new Date().toISOString()
-      };
+      console.log('开始更新成员:', {
+        editingMember: editingMember,
+        memberForm: memberForm,
+        currentHousehold: currentHousehold
+      });
 
-      // 更新本地存储
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-      const allHouseholds = JSON.parse(storedHouseholds || '[]');
-      const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
-      
-      if (householdIndex !== -1) {
-        const memberIndex = allHouseholds[householdIndex].members.findIndex((m: any) => m.id === editingMember.id);
-        if (memberIndex !== -1) {
-          allHouseholds[householdIndex].members[memberIndex] = updatedMember;
-          localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
-          
-          // 更新状态
-          const updatedMembers = householdMembers.map((m: HouseholdMember) => 
-            m.id === editingMember.id ? updatedMember : m
-          );
-          setHouseholdMembers(updatedMembers);
-          
-          // 同时更新当前家庭数据
-          const updatedHousehold = { ...currentHousehold, members: updatedMembers };
-          setCurrentHousehold(updatedHousehold);
-          
-          // 重置表单
-          setMemberForm({
-            name: '',
-            email: '',
-            phone: '',
-            relationship: '家人',
-            role: 'member'
-          });
-          setEditingMember(null);
-          setShowAddMember(false);
-          
-          alert('成功：成员信息更新成功！');
-        } else {
-          alert('错误：找不到要更新的成员');
-        }
-      } else {
-        alert('错误：找不到当前家庭');
-      }
+      // 使用Firebase更新用户文档
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 更新用户基本信息
+      await dbService.updateUser(editingMember.userId, {
+        fullName: memberForm.name.trim(),
+        email: memberForm.email.trim(),
+        phoneNumber: memberForm.phone.trim()
+      });
+
+      console.log('用户信息更新成功');
+
+      // 重新加载家庭成员数据
+      await loadHouseholdMembers(currentHousehold.id);
+
+      // 重置表单
+      setMemberForm({
+        name: '',
+        email: '',
+        phone: '',
+        relationship: '家人',
+        role: 'member'
+      });
+      setEditingMember(null);
+      setShowAddMember(false);
+
+      alert('成功：成员信息更新成功！');
     } catch (error) {
       console.error('更新成员失败:', error);
       alert('错误：更新成员失败，请重试');
@@ -598,7 +652,7 @@ const App: React.FC = () => {
   const handleDeleteMember = (member: HouseholdMember) => {
     console.log('删除成员函数被调用，成员信息:', member);
     console.log('当前家庭成员列表:', householdMembers);
-    
+
     // 使用自定义确认弹窗
     setMemberToDelete(member);
     setShowDeleteConfirm(true);
@@ -607,65 +661,34 @@ const App: React.FC = () => {
   // 确认删除成员
   const confirmDeleteMember = async () => {
     if (!memberToDelete) return;
-    
+
     console.log('用户确认删除，开始执行删除操作');
     setLoading(true);
     setShowDeleteConfirm(false);
-    
+
     try {
       if (!currentHousehold) {
         alert('错误：找不到当前家庭');
         return;
       }
 
-      console.log('开始删除成员:', memberToDelete.name);
+      console.log('开始删除成员:', memberToDelete.user?.fullName || memberToDelete.name || '未知用户');
+      console.log('要删除的成员完整信息:', memberToDelete);
 
-      // 更新本地存储
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      const storedHouseholds = localStorage.getItem(`wenting_households_${currentUser.uid}`);
-      const allHouseholds = JSON.parse(storedHouseholds || '[]');
-      console.log('从存储加载的用户家庭:', allHouseholds);
-      
-      const householdIndex = allHouseholds.findIndex((h: any) => h.id === currentHousehold.id);
-      console.log('找到的家庭索引:', householdIndex);
-      
-      if (householdIndex !== -1) {
-        console.log('删除前的成员列表:', allHouseholds[householdIndex].members);
-        const originalMemberCount = allHouseholds[householdIndex].members.length;
-        
-        allHouseholds[householdIndex].members = allHouseholds[householdIndex].members.filter((m: any) => m.id !== memberToDelete.id);
-        const newMemberCount = allHouseholds[householdIndex].members.length;
-        
-        console.log('删除后的成员列表:', allHouseholds[householdIndex].members);
-        console.log(`成员数量从 ${originalMemberCount} 减少到 ${newMemberCount}`);
-        
-        if (originalMemberCount === newMemberCount) {
-          console.error('删除失败：成员数量没有变化');
-          alert('错误：删除失败，成员可能不存在');
-          return;
-        }
-        
-        localStorage.setItem(`wenting_households_${currentUser.uid}`, JSON.stringify(allHouseholds));
-        console.log('本地存储更新完成');
-        
-        // 更新状态
-        const updatedMembers = householdMembers.filter((m: HouseholdMember) => m.id !== memberToDelete.id);
-        console.log('更新状态中的成员列表:', updatedMembers);
-        setHouseholdMembers(updatedMembers);
-        
-        // 同时更新当前家庭数据
-        const updatedHousehold = { ...currentHousehold, members: updatedMembers };
-        setCurrentHousehold(updatedHousehold);
-        
-        // 重新加载家庭成员列表以确保同步
-        await loadHouseholdMembers(currentHousehold.id);
-        
-        alert(`成功：${memberToDelete.name} 已从家庭中移除`);
-        console.log('删除操作完成');
-      } else {
-        console.error('找不到当前家庭，householdIndex:', householdIndex);
-        alert('错误：找不到当前家庭，请刷新页面重试');
-      }
+      // 使用Firebase删除成员
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 删除家庭成员关系
+      await dbService.removeHouseholdMember(memberToDelete.id);
+
+      console.log('成员关系删除成功');
+
+      // 重新加载家庭成员数据
+      await loadHouseholdMembers(currentHousehold.id);
+
+      alert(`成功：${memberToDelete.user?.fullName || memberToDelete.name || '成员'} 已从家庭中移除`);
+      console.log('删除操作完成');
     } catch (error) {
       console.error('删除成员失败:', error);
       alert('错误：删除成员失败，请重试');
@@ -683,27 +706,39 @@ const App: React.FC = () => {
   };
 
   // 健康记录管理功能
-  
+
   // 加载健康记录
   const loadHealthRecords = async (memberId?: string) => {
     try {
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      
-      if (!currentUser.uid) {
-        console.warn('用户未登录');
+      const currentUser = firebaseWebAuthService.getCurrentUser();
+
+      if (!currentUser?.uid || !currentHousehold) {
+        console.warn('用户未登录或没有选择家庭');
         return;
       }
 
-      const storedRecords = localStorage.getItem(`wenting_health_records_${currentUser.uid}`);
-      if (storedRecords) {
-        const allRecords = JSON.parse(storedRecords);
-        
-        // 如果指定了成员ID，只显示该成员的记录
-        const filteredRecords = memberId 
-          ? allRecords.filter((record: HealthRecord) => record.userId === memberId)
-          : allRecords;
-          
-        setHealthRecords(filteredRecords);
+      // 确保Firebase数据库服务已初始化
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 使用HealthRecordService加载健康记录
+      const healthService = HealthRecordService.getInstance();
+      const result = await healthService.getHealthRecords(
+        currentHousehold.id,
+        currentUser.uid,
+        UserRole.ADMIN // 假设当前用户是管理员，实际应该从用户角色获取
+      );
+
+      if (result.success && result.data) {
+        // 如果指定了成员ID，过滤记录
+        const filteredRecords = memberId
+          ? result.data.filter((record: any) => record.userId === memberId)
+          : result.data;
+
+        setHealthRecords(filteredRecords as LocalHealthRecord[]);
+      } else {
+        console.error('加载健康记录失败:', result.error);
+        setHealthRecords([]);
       }
     } catch (error) {
       console.error('加载健康记录失败:', error);
@@ -724,54 +759,53 @@ const App: React.FC = () => {
 
     setLoading(true);
     try {
-      const currentUser = JSON.parse(localStorage.getItem('wenting_user') || '{}');
-      
-      const newRecord: HealthRecord = {
-        id: `health_record_${Date.now()}`,
-        userId: currentMemberForHealth.id,
-        householdId: currentHousehold.id,
-        memberName: currentMemberForHealth.name,
-        title: healthRecordForm.title.trim(),
-        description: healthRecordForm.description.trim(),
-        recordType: healthRecordForm.recordType,
-        recordData: healthRecordForm.recordData,
-        createdBy: currentUser.uid,
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      };
+      const currentUser = firebaseWebAuthService.getCurrentUser();
 
-      // 保存到本地存储
-      const storedRecords = localStorage.getItem(`wenting_health_records_${currentUser.uid}`);
-      const allRecords = storedRecords ? JSON.parse(storedRecords) : [];
-      allRecords.push(newRecord);
-      localStorage.setItem(`wenting_health_records_${currentUser.uid}`, JSON.stringify(allRecords));
+      if (!currentUser?.uid) {
+        alert('错误：用户未登录');
+        return;
+      }
 
-      // 更新状态
-      setHealthRecords([...healthRecords, newRecord]);
-      
-      // 重置表单
-      setHealthRecordForm({
-        title: '',
-        description: '',
-        recordType: HealthRecordType.VITAL_SIGNS,
-        recordData: {
-          vitalSigns: {
-            heartRate: undefined,
-            temperature: undefined,
-            weight: undefined,
-            height: undefined,
-            bloodPressure: undefined,
-            bloodSugar: undefined,
-            oxygenSaturation: undefined
+      // 确保Firebase数据库服务已初始化
+      const dbService = FirebaseDatabaseService.getInstance();
+      await dbService.initialize();
+
+      // 使用HealthRecordService创建健康记录
+      const healthService = HealthRecordService.getInstance();
+      const result = await healthService.createHealthRecord(
+        healthRecordForm,
+        currentHousehold.id,
+        currentMemberForHealth.id,
+        currentUser.uid,
+        UserRole.ADMIN // 假设当前用户是管理员
+      );
+
+      if (result.success && result.data) {
+        // 重新加载健康记录
+        await loadHealthRecords();
+
+
+        // 重置表单
+        setHealthRecordForm({
+          title: '',
+          description: '',
+          recordType: HealthRecordType.VITAL_SIGNS,
+          recordData: {
+            vitals: {
+              heartRate: undefined,
+              temperature: undefined,
+              weight: undefined,
+              height: undefined,
+              bloodPressure: undefined,
+              bloodSugar: undefined,
+              oxygenSaturation: undefined
+            }
           }
-        }
-      });
-      setShowAddHealthRecord(false);
-      
-      // 获取AI建议
-      await getGeminiAdvice(newRecord);
-      
-      alert('成功：健康记录创建成功！');
+        });
+        setShowAddHealthRecord(false);
+      } else {
+        throw new Error(result.error || '创建健康记录失败');
+      }
     } catch (error) {
       console.error('创建健康记录失败:', error);
       alert('错误：创建健康记录失败，请重试');
@@ -779,22 +813,24 @@ const App: React.FC = () => {
     setLoading(false);
   };
 
-  // 获取Gemini AI建议
-  const getGeminiAdvice = async (record: HealthRecord) => {
+
+  // 为已存在的记录生成AI建议
+  const generateAIForExistingRecord = async (record: LocalHealthRecord) => {
+    setGeneratingAIForRecords(prev => [...prev, record.id]);
     try {
       const geminiService = GeminiService.getInstance();
-      
+
       let prompt = `基于以下健康记录为${record.memberName}提供健康建议：\n\n`;
       prompt += `记录类型：${getRecordTypeLabel(record.recordType)}\n`;
       prompt += `标题：${record.title}\n`;
-      
+
       if (record.description) {
         prompt += `描述：${record.description}\n`;
       }
-      
+
       // 根据记录类型添加具体数据
-      if (record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitalSigns) {
-        const vs = record.recordData.vitalSigns;
+      if (record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitals) {
+        const vs = record.recordData.vitals;
         prompt += `生命体征数据：\n`;
         if (vs.heartRate) prompt += `- 心率：${vs.heartRate} bpm\n`;
         if (vs.temperature) prompt += `- 体温：${vs.temperature}°C\n`;
@@ -804,19 +840,71 @@ const App: React.FC = () => {
         if (vs.bloodSugar) prompt += `- 血糖：${vs.bloodSugar} mg/dL\n`;
         if (vs.oxygenSaturation) prompt += `- 血氧饱和度：${vs.oxygenSaturation}%\n`;
       }
-      
+
       prompt += `\n请提供具体的健康建议和注意事项，包括：\n1. 对当前数据的评估\n2. 生活方式建议\n3. 需要注意的健康风险\n4. 建议的后续行动\n\n请用中文回答，保持专业但易懂。`;
 
       const result = await geminiService.generateHealthAdvice(prompt);
-      
+
       if (result.success && result.data) {
-        setGeminiAdvice(result.data);
+        // 更新记录，添加AI建议
+        const updatedRecord = {
+          ...record,
+          recordData: {
+            ...record.recordData,
+            aiAdvice: result.data,
+            aiAdviceGeneratedAt: new Date().toISOString(),
+          }
+        };
+
+        // 更新本地状态
+        setHealthRecords(prev =>
+          prev.map(r => r.id === record.id ? updatedRecord : r)
+        );
+
+        // 保存到Firebase
+        try {
+          const currentUser = firebaseWebAuthService.getCurrentUser();
+          if (currentUser?.uid && currentHousehold) {
+            // 确保Firebase数据库服务已初始化
+            const dbService = FirebaseDatabaseService.getInstance();
+            await dbService.initialize();
+
+            const healthService = HealthRecordService.getInstance();
+            const updateResult = await healthService.updateHealthRecord(
+              record.id,
+              { recordData: updatedRecord.recordData },
+              currentUser.uid,
+              UserRole.ADMIN
+            );
+
+            if (updateResult.success) {
+              console.log('AI建议已保存到Firebase');
+            } else {
+              console.error('保存AI建议到Firebase失败:', updateResult.error);
+            }
+          }
+        } catch (storageError) {
+          console.error('保存AI建议失败:', storageError);
+        }
+
+        // 如果当前正在查看这个记录的详情，也更新选中的记录
+        if (selectedHealthRecord && selectedHealthRecord.id === record.id) {
+          console.log('直接更新选中的记录 - 手动生成');
+          setSelectedHealthRecord(updatedRecord);
+          setDetailPageKey(prev => prev + 1); // 强制重新渲染详情页面
+        }
+
+        console.log('AI建议已生成并保存到记录中');
+        alert('AI建议已生成！');
       } else {
-        setGeminiAdvice('AI建议暂时不可用，请稍后重试。');
+        console.log('AI建议生成失败:', result.error);
+        alert('AI建议生成失败，请稍后重试。');
       }
     } catch (error) {
       console.error('获取AI建议失败:', error);
-      setGeminiAdvice('获取AI建议时出现错误，请稍后重试。');
+      alert('AI建议生成失败，请稍后重试。');
+    } finally {
+      setGeneratingAIForRecords(prev => prev.filter(id => id !== record.id));
     }
   };
 
@@ -842,11 +930,11 @@ const App: React.FC = () => {
     }
 
     setLoading(true);
-    
+
     try {
       // 使用 Firebase 进行邮箱登录
       const result = await firebaseWebAuthService.signInWithEmail(username, password);
-      
+
       if (result.success && result.user) {
         setUsername(result.user.displayName || result.user.email || 'User');
         setIsLoggedIn(true);
@@ -859,14 +947,14 @@ const App: React.FC = () => {
       console.error('Firebase 登录错误:', error);
       alert('登录失败：网络错误或服务不可用，请稍后重试');
     }
-    
+
     setLoading(false);
   };
 
   // 用户注册
   const handleRegister = async () => {
     const { fullName, email, password, confirmPassword } = registerForm;
-    
+
     if (!fullName.trim() || !email.trim() || !password || !confirmPassword) {
       alert('错误：请填写所有字段');
       return;
@@ -887,16 +975,35 @@ const App: React.FC = () => {
     try {
       // 使用 Firebase 注册
       const result = await firebaseWebAuthService.createUserWithEmail(email, password, fullName);
-      
+
       if (result.success && result.user) {
-        // 创建用户文档到 Firestore
-        await firebaseWebAuthService.createUserDocument(result.user.uid, {
-          email: result.user.email,
-          displayName: result.user.displayName,
-          emailVerified: result.user.emailVerified
-        });
-        
-        setUsername(result.user.displayName || result.user.email || 'User');
+        // 使用统一的用户创建逻辑
+        try {
+          const dbService = FirebaseDatabaseService.getInstance();
+          await dbService.initialize();
+
+          await dbService.createUser({
+            id: result.user.uid,
+            phoneNumber: '',
+            email: result.user.email || '',
+            googleId: '',
+            fullName: result.user.displayName || fullName || result.user.email || '用户',
+            avatarUrl: result.user.photoURL || '',
+            biometricEnabled: false
+          });
+
+          console.log('邮箱注册用户文档创建成功:', {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            fullName: fullName
+          });
+        } catch (error) {
+          console.error('创建邮箱注册用户文档失败:', error);
+          // 不影响注册流程，只是记录错误
+        }
+
+        setUsername(result.user.displayName || fullName || result.user.email || 'User');
         setIsLoggedIn(true);
         setCurrentScreen('home');
         setShowRegister(false);
@@ -908,19 +1015,45 @@ const App: React.FC = () => {
       console.error('Firebase 注册错误:', error);
       alert('注册失败：网络错误或服务不可用，请稍后重试');
     }
-    
+
     setLoading(false);
   };
 
   // Google 登录
   const handleGoogleLogin = async () => {
     setLoading(true);
-    
+
     try {
       // 使用 Firebase Google 登录
       const result = await firebaseWebAuthService.signInWithGoogle();
-      
+
       if (result.success && result.user) {
+        // 立即创建用户文档，确保用户信息完整
+        try {
+          const dbService = FirebaseDatabaseService.getInstance();
+          await dbService.initialize();
+
+          await dbService.createUser({
+            id: result.user.uid,
+            phoneNumber: '',
+            email: result.user.email || '',
+            googleId: result.user.uid,
+            fullName: result.user.displayName || result.user.email || 'Google用户',
+            avatarUrl: result.user.photoURL || '',
+            biometricEnabled: false
+          });
+
+          console.log('Google登录用户文档创建成功:', {
+            uid: result.user.uid,
+            email: result.user.email,
+            displayName: result.user.displayName,
+            photoURL: result.user.photoURL
+          });
+        } catch (error) {
+          console.error('创建Google用户文档失败:', error);
+          // 不影响登录流程，只是记录错误
+        }
+
         setUsername(result.user.displayName || result.user.email || 'Google User');
         setIsLoggedIn(true);
         setCurrentScreen('home');
@@ -932,20 +1065,20 @@ const App: React.FC = () => {
       console.error('Firebase Google 登录错误:', error);
       alert('Google登录失败：请检查网络连接或稍后重试');
     }
-    
+
     setLoading(false);
   };
 
   const handleLogout = async () => {
     setLoading(true);
-    
+
     try {
       // 从 Firebase 退出登录
       await firebaseWebAuthService.signOut();
     } catch (error) {
       console.error('Firebase 退出登录错误:', error);
     }
-    
+
     // 清理本地状态
     localStorage.removeItem('wenting_user');
     setIsLoggedIn(false);
@@ -959,7 +1092,7 @@ const App: React.FC = () => {
       password: '',
       confirmPassword: ''
     });
-    
+
     setLoading(false);
     Alert.alert('提示', '已成功退出登录');
   };
@@ -976,14 +1109,14 @@ const App: React.FC = () => {
 
           <View style={styles.loginForm}>
             <Text style={styles.loginTitle}>{showRegister ? '注册账户' : '登录账户'}</Text>
-            
+
             {showRegister && (
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>姓名</Text>
                 <TextInput
                   style={styles.input}
                   value={registerForm.fullName}
-                  onChangeText={(text) => setRegisterForm({...registerForm, fullName: text})}
+                  onChangeText={(text) => setRegisterForm({ ...registerForm, fullName: text })}
                   placeholder="请输入您的姓名"
                   placeholderTextColor="#999"
                   autoCapitalize="words"
@@ -996,8 +1129,8 @@ const App: React.FC = () => {
               <TextInput
                 style={styles.input}
                 value={showRegister ? registerForm.email : username}
-                onChangeText={showRegister ? 
-                  (text) => setRegisterForm({...registerForm, email: text}) : 
+                onChangeText={showRegister ?
+                  (text) => setRegisterForm({ ...registerForm, email: text }) :
                   setUsername
                 }
                 placeholder={showRegister ? "请输入邮箱地址" : "请输入用户名或邮箱"}
@@ -1013,8 +1146,8 @@ const App: React.FC = () => {
               <TextInput
                 style={styles.input}
                 value={showRegister ? registerForm.password : password}
-                onChangeText={showRegister ? 
-                  (text) => setRegisterForm({...registerForm, password: text}) : 
+                onChangeText={showRegister ?
+                  (text) => setRegisterForm({ ...registerForm, password: text }) :
                   setPassword
                 }
                 placeholder="请输入密码"
@@ -1031,7 +1164,7 @@ const App: React.FC = () => {
                 <TextInput
                   style={styles.input}
                   value={registerForm.confirmPassword}
-                  onChangeText={(text) => setRegisterForm({...registerForm, confirmPassword: text})}
+                  onChangeText={(text) => setRegisterForm({ ...registerForm, confirmPassword: text })}
                   placeholder="请再次输入密码"
                   placeholderTextColor="#999"
                   secureTextEntry
@@ -1079,25 +1212,24 @@ const App: React.FC = () => {
       case 'health':
         return (
           <ScrollView style={styles.screenContainer}>
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => {
                 setCurrentScreen('home');
                 setCurrentMemberForHealth(null);
                 setHealthRecords([]);
-                setGeminiAdvice('');
               }}
             >
               <Text style={styles.backButtonText}>← 返回</Text>
             </TouchableOpacity>
             <Text style={styles.screenTitle}>健康记录</Text>
-            
+
             {/* 如果没有选择成员，显示成员选择界面 */}
             {!currentMemberForHealth ? (
               <View>
                 <Text style={styles.sectionTitle}>选择家庭成员</Text>
                 <Text style={styles.sectionSubtitle}>为哪位成员添加健康记录？</Text>
-                
+
                 <View style={styles.memberSelectList}>
                   {householdMembers.map((member) => (
                     <TouchableOpacity
@@ -1108,7 +1240,9 @@ const App: React.FC = () => {
                         loadHealthRecords(member.id);
                       }}
                     >
-                      <Text style={styles.memberSelectName}>{member.name}</Text>
+                      <Text style={styles.memberSelectName}>
+                        {member.user?.fullName || member.user?.displayName || member.name || '未知用户'}
+                      </Text>
                       <Text style={styles.memberSelectRole}>
                         {member.role === 'admin' ? '管理员' : '成员'} • {member.relationship}
                       </Text>
@@ -1134,13 +1268,7 @@ const App: React.FC = () => {
                   </TouchableOpacity>
                 </View>
 
-                {/* AI建议卡片 */}
-                {geminiAdvice && (
-                  <View style={styles.aiAdviceCard}>
-                    <Text style={styles.aiAdviceTitle}>🤖 AI健康建议</Text>
-                    <Text style={styles.aiAdviceContent}>{geminiAdvice}</Text>
-                  </View>
-                )}
+                {/* AI建议已移至详情页面 */}
 
                 {/* 健康记录列表 */}
                 <View style={styles.healthRecordsList}>
@@ -1151,51 +1279,59 @@ const App: React.FC = () => {
                     </View>
                   ) : (
                     healthRecords.map((record) => (
-                      <View key={record.id} style={styles.healthRecordCard}>
-                        <View style={styles.healthRecordHeader}>
-                          <Text style={styles.healthRecordTitle}>{record.title}</Text>
-                          <Text style={styles.healthRecordType}>
-                            {getRecordTypeLabel(record.recordType)}
+                      <div key={record.id} style={styles.healthRecordCard}>
+                        <div
+                          style={{ ...styles.healthRecordContent, cursor: 'pointer' }}
+                          onClick={() => {
+                            console.log('卡片被点击，记录ID:', record.id);
+                            setSelectedHealthRecord(record);
+                            setCurrentScreen('healthRecordDetail');
+                          }}
+                        >
+                          <div style={styles.healthRecordHeader}>
+                            <Text style={styles.healthRecordTitle}>{record.title}</Text>
+                            <Text style={styles.healthRecordType}>
+                              {getRecordTypeLabel(record.recordType)}
+                            </Text>
+                          </div>
+
+                          {record.description && (
+                            <Text style={styles.healthRecordDescription}>{record.description}</Text>
+                          )}
+
+                          {/* 显示AI建议指示器 */}
+                          {record.recordData.aiAdvice && (
+                            <div style={styles.aiIndicator}>
+                              <Text style={styles.aiIndicatorText}>💡 包含AI建议</Text>
+                            </div>
+                          )}
+
+                          <Text style={styles.healthRecordDate}>
+                            记录时间: {new Date(record.createdAt).toLocaleString('zh-CN')}
                           </Text>
-                        </View>
-                        
-                        {record.description && (
-                          <Text style={styles.healthRecordDescription}>{record.description}</Text>
-                        )}
-                        
-                        {/* 显示具体数据 */}
-                        {record.recordType === HealthRecordType.VITAL_SIGNS && record.recordData.vitalSigns && (
-                          <View style={styles.vitalSignsData}>
-                            {record.recordData.vitalSigns.heartRate ? (
-                              <Text style={styles.vitalSignItem}>心率: {record.recordData.vitalSigns.heartRate} bpm</Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.temperature ? (
-                              <Text style={styles.vitalSignItem}>体温: {record.recordData.vitalSigns.temperature}°C</Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.weight ? (
-                              <Text style={styles.vitalSignItem}>体重: {record.recordData.vitalSigns.weight} kg</Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.height ? (
-                              <Text style={styles.vitalSignItem}>身高: {record.recordData.vitalSigns.height} cm</Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.bloodPressure ? (
-                              <Text style={styles.vitalSignItem}>
-                                血压: {record.recordData.vitalSigns.bloodPressure.systolic}/{record.recordData.vitalSigns.bloodPressure.diastolic} mmHg
-                              </Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.bloodSugar ? (
-                              <Text style={styles.vitalSignItem}>血糖: {record.recordData.vitalSigns.bloodSugar} mg/dL</Text>
-                            ) : null}
-                            {record.recordData.vitalSigns.oxygenSaturation ? (
-                              <Text style={styles.vitalSignItem}>血氧: {record.recordData.vitalSigns.oxygenSaturation}%</Text>
-                            ) : null}
-                          </View>
-                        )}
-                        
-                        <Text style={styles.healthRecordDate}>
-                          记录时间: {new Date(record.createdAt).toLocaleString('zh-CN')}
-                        </Text>
-                      </View>
+                        </div>
+
+                        <div
+                          style={{ ...styles.deleteButton, backgroundColor: '#ffebee', cursor: 'pointer' }}
+                          onClick={() => {
+                            console.log('删除按钮被点击，记录ID:', record.id);
+                            console.log('当前健康记录数量:', healthRecords.length);
+                            if (window.confirm(`确定要删除健康记录"${record.title}"吗？此操作无法撤销。`)) {
+                              console.log('用户确认删除');
+                              setHealthRecords(prev => {
+                                const newRecords = prev.filter(r => r.id !== record.id);
+                                console.log('删除后记录数量:', newRecords.length);
+                                return newRecords;
+                              });
+                              alert('健康记录已删除');
+                            } else {
+                              console.log('用户取消删除');
+                            }
+                          }}
+                        >
+                          <Text style={styles.deleteButtonText}>🗑️</Text>
+                        </div>
+                      </div>
                     ))
                   )}
                 </View>
@@ -1208,13 +1344,13 @@ const App: React.FC = () => {
                 <View style={styles.modalContainer}>
                   <ScrollView style={styles.modalScrollView}>
                     <Text style={styles.modalTitle}>为 {currentMemberForHealth.name} 添加健康记录</Text>
-                    
+
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>记录标题 *</Text>
                       <TextInput
                         style={styles.input}
                         value={healthRecordForm.title || ''}
-                        onChangeText={(text) => setHealthRecordForm({...healthRecordForm, title: text})}
+                        onChangeText={(text) => setHealthRecordForm({ ...healthRecordForm, title: text })}
                         placeholder="例如：体检记录、血压监测"
                         placeholderTextColor="#999"
                       />
@@ -1231,10 +1367,10 @@ const App: React.FC = () => {
                               healthRecordForm.recordType === type && styles.pickerOptionSelected
                             ]}
                             onPress={() => setHealthRecordForm({
-                              ...healthRecordForm, 
+                              ...healthRecordForm,
                               recordType: type,
                               recordData: type === HealthRecordType.VITAL_SIGNS ? {
-                                vitalSigns: {
+                                vitals: {
                                   heartRate: undefined,
                                   temperature: undefined,
                                   weight: undefined,
@@ -1261,19 +1397,19 @@ const App: React.FC = () => {
                     {healthRecordForm.recordType === HealthRecordType.VITAL_SIGNS && (
                       <View>
                         <Text style={styles.inputLabel}>生命体征数据</Text>
-                        
+
                         <View style={styles.vitalSignsInputGrid}>
                           <View style={styles.vitalSignInputItem}>
                             <Text style={styles.vitalSignLabel}>心率 (bpm)</Text>
                             <TextInput
                               style={styles.vitalSignInput}
-                              value={healthRecordForm.recordData.vitalSigns?.heartRate?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.heartRate?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     heartRate: text ? parseInt(text) : undefined
                                   }
                                 }
@@ -1288,13 +1424,13 @@ const App: React.FC = () => {
                             <Text style={styles.vitalSignLabel}>体温 (°C)</Text>
                             <TextInput
                               style={styles.vitalSignInput}
-                              value={healthRecordForm.recordData.vitalSigns?.temperature?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.temperature?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     temperature: text ? parseFloat(text) : undefined
                                   }
                                 }
@@ -1309,13 +1445,13 @@ const App: React.FC = () => {
                             <Text style={styles.vitalSignLabel}>体重 (kg)</Text>
                             <TextInput
                               style={styles.vitalSignInput}
-                              value={healthRecordForm.recordData.vitalSigns?.weight?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.weight?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     weight: text ? parseFloat(text) : undefined
                                   }
                                 }
@@ -1330,13 +1466,13 @@ const App: React.FC = () => {
                             <Text style={styles.vitalSignLabel}>身高 (cm)</Text>
                             <TextInput
                               style={styles.vitalSignInput}
-                              value={healthRecordForm.recordData.vitalSigns?.height?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.height?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     height: text ? parseInt(text) : undefined
                                   }
                                 }
@@ -1354,16 +1490,16 @@ const App: React.FC = () => {
                           <View style={styles.bloodPressureInputs}>
                             <TextInput
                               style={styles.bloodPressureInput}
-                              value={healthRecordForm.recordData.vitalSigns?.bloodPressure?.systolic?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.bloodPressure?.systolic?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     bloodPressure: {
                                       systolic: text ? parseInt(text) : 0,
-                                      diastolic: healthRecordForm.recordData.vitalSigns?.bloodPressure?.diastolic || 0
+                                      diastolic: healthRecordForm.recordData.vitals?.bloodPressure?.diastolic || 0
                                     }
                                   }
                                 }
@@ -1375,15 +1511,15 @@ const App: React.FC = () => {
                             <Text style={styles.bloodPressureSeparator}>/</Text>
                             <TextInput
                               style={styles.bloodPressureInput}
-                              value={healthRecordForm.recordData.vitalSigns?.bloodPressure?.diastolic?.toString() || ''}
+                              value={healthRecordForm.recordData.vitals?.bloodPressure?.diastolic?.toString() || ''}
                               onChangeText={(text) => setHealthRecordForm({
                                 ...healthRecordForm,
                                 recordData: {
                                   ...healthRecordForm.recordData,
-                                  vitalSigns: {
-                                    ...healthRecordForm.recordData.vitalSigns,
+                                  vitals: {
+                                    ...healthRecordForm.recordData.vitals,
                                     bloodPressure: {
-                                      systolic: healthRecordForm.recordData.vitalSigns?.bloodPressure?.systolic || 0,
+                                      systolic: healthRecordForm.recordData.vitals?.bloodPressure?.systolic || 0,
                                       diastolic: text ? parseInt(text) : 0
                                     }
                                   }
@@ -1403,7 +1539,7 @@ const App: React.FC = () => {
                       <TextInput
                         style={[styles.input, styles.textArea]}
                         value={healthRecordForm.description || ''}
-                        onChangeText={(text) => setHealthRecordForm({...healthRecordForm, description: text})}
+                        onChangeText={(text) => setHealthRecordForm({ ...healthRecordForm, description: text })}
                         placeholder="记录其他相关信息..."
                         placeholderTextColor="#999"
                         multiline
@@ -1422,7 +1558,7 @@ const App: React.FC = () => {
                           description: '',
                           recordType: HealthRecordType.VITAL_SIGNS,
                           recordData: {
-                            vitalSigns: {
+                            vitals: {
                               heartRate: undefined,
                               temperature: undefined,
                               weight: undefined,
@@ -1437,7 +1573,7 @@ const App: React.FC = () => {
                     >
                       <Text style={styles.cancelButtonText}>取消</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       style={[styles.confirmButton, loading && styles.disabledButton]}
                       onPress={handleCreateHealthRecord}
@@ -1453,23 +1589,124 @@ const App: React.FC = () => {
             )}
           </ScrollView>
         );
+      case 'healthRecordDetail':
+        return (
+          <ScrollView style={styles.screenContainer}>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => {
+                setCurrentScreen('health');
+                setSelectedHealthRecord(null);
+              }}
+            >
+              <Text style={styles.backButtonText}>← 返回</Text>
+            </TouchableOpacity>
+
+            {selectedHealthRecord && (
+              <View key={selectedHealthRecord.id}>
+                <Text style={styles.screenTitle}>{selectedHealthRecord.title}</Text>
+                <Text style={styles.recordTypeLabel}>
+                  {getRecordTypeLabel(selectedHealthRecord.recordType)}
+                </Text>
+
+                {selectedHealthRecord.description && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>描述</Text>
+                    <Text style={styles.detailSectionContent}>{selectedHealthRecord.description}</Text>
+                  </View>
+                )}
+
+                {/* 显示具体数据 */}
+                {selectedHealthRecord.recordType === HealthRecordType.VITAL_SIGNS && selectedHealthRecord.recordData.vitals && (
+                  <View style={styles.detailSection}>
+                    <Text style={styles.detailSectionTitle}>生命体征数据</Text>
+                    <View style={styles.vitalSignsDetail}>
+                      {selectedHealthRecord.recordData.vitals.heartRate && (
+                        <Text style={styles.vitalSignDetailItem}>心率: {selectedHealthRecord.recordData.vitals.heartRate} bpm</Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.temperature && (
+                        <Text style={styles.vitalSignDetailItem}>体温: {selectedHealthRecord.recordData.vitals.temperature}°C</Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.weight && (
+                        <Text style={styles.vitalSignDetailItem}>体重: {selectedHealthRecord.recordData.vitals.weight} kg</Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.height && (
+                        <Text style={styles.vitalSignDetailItem}>身高: {selectedHealthRecord.recordData.vitals.height} cm</Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.bloodPressure && (
+                        <Text style={styles.vitalSignDetailItem}>
+                          血压: {selectedHealthRecord.recordData.vitals.bloodPressure.systolic}/{selectedHealthRecord.recordData.vitals.bloodPressure.diastolic} mmHg
+                        </Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.bloodSugar && (
+                        <Text style={styles.vitalSignDetailItem}>血糖: {selectedHealthRecord.recordData.vitals.bloodSugar} mg/dL</Text>
+                      )}
+                      {selectedHealthRecord.recordData.vitals.oxygenSaturation && (
+                        <Text style={styles.vitalSignDetailItem}>血氧: {selectedHealthRecord.recordData.vitals.oxygenSaturation}%</Text>
+                      )}
+                    </View>
+                  </View>
+                )}
+
+                {/* AI建议部分 */}
+                {selectedHealthRecord.recordData.aiAdvice ? (
+                  <View style={styles.aiAdviceDetailSection}>
+                    <Text style={styles.aiAdviceDetailTitle}>🤖 AI健康建议</Text>
+                    <Text style={styles.aiAdviceDetailContent}>{selectedHealthRecord.recordData.aiAdvice}</Text>
+                    {selectedHealthRecord.recordData.aiAdviceGeneratedAt && (
+                      <Text style={styles.aiAdviceDetailTime}>
+                        生成时间: {new Date(selectedHealthRecord.recordData.aiAdviceGeneratedAt).toLocaleString('zh-CN')}
+                      </Text>
+                    )}
+                  </View>
+                ) : generatingAIForRecords.includes(selectedHealthRecord.id) ? (
+                  <View style={styles.generatingAiSection}>
+                    <Text style={styles.generatingAiTitle}>🤖 AI健康建议</Text>
+                    <View style={styles.generatingAiContent}>
+                      <Text style={styles.generatingAiText}>AI正在分析您的健康记录，生成个性化建议...</Text>
+                      <View style={styles.loadingDots}>
+                        <Text style={styles.loadingDot}>●</Text>
+                        <Text style={styles.loadingDot}>●</Text>
+                        <Text style={styles.loadingDot}>●</Text>
+                      </View>
+                    </View>
+                  </View>
+                ) : (
+                  <View style={styles.noAiAdviceSection}>
+                    <Text style={styles.noAiAdviceText}>暂无AI建议</Text>
+                    <TouchableOpacity
+                      style={styles.generateAiButton}
+                      onPress={() => generateAIForExistingRecord(selectedHealthRecord)}
+                    >
+                      <Text style={styles.generateAiButtonText}>生成AI建议</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+
+                <Text style={styles.recordDetailDate}>
+                  记录时间: {new Date(selectedHealthRecord.createdAt).toLocaleString('zh-CN')}
+                </Text>
+              </View>
+            )}
+          </ScrollView>
+        );
       case 'family':
         return (
           <ScrollView style={styles.screenContainer}>
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => setCurrentScreen('home')}
             >
               <Text style={styles.backButtonText}>← 返回</Text>
             </TouchableOpacity>
             <Text style={styles.screenTitle}>家庭成员管理</Text>
-            
+
             {/* 如果没有家庭，显示创建家庭界面 */}
             {households.length === 0 ? (
               <View style={styles.noHouseholdContainer}>
                 <Text style={styles.noHouseholdTitle}>还没有家庭</Text>
                 <Text style={styles.noHouseholdText}>创建你的第一个家庭，开始管理家庭成员健康信息</Text>
-                
+
                 <TouchableOpacity
                   style={styles.createHouseholdButton}
                   onPress={() => setShowCreateHousehold(true)}
@@ -1523,56 +1760,60 @@ const App: React.FC = () => {
                       return null;
                     }
                     return (
-                    <View key={member.id} style={styles.memberCard}>
-                      <View style={styles.memberInfo}>
-                        <View style={styles.memberHeader}>
-                          <Text style={styles.memberName}>{member.name}</Text>
-                          <View style={styles.memberBadges}>
-                            <Text style={[
-                              styles.memberBadge, 
-                              member.role === 'admin' ? styles.adminBadge : styles.memberBadge
-                            ]}>
-                              {member.role === 'admin' ? '管理员' : '成员'}
+                      <View key={member.id} style={styles.memberCard}>
+                        <View style={styles.memberInfo}>
+                          <View style={styles.memberHeader}>
+                            <Text style={styles.memberName}>
+                              {member.user?.fullName || member.user?.displayName || member.name || '未知用户'}
                             </Text>
-                            <Text style={styles.relationshipBadge}>{member.relationship || '家人'}</Text>
+                            <View style={styles.memberBadges}>
+                              <Text style={[
+                                styles.memberBadge,
+                                member.role === 'admin' ? styles.adminBadge : styles.memberBadge
+                              ]}>
+                                {member.role === 'admin' ? '管理员' : '成员'}
+                              </Text>
+                              <Text style={styles.relationshipBadge}>{member.relationship || '家人'}</Text>
+                            </View>
                           </View>
+
+                          <Text style={styles.memberEmail}>{member.user?.email || member.email || ''}</Text>
+                          {(member.user?.phoneNumber || member.phone) &&
+                            <Text style={styles.memberPhone}>📞 {member.user?.phoneNumber || member.phone}</Text>
+                          }
+                          <Text style={styles.memberJoinDate}>
+                            加入时间：{member && member.joinedAt ? new Date(member.joinedAt).toLocaleDateString('zh-CN') : '未知'}
+                          </Text>
                         </View>
-                        
-                        <Text style={styles.memberEmail}>{member.email || ''}</Text>
-                        {member.phone && <Text style={styles.memberPhone}>📞 {member.phone}</Text>}
-                        <Text style={styles.memberJoinDate}>
-                          加入时间：{member && member.joinedAt ? new Date(member.joinedAt).toLocaleDateString('zh-CN') : '未知'}
-                        </Text>
-                      </View>
-                      
-                      <View style={styles.memberActions}>
-                        <TouchableOpacity
-                          style={styles.editButton}
-                          onPress={() => {
-                            console.log('编辑成员，成员详情:', member);
-                            handleEditMember(member);
-                          }}
-                        >
-                          <Text style={styles.editButtonText}>编辑</Text>
-                        </TouchableOpacity>
-                        
-                        {member.role !== 'admin' ? (
+
+                        <View style={styles.memberActions}>
                           <TouchableOpacity
-                            style={styles.deleteButton}
+                            style={styles.editButton}
                             onPress={() => {
-                              console.log('准备删除成员:', member);
-                              handleDeleteMember(member);
+                              console.log('编辑成员，成员详情:', member);
+                              handleEditMember(member);
                             }}
                           >
-                            <Text style={styles.deleteButtonText}>移除</Text>
+                            <Text style={styles.editButtonText}>编辑</Text>
                           </TouchableOpacity>
-                        ) : (
-                          <View style={styles.adminOnlyContainer}>
-                            <Text style={styles.adminOnlyText}>管理员不可移除</Text>
-                          </View>
-                        )}
+
+                          {member.role !== 'admin' ? (
+                            <TouchableOpacity
+                              style={styles.deleteButton}
+                              onPress={() => {
+                                console.log('准备删除成员:', member);
+                                handleDeleteMember(member);
+                              }}
+                            >
+                              <Text style={styles.deleteButtonText}>移除</Text>
+                            </TouchableOpacity>
+                          ) : (
+                            <View style={styles.adminOnlyContainer}>
+                              <Text style={styles.adminOnlyText}>管理员不可移除</Text>
+                            </View>
+                          )}
+                        </View>
                       </View>
-                    </View>
                     );
                   })}
                 </View>
@@ -1586,16 +1827,16 @@ const App: React.FC = () => {
                 <View style={styles.modalContainer}>
                   <ScrollView style={styles.modalScrollView}>
                     <Text style={styles.modalTitle}>创建家庭</Text>
-                    
+
                     <View style={styles.inputContainer}>
                       <Text style={styles.inputLabel}>家庭名称 *</Text>
                       <TextInput
                         style={[styles.input, fieldErrors.householdName && styles.inputError]}
                         value={householdForm.name || ''}
                         onChangeText={(text) => {
-                          setHouseholdForm({...householdForm, name: text});
+                          setHouseholdForm({ ...householdForm, name: text });
                           if (fieldErrors.householdName && text.trim()) {
-                            setFieldErrors({...fieldErrors, householdName: false});
+                            setFieldErrors({ ...fieldErrors, householdName: false });
                           }
                         }}
                         placeholder="例如：张家、我们的家庭"
@@ -1609,7 +1850,7 @@ const App: React.FC = () => {
                       <TextInput
                         style={[styles.input, styles.textArea]}
                         value={householdForm.description || ''}
-                        onChangeText={(text) => setHouseholdForm({...householdForm, description: text})}
+                        onChangeText={(text) => setHouseholdForm({ ...householdForm, description: text })}
                         placeholder="简单描述这个家庭..."
                         placeholderTextColor="#999"
                         multiline
@@ -1628,7 +1869,7 @@ const App: React.FC = () => {
                     >
                       <Text style={styles.cancelButtonText}>取消</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       style={[styles.confirmButton, loading && styles.disabledButton]}
                       onPress={handleCreateHousehold}
@@ -1651,113 +1892,113 @@ const App: React.FC = () => {
                     <Text style={styles.modalTitle}>
                       {editingMember ? '编辑成员' : '添加家庭成员'}
                     </Text>
-                  
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>姓名 *</Text>
-                    <TextInput
-                      style={[styles.input, fieldErrors.memberName && styles.inputError]}
-                      value={memberForm.name || ''}
-                      onChangeText={(text) => {
-                        setMemberForm({...memberForm, name: text});
-                        if (fieldErrors.memberName && text.trim()) {
-                          setFieldErrors({...fieldErrors, memberName: false});
-                        }
-                      }}
-                      placeholder="成员姓名"
-                      placeholderTextColor="#999"
-                      autoCapitalize="words"
-                    />
-                  </View>
 
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>邮箱 *</Text>
-                    <TextInput
-                      style={[styles.input, fieldErrors.memberEmail && styles.inputError]}
-                      value={memberForm.email || ''}
-                      onChangeText={(text) => {
-                        setMemberForm({...memberForm, email: text});
-                        if (fieldErrors.memberEmail && text.trim()) {
-                          setFieldErrors({...fieldErrors, memberEmail: false});
-                        }
-                      }}
-                      placeholder="email@example.com"
-                      placeholderTextColor="#999"
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                    />
-                  </View>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>姓名 *</Text>
+                      <TextInput
+                        style={[styles.input, fieldErrors.memberName && styles.inputError]}
+                        value={memberForm.name || ''}
+                        onChangeText={(text) => {
+                          setMemberForm({ ...memberForm, name: text });
+                          if (fieldErrors.memberName && text.trim()) {
+                            setFieldErrors({ ...fieldErrors, memberName: false });
+                          }
+                        }}
+                        placeholder="成员姓名"
+                        placeholderTextColor="#999"
+                        autoCapitalize="words"
+                      />
+                    </View>
 
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>手机号</Text>
-                    <TextInput
-                      style={styles.input}
-                      value={memberForm.phone || ''}
-                      onChangeText={(text) => setMemberForm({...memberForm, phone: text})}
-                      placeholder="手机号码"
-                      placeholderTextColor="#999"
-                      keyboardType="phone-pad"
-                    />
-                  </View>
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>邮箱 *</Text>
+                      <TextInput
+                        style={[styles.input, fieldErrors.memberEmail && styles.inputError]}
+                        value={memberForm.email || ''}
+                        onChangeText={(text) => {
+                          setMemberForm({ ...memberForm, email: text });
+                          if (fieldErrors.memberEmail && text.trim()) {
+                            setFieldErrors({ ...fieldErrors, memberEmail: false });
+                          }
+                        }}
+                        placeholder="email@example.com"
+                        placeholderTextColor="#999"
+                        keyboardType="email-address"
+                        autoCapitalize="none"
+                      />
+                    </View>
 
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>关系</Text>
-                    <View style={styles.pickerContainer}>
-                      {['父亲', '母亲', '儿子', '女儿', '爷爷', '奶奶', '外公', '外婆', '配偶', '家人', '其他'].map((rel) => (
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>手机号</Text>
+                      <TextInput
+                        style={styles.input}
+                        value={memberForm.phone || ''}
+                        onChangeText={(text) => setMemberForm({ ...memberForm, phone: text })}
+                        placeholder="手机号码"
+                        placeholderTextColor="#999"
+                        keyboardType="phone-pad"
+                      />
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>关系</Text>
+                      <View style={styles.pickerContainer}>
+                        {['父亲', '母亲', '儿子', '女儿', '爷爷', '奶奶', '外公', '外婆', '配偶', '家人', '其他'].map((rel) => (
+                          <TouchableOpacity
+                            key={rel}
+                            style={[
+                              styles.pickerOption,
+                              (memberForm.relationship || '家人') === rel && styles.pickerOptionSelected
+                            ]}
+                            onPress={() => setMemberForm({ ...memberForm, relationship: rel })}
+                          >
+                            <Text style={[
+                              styles.pickerOptionText,
+                              (memberForm.relationship || '家人') === rel && styles.pickerOptionTextSelected
+                            ]}>
+                              {rel}
+                            </Text>
+                          </TouchableOpacity>
+                        ))}
+                      </View>
+                    </View>
+
+                    <View style={styles.inputContainer}>
+                      <Text style={styles.inputLabel}>权限</Text>
+                      <View style={styles.pickerContainer}>
                         <TouchableOpacity
-                          key={rel}
                           style={[
                             styles.pickerOption,
-                            (memberForm.relationship || '家人') === rel && styles.pickerOptionSelected
+                            (memberForm.role || 'member') === 'member' && styles.pickerOptionSelected
                           ]}
-                          onPress={() => setMemberForm({...memberForm, relationship: rel})}
+                          onPress={() => setMemberForm({ ...memberForm, role: 'member' })}
                         >
                           <Text style={[
                             styles.pickerOptionText,
-                            (memberForm.relationship || '家人') === rel && styles.pickerOptionTextSelected
+                            (memberForm.role || 'member') === 'member' && styles.pickerOptionTextSelected
                           ]}>
-                            {rel}
+                            普通成员
                           </Text>
                         </TouchableOpacity>
-                      ))}
+                        <TouchableOpacity
+                          style={[
+                            styles.pickerOption,
+                            (memberForm.role || 'member') === 'admin' && styles.pickerOptionSelected
+                          ]}
+                          onPress={() => setMemberForm({ ...memberForm, role: 'admin' })}
+                        >
+                          <Text style={[
+                            styles.pickerOptionText,
+                            (memberForm.role || 'member') === 'admin' && styles.pickerOptionTextSelected
+                          ]}>
+                            管理员
+                          </Text>
+                        </TouchableOpacity>
+                      </View>
                     </View>
-                  </View>
-
-                  <View style={styles.inputContainer}>
-                    <Text style={styles.inputLabel}>权限</Text>
-                    <View style={styles.pickerContainer}>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerOption,
-                          (memberForm.role || 'member') === 'member' && styles.pickerOptionSelected
-                        ]}
-                        onPress={() => setMemberForm({...memberForm, role: 'member'})}
-                      >
-                        <Text style={[
-                          styles.pickerOptionText,
-                          (memberForm.role || 'member') === 'member' && styles.pickerOptionTextSelected
-                        ]}>
-                          普通成员
-                        </Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity
-                        style={[
-                          styles.pickerOption,
-                          (memberForm.role || 'member') === 'admin' && styles.pickerOptionSelected
-                        ]}
-                        onPress={() => setMemberForm({...memberForm, role: 'admin'})}
-                      >
-                        <Text style={[
-                          styles.pickerOptionText,
-                          (memberForm.role || 'member') === 'admin' && styles.pickerOptionTextSelected
-                        ]}>
-                          管理员
-                        </Text>
-                      </TouchableOpacity>
-                    </View>
-                  </View>
 
                   </ScrollView>
-                  
+
                   <View style={styles.modalActions}>
                     <TouchableOpacity
                       style={styles.cancelButton}
@@ -1775,7 +2016,7 @@ const App: React.FC = () => {
                     >
                       <Text style={styles.cancelButtonText}>取消</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       style={[styles.confirmButton, loading && styles.disabledButton]}
                       onPress={editingMember ? handleUpdateMember : handleAddMember}
@@ -1803,7 +2044,7 @@ const App: React.FC = () => {
                       这个操作无法撤销。
                     </Text>
                   </View>
-                  
+
                   <View style={styles.modalActions}>
                     <TouchableOpacity
                       style={styles.cancelButton}
@@ -1812,7 +2053,7 @@ const App: React.FC = () => {
                     >
                       <Text style={styles.cancelButtonText}>取消</Text>
                     </TouchableOpacity>
-                    
+
                     <TouchableOpacity
                       style={[styles.deleteConfirmButton, loading && styles.disabledButton]}
                       onPress={confirmDeleteMember}
@@ -1831,8 +2072,8 @@ const App: React.FC = () => {
       case 'calendar':
         return (
           <View style={styles.screenContainer}>
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => setCurrentScreen('home')}
             >
               <Text style={styles.backButtonText}>← 返回</Text>
@@ -1844,14 +2085,14 @@ const App: React.FC = () => {
       case 'settings':
         return (
           <View style={styles.screenContainer}>
-            <TouchableOpacity 
-              style={styles.backButton} 
+            <TouchableOpacity
+              style={styles.backButton}
               onPress={() => setCurrentScreen('home')}
             >
               <Text style={styles.backButtonText}>← 返回</Text>
             </TouchableOpacity>
             <Text style={styles.screenTitle}>设置</Text>
-            
+
             <View style={styles.settingsContainer}>
               <View style={styles.userInfo}>
                 <Text style={styles.userInfoLabel}>账户信息</Text>
@@ -1889,7 +2130,7 @@ const App: React.FC = () => {
               <Text style={styles.title}>WENTING 健康管理</Text>
               <Text style={styles.subtitle}>家庭健康监督助手</Text>
             </View>
-            
+
             <View style={styles.menuContainer}>
               <TouchableOpacity
                 style={styles.menuItem}
@@ -2157,7 +2398,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // 家庭管理样式
   noHouseholdContainer: {
     alignItems: 'center',
@@ -2191,7 +2432,7 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: '600',
   },
-  
+
   // 家庭卡片
   householdCard: {
     backgroundColor: '#fff',
@@ -2220,7 +2461,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     color: '#999',
   },
-  
+
   // 成员统计
   memberStatsContainer: {
     flexDirection: 'row',
@@ -2247,7 +2488,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  
+
   // 成员列表
   membersList: {
     marginBottom: 20,
@@ -2334,17 +2575,7 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  deleteButton: {
-    backgroundColor: COLORS.ERROR,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 4,
-  },
-  deleteButtonText: {
-    color: '#fff',
-    fontSize: 12,
-    fontWeight: '500',
-  },
+  // 旧的deleteButton样式已移除，使用新的样式
   adminOnlyContainer: {
     paddingHorizontal: 12,
     paddingVertical: 6,
@@ -2356,13 +2587,13 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: '500',
   },
-  
+
   // 家庭操作
   householdActions: {
     alignItems: 'center',
     paddingVertical: 20,
   },
-  
+
   // 模态框样式
   modalOverlay: {
     position: 'absolute',
@@ -2434,7 +2665,7 @@ const styles = StyleSheet.create({
   disabledButton: {
     backgroundColor: '#ccc',
   },
-  
+
   // 选择器样式
   pickerContainer: {
     flexDirection: 'row',
@@ -2462,7 +2693,7 @@ const styles = StyleSheet.create({
   pickerOptionTextSelected: {
     color: '#fff',
   },
-  
+
   // 删除确认弹窗样式
   deleteConfirmText: {
     fontSize: 16,
@@ -2604,7 +2835,6 @@ const styles = StyleSheet.create({
   },
   healthRecordCard: {
     backgroundColor: '#fff',
-    padding: 16,
     borderRadius: 12,
     marginBottom: 12,
     shadowColor: '#000',
@@ -2612,6 +2842,165 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.1,
     shadowRadius: 3,
     elevation: 2,
+    flexDirection: 'row',
+  },
+  healthRecordContent: {
+    flex: 1,
+    padding: 16,
+  },
+  deleteButton: {
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: 12,
+    borderLeftWidth: 1,
+    borderLeftColor: '#f0f0f0',
+  },
+  deleteButtonText: {
+    fontSize: 18,
+  },
+  aiIndicator: {
+    backgroundColor: '#e8f5e8',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    alignSelf: 'flex-start',
+    marginBottom: 8,
+  },
+  aiIndicatorText: {
+    fontSize: 12,
+    color: '#2e7d32',
+    fontWeight: '500',
+  },
+  // 详情页面样式
+  recordTypeLabel: {
+    fontSize: 14,
+    color: COLORS.PRIMARY,
+    backgroundColor: '#e3f2fd',
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 16,
+    alignSelf: 'flex-start',
+    marginBottom: 20,
+    fontWeight: '500',
+  },
+  detailSection: {
+    backgroundColor: '#fff',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 3,
+    elevation: 2,
+  },
+  detailSectionTitle: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#333',
+    marginBottom: 12,
+  },
+  detailSectionContent: {
+    fontSize: 14,
+    color: '#666',
+    lineHeight: 20,
+  },
+  vitalSignsDetail: {
+    gap: 8,
+  },
+  vitalSignDetailItem: {
+    fontSize: 14,
+    color: '#333',
+    paddingVertical: 4,
+    paddingHorizontal: 12,
+    backgroundColor: '#f9f9f9',
+    borderRadius: 8,
+  },
+  aiAdviceDetailSection: {
+    backgroundColor: '#e8f5e8',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: COLORS.PRIMARY,
+  },
+  aiAdviceDetailTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: COLORS.PRIMARY,
+    marginBottom: 12,
+  },
+  aiAdviceDetailContent: {
+    fontSize: 14,
+    color: '#333',
+    lineHeight: 22,
+    marginBottom: 8,
+  },
+  aiAdviceDetailTime: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
+  },
+  noAiAdviceSection: {
+    backgroundColor: '#f5f5f5',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    alignItems: 'center',
+  },
+  noAiAdviceText: {
+    fontSize: 14,
+    color: '#666',
+    marginBottom: 12,
+  },
+  generateAiButton: {
+    backgroundColor: COLORS.PRIMARY,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 8,
+  },
+  generateAiButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  recordDetailDate: {
+    fontSize: 12,
+    color: '#999',
+    textAlign: 'center',
+    marginTop: 20,
+    fontStyle: 'italic',
+  },
+  generatingAiSection: {
+    backgroundColor: '#fff3e0',
+    padding: 16,
+    borderRadius: 12,
+    marginBottom: 16,
+    borderLeftWidth: 4,
+    borderLeftColor: '#ff9800',
+  },
+  generatingAiTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+    color: '#ff9800',
+    marginBottom: 12,
+  },
+  generatingAiContent: {
+    alignItems: 'center',
+  },
+  generatingAiText: {
+    fontSize: 14,
+    color: '#666',
+    textAlign: 'center',
+    marginBottom: 12,
+  },
+  loadingDots: {
+    flexDirection: 'row',
+    gap: 4,
+  },
+  loadingDot: {
+    fontSize: 16,
+    color: '#ff9800',
   },
   healthRecordHeader: {
     flexDirection: 'row',
