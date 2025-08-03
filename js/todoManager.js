@@ -139,7 +139,7 @@ const TodoManager = {
     // 将API TODO格式转换为本地格式
     convertApiTodoToLocal(apiTodo) {
         return {
-            id: apiTodo.id.toString(),
+            id: apiTodo.id,
             text: apiTodo.title,
             note: apiTodo.description || '',
             time: apiTodo.reminder_time || '当天',
@@ -427,7 +427,7 @@ const TodoManager = {
             <div class="todo-item todo-card ${priorityClass}" ${timeOrderAttr} ${frequencyAttr}>
                 <div class="todo-checkbox ${checkedClass}" onclick="TodoManager.toggleTodo(this)" 
                      data-member="${userId}" data-id="${todo.id}"></div>
-                <div class="todo-content" onclick="TodoManager.editTodo('${todo.id}', ${userId})">
+                <div class="todo-content" onclick="TodoManager.editTodo(${todo.id}, ${userId})">
                     <div class="todo-text ${completedClass}">
                         ${todo.text}
                         ${todo.note ? `<div class="todo-note">${todo.note}</div>` : ''}
@@ -443,14 +443,25 @@ const TodoManager = {
 
     // 切换TODO状态
     async toggleTodo(checkbox) {
+        console.log('toggleTodo被调用', checkbox);
         const todoId = parseInt(checkbox.dataset.id);
         const userId = parseInt(checkbox.dataset.member);
         
-        if (!todoId || !userId) return;
+        console.log('todoId:', todoId, 'userId:', userId);
+        console.log('todos数据:', this.todos[userId]);
+        
+        if (!todoId || !userId) {
+            console.log('缺少todoId或userId');
+            return;
+        }
 
         // 找到对应的todo项
         const todo = this.todos[userId]?.find(t => t.id === todoId);
-        if (!todo) return;
+        console.log('找到的todo:', todo);
+        if (!todo) {
+            console.log('未找到对应的todo');
+            return;
+        }
 
         const wasCompleted = todo.completed;
         
