@@ -6,7 +6,9 @@
       "WebFetch(domain:api.open-meteo.com)",
       "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\weather-test.html\")",
       "Bash(rm:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git push:*)"
     ],
     "deny": []
   }

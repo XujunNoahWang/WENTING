@@ -342,6 +342,24 @@
     color: #1d9bf0;
 }
 
+.today-btn {
+    padding: 6px 12px;
+    border-radius: 16px;
+    background-color: #1d9bf0;
+    color: white;
+    border: none;
+    font-size: 12px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s;
+    margin-right: 8px;
+}
+
+.today-btn:hover {
+    background-color: #1a8cd8;
+    transform: translateY(-1px);
+}
+
 .current-date {
     font-weight: 500;
     color: #14171a;

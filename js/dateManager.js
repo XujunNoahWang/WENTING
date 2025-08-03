@@ -64,6 +64,14 @@ const DateManager = {
         this.updateSelectedDate();
     },
 
+    // 返回今天
+    goToToday() {
+        console.log('goToToday被调用');
+        this.selectedDate = new Date();
+        console.log('重置为今天:', this.selectedDate);
+        this.updateSelectedDate();
+    },
+
     // 切换日历显示
     toggleDatePicker() {
         const picker = Utils.$('#datePicker');
@@ -156,6 +164,16 @@ const DateManager = {
 
     // 使用事件委托绑定事件
     bindEventsWithDelegation() {
+        // 使用事件委托绑定今天按钮
+        document.addEventListener('click', (e) => {
+            if (e.target.classList.contains('today-btn')) {
+                e.preventDefault();
+                e.stopPropagation();
+                console.log('今天按钮被点击');
+                this.goToToday();
+            }
+        });
+
         // 使用事件委托绑定日期导航按钮
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('date-nav-btn')) {
@@ -224,6 +242,10 @@ const DateManager = {
 // 全局函数（保持向后兼容）
 function changeDate(direction) {
     DateManager.changeDate(direction);
+}
+
+function goToToday() {
+    DateManager.goToToday();
 }
 
 function toggleDatePicker() {

@@ -357,6 +357,7 @@ const TodoManager = {
             <div class="content-panel" id="${userId}-todo-panel">
                 <div class="date-controls">
                     <div class="date-center">
+                        <div class="today-btn">今天</div>
                         <div class="date-nav-btn">‹</div>
                         <div class="current-date">${currentDateFormatted.full}</div>
                         <div class="date-nav-btn">›</div>
