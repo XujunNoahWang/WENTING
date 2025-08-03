@@ -29,20 +29,11 @@ const DateManager = {
     // 更新选择的日期显示
     updateSelectedDate() {
         const formatted = Utils.formatDate(this.selectedDate);
-        console.log('更新日期显示:', formatted.full, '当前选中日期:', this.selectedDate);
         
         // 更新所有日期控制栏的显示
-        const dateElements = Utils.$$('.current-date');
-        console.log('找到日期显示元素:', dateElements?.length || 0);
-        
-        if (dateElements && dateElements.length > 0) {
-            dateElements.forEach(el => {
-                if (el && typeof el.textContent !== 'undefined') {
-                    console.log('更新元素:', el, '原文本:', el.textContent, '新文本:', formatted.full);
-                    el.textContent = formatted.full;
-                }
-            });
-        }
+        Utils.$$('.current-date').forEach(el => {
+            el.textContent = formatted.full;
+        });
         
         // 更新todo项目的显示
         this.filterTodosByDate();
@@ -58,9 +49,7 @@ const DateManager = {
 
     // 日期切换
     changeDate(direction) {
-        console.log('changeDate被调用，方向:', direction);
         this.selectedDate.setDate(this.selectedDate.getDate() + direction);
-        console.log('新的选中日期:', this.selectedDate);
         this.updateSelectedDate();
     },
 
@@ -150,41 +139,10 @@ const DateManager = {
             }
         });
 
-        // 使用事件委托，避免重复绑定
-        this.bindEventsWithDelegation();
-    },
-
-    // 使用事件委托绑定事件
-    bindEventsWithDelegation() {
-        // 使用事件委托绑定日期导航按钮
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('date-nav-btn')) {
-                e.preventDefault();
-                e.stopPropagation();
-                console.log('日期导航按钮被点击:', e.target.textContent);
-                const direction = e.target.textContent === '‹' ? -1 : 1;
-                this.changeDate(direction);
-            }
-        });
-
-        // 使用事件委托绑定日历切换按钮
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('date-picker-btn')) {
-                e.preventDefault();
-                e.stopPropagation();
-                this.toggleDatePicker();
-            }
-        });
-
-        // 使用事件委托绑定月份导航按钮
-        document.addEventListener('click', (e) => {
-            if (e.target.classList.contains('calendar-nav')) {
-                e.preventDefault();
-                e.stopPropagation();
-                const direction = e.target.textContent === '‹' ? -1 : 1;
-                this.changeMonth(direction);
-            }
-        });
+        // 延迟绑定事件，确保DOM元素已渲染
+        setTimeout(() => {
+            this.bindDateNavigation();
+        }, 100);
     },
 
     // 绑定日期导航事件

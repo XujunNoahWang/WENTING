@@ -33,7 +33,29 @@ app.use(compression());
 
 // CORS配置
 app.use(cors({
-    origin: process.env.CORS_ORIGIN || 'http://localhost:3000',
+    origin: function(origin, callback) {
+        // 允许没有origin的请求（比如直接打开HTML文件）
+        if (!origin) return callback(null, true);
+        
+        // 允许的origins列表
+        const allowedOrigins = [
+            'http://localhost:3000',
+            'http://localhost:3001',
+            'http://127.0.0.1:3000',
+            'http://127.0.0.1:3001'
+        ];
+        
+        // 检查环境变量中的自定义origin
+        if (process.env.CORS_ORIGIN) {
+            allowedOrigins.push(process.env.CORS_ORIGIN);
+        }
+        
+        if (allowedOrigins.indexOf(origin) !== -1) {
+            callback(null, true);
+        } else {
+            callback(null, true); // 在开发环境中允许所有origins
+        }
+    },
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Content-Type', 'Authorization']

@@ -67,65 +67,31 @@ const Utils = {
 
     // 深拷贝
     deepClone: (obj) => {
-        return JSON.parse(JSON.stringify(obj));
-    },
-
-    // 获取元素
-    $: (selector) => {
-        return document.querySelector(selector);
-    },
-
-    // 获取所有元素
-    $$: (selector) => {
-        return document.querySelectorAll(selector);
-    },
-
-    // 添加事件监听
-    on: (element, event, handler) => {
-        if (typeof element === 'string') {
-            element = document.querySelector(element);
-        }
-        if (element) {
-            element.addEventListener(event, handler);
+        if (obj === null || typeof obj !== 'object') return obj;
+        if (obj instanceof Date) return new Date(obj.getTime());
+        if (obj instanceof Array) return obj.map(item => Utils.deepClone(item));
+        if (typeof obj === 'object') {
+            const clonedObj = {};
+            for (const key in obj) {
+                if (obj.hasOwnProperty(key)) {
+                    clonedObj[key] = Utils.deepClone(obj[key]);
+                }
+            }
+            return clonedObj;
         }
     },
 
-    // 移除事件监听
-    off: (element, event, handler) => {
-        if (typeof element === 'string') {
-            element = document.querySelector(element);
-        }
-        if (element) {
-            element.removeEventListener(event, handler);
-        }
-    },
-
-    // 显示/隐藏元素
-    show: (element) => {
-        if (typeof element === 'string') {
-            element = document.querySelector(element);
-        }
-        if (element) {
-            element.classList.remove('hidden');
-        }
-    },
-
-    hide: (element) => {
-        if (typeof element === 'string') {
-            element = document.querySelector(element);
-        }
-        if (element) {
-            element.classList.add('hidden');
-        }
-    },
-
-    // 切换元素显示
-    toggle: (element) => {
-        if (typeof element === 'string') {
-            element = document.querySelector(element);
-        }
-        if (element) {
-            element.classList.toggle('hidden');
-        }
+    // 节流函数
+    throttle: (func, limit) => {
+        let inThrottle;
+        return function() {
+            const args = arguments;
+            const context = this;
+            if (!inThrottle) {
+                func.apply(context, args);
+                inThrottle = true;
+                setTimeout(() => inThrottle = false, limit);
+            }
+        };
     }
 };

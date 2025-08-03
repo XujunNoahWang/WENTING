@@ -201,8 +201,14 @@ const TodoManager = {
 
     // 切换用户
     switchUser(userId) {
-        // 确保userId是数字类型
-        this.currentUser = parseInt(userId);
+        // 确保userId是数字类型并验证有效性
+        const numericUserId = parseInt(userId);
+        if (isNaN(numericUserId) || numericUserId <= 0) {
+            console.error('无效的用户ID:', userId);
+            return;
+        }
+        
+        this.currentUser = numericUserId;
         this.renderTodoPanel(this.currentUser);
         
         // 重新渲染用户标签以更新选中状态
@@ -344,30 +350,23 @@ const TodoManager = {
         const userTodos = this.sortTodosByTime(todosForDate);
         const user = UserManager.getUser(userId);
         
+        // 获取当前日期的格式化显示
+        const currentDateFormatted = Utils.formatDate(currentDate);
+        
         const panelHtml = `
             <div class="content-panel" id="${userId}-todo-panel">
-                <div class="filter-controls">
-                    <div class="filter-switch" onclick="FilterManager.toggleFilter('moveCompleted')">
-                        <div class="switch" id="${userId}MoveCompletedSwitch"></div>
-                        <span>已完成排后</span>
-                    </div>
-                    <div class="filter-switch" onclick="FilterManager.toggleFilter('hideCompleted')">
-                        <div class="switch" id="${userId}HideCompletedSwitch"></div>
-                        <span>隐藏已完成</span>
-                    </div>
-                </div>
                 <div class="date-controls">
                     <div class="date-center">
-                        <div class="date-nav-btn" onclick="DateManager.changeDate(-1)">‹</div>
-                        <div class="current-date">Aug 3</div>
-                        <div class="date-nav-btn" onclick="DateManager.changeDate(1)">›</div>
+                        <div class="date-nav-btn">‹</div>
+                        <div class="current-date">${currentDateFormatted.full}</div>
+                        <div class="date-nav-btn">›</div>
                     </div>
-                    <div class="date-picker-btn" onclick="DateManager.toggleDatePicker()">📅</div>
+                    <div class="date-picker-btn">📅</div>
                     <div class="date-picker" id="datePicker">
                         <div class="calendar-header">
-                            <button class="calendar-nav" onclick="DateManager.changeMonth(-1)">‹</button>
+                            <button class="calendar-nav">‹</button>
                             <span id="calendarMonth">2025年8月</span>
-                            <button class="calendar-nav" onclick="DateManager.changeMonth(1)">›</button>
+                            <button class="calendar-nav">›</button>
                         </div>
                         <div class="calendar-grid">
                             <div class="calendar-weekday">日</div>
@@ -389,9 +388,6 @@ const TodoManager = {
         `;
 
         contentArea.innerHTML = panelHtml;
-        
-        // 重新绑定日期管理器事件
-        DateManager.bindEvents();
     },
 
     // 渲染单个TODO项
@@ -476,12 +472,7 @@ const TodoManager = {
             // 保存数据
             this.saveTodosToLocal();
             
-            // 重新应用筛选
-            setTimeout(() => {
-                if (FilterManager && FilterManager.applyFilters) {
-                    FilterManager.applyFilters();
-                }
-            }, 50);
+
             
         } catch (error) {
             console.error('切换TODO状态失败:', error);

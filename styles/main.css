@@ -93,16 +93,7 @@ DO面板布局 */
     flex-direction: column;
 }
 
-/* 过滤控制栏 */
-.filter-controls {
-    flex-shrink: 0;
-    padding: 16px 20px;
-    background: #f7f9fa;
-    border-bottom: 1px solid #e1e8ed;
-    display: flex;
-    gap: 20px;
-    align-items: center;
-}
+
 
 /* 日期控制栏 */
 .date-controls {

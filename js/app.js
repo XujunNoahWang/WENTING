@@ -42,9 +42,6 @@ const App = {
         // 初始化用户管理器（异步，需要等待完成）
         await UserManager.init();
         
-        // 初始化过滤管理器
-        FilterManager.init();
-        
         // 初始化TODO管理器（最后初始化，因为它依赖用户管理器）
         await TodoManager.init();
     },
@@ -137,7 +134,6 @@ const App = {
         return {
             currentUser: TodoManager.currentUser,
             selectedDate: DateManager.selectedDate,
-            filterState: FilterManager.filterState,
             todos: TodoManager.todos,
             users: UserManager.users,
             weather: WeatherManager.weatherData
@@ -187,13 +183,11 @@ const App = {
                     if (data.todos) TodoManager.todos = data.todos;
                     if (data.users) UserManager.users = data.users;
                     if (data.weather) WeatherManager.weatherData = data.weather;
-                    if (data.filterState) FilterManager.filterState = data.filterState;
                     
                     // 保存数据
                     TodoManager.saveTodos();
                     UserManager.saveUsers();
                     WeatherManager.saveWeatherData();
-                    FilterManager.saveFilterState();
                     
                     alert('数据导入成功！页面将刷新。');
                     location.reload();

@@ -2,12 +2,13 @@
 const WeatherManager = {
     weatherData: null,
     userLocation: null,
+    autoUpdateTimer: null,
     
-    // 默认城市坐标（深圳）
+    // 默认城市坐标（上海）
     defaultLocation: {
-        latitude: 22.5431,
-        longitude: 114.0579,
-        city: '深圳'
+        latitude: 31.2304,
+        longitude: 121.4737,
+        city: '上海'
     },
 
     // Open-Meteo天气代码映射
@@ -47,8 +48,16 @@ const WeatherManager = {
     // 获取用户地理位置
     async getCurrentLocation() {
         try {
+            // 先检查本地存储是否有用户选择的位置
+            const savedLocation = localStorage.getItem('wenting_user_location');
+            if (savedLocation) {
+                this.userLocation = JSON.parse(savedLocation);
+                console.log('使用用户设定的位置:', this.userLocation);
+                return;
+            }
+
             if (!navigator.geolocation) {
-                console.log('浏览器不支持地理位置');
+                console.log('浏览器不支持地理位置，使用默认位置');
                 this.userLocation = this.defaultLocation;
                 return;
             }
@@ -61,13 +70,22 @@ const WeatherManager = {
                 });
             });
 
-            this.userLocation = {
-                latitude: position.coords.latitude,
-                longitude: position.coords.longitude,
-                city: '当前位置'
-            };
-
-            console.log('获取到用户位置:', this.userLocation);
+            // 检测位置是否合理（中国境内）
+            const lat = position.coords.latitude;
+            const lon = position.coords.longitude;
+            
+            // 简单检查是否在中国大陆范围内
+            if (lat >= 18 && lat <= 54 && lon >= 73 && lon <= 135) {
+                this.userLocation = {
+                    latitude: lat,
+                    longitude: lon,
+                    city: this.getCityFromCoords(lat, lon)
+                };
+                console.log('获取到用户位置:', this.userLocation);
+            } else {
+                console.log('检测到位置可能不准确（VPN?），使用默认位置');
+                this.userLocation = this.defaultLocation;
+            }
             
             // 获取到位置后立即更新天气
             this.fetchRealWeatherData();
@@ -76,6 +94,16 @@ const WeatherManager = {
             console.log('获取位置失败，使用默认位置:', error.message);
             this.userLocation = this.defaultLocation;
         }
+    },
+
+    // 根据坐标获取城市名称（简单判断）
+    getCityFromCoords(lat, lon) {
+        // 主要城市坐标范围判断
+        if (lat >= 30.5 && lat <= 32.0 && lon >= 120.8 && lon <= 122.2) return '上海';
+        if (lat >= 39.5 && lat <= 41.0 && lon >= 115.5 && lon <= 117.5) return '北京';
+        if (lat >= 22.0 && lat <= 23.0 && lon >= 113.5 && lon <= 114.5) return '深圳';
+        if (lat >= 23.0 && lat <= 23.6 && lon >= 113.0 && lon <= 113.5) return '广州';
+        return '当前位置';
     },
 
     // 获取真实天气数据
@@ -155,7 +183,7 @@ const WeatherManager = {
     loadFallbackWeather() {
         console.log('使用备用天气数据');
         const fallbackData = {
-            location: this.userLocation?.city || '深圳',
+            location: this.userLocation?.city || '上海',
             icon: '☀️',
             condition: '晴朗',
             temperature: '22°C',
@@ -295,10 +323,24 @@ const WeatherManager = {
     startAutoUpdate(interval = 30 * 60 * 1000) {
         console.log('启动天气自动更新，间隔:', interval / 60000, '分钟');
         
-        setInterval(() => {
+        // 清除之前的定时器，防止重复创建
+        if (this.autoUpdateTimer) {
+            clearInterval(this.autoUpdateTimer);
+        }
+        
+        this.autoUpdateTimer = setInterval(() => {
             console.log('自动更新天气数据...');
             this.fetchRealWeatherData();
         }, interval);
+    },
+
+    // 停止自动更新
+    stopAutoUpdate() {
+        if (this.autoUpdateTimer) {
+            clearInterval(this.autoUpdateTimer);
+            this.autoUpdateTimer = null;
+            console.log('天气自动更新已停止');
+        }
     },
 
     // 根据天气代码获取天气信息（保持兼容性）
