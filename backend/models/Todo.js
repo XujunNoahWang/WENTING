@@ -307,11 +307,12 @@ class Todo {
         try {
             const targetDate = date || new Date().toISOString().split('T')[0];
             
+            // SQLite: 先删除已存在的记录，然后插入新记录
+            await query(`DELETE FROM todo_completions WHERE todo_id = ? AND completion_date = ?`, [todoId, targetDate]);
+            
             const sql = `
                 INSERT INTO todo_completions (todo_id, user_id, completion_date, notes, mood)
                 VALUES (?, ?, ?, ?, ?)
-                ON DUPLICATE KEY UPDATE
-                completion_time = CURRENT_TIMESTAMP, notes = VALUES(notes), mood = VALUES(mood)
             `;
             
             await query(sql, [todoId, userId, targetDate, notes, mood]);

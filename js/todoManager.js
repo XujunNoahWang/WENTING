@@ -443,7 +443,7 @@ const TodoManager = {
 
     // 切换TODO状态
     async toggleTodo(checkbox) {
-        const todoId = checkbox.dataset.id;
+        const todoId = parseInt(checkbox.dataset.id);
         const userId = parseInt(checkbox.dataset.member);
         
         if (!todoId || !userId) return;
