@@ -424,7 +424,7 @@ const TodoManager = {
         }
         
         return `
-            <div class="todo-item todo-card ${priorityClass}" ${timeOrderAttr} ${frequencyAttr}>
+            <div class="todo-item todo-card ${priorityClass} ${completedClass}" ${timeOrderAttr} ${frequencyAttr}>
                 <div class="todo-checkbox ${checkedClass}" onclick="TodoManager.toggleTodo(this)" 
                      data-member="${userId}" data-id="${todo.id}"></div>
                 <div class="todo-content" onclick="TodoManager.editTodo(${todo.id}, ${userId})">
@@ -443,25 +443,14 @@ const TodoManager = {
 
     // 切换TODO状态
     async toggleTodo(checkbox) {
-        console.log('toggleTodo被调用', checkbox);
         const todoId = parseInt(checkbox.dataset.id);
         const userId = parseInt(checkbox.dataset.member);
         
-        console.log('todoId:', todoId, 'userId:', userId);
-        console.log('todos数据:', this.todos[userId]);
-        
-        if (!todoId || !userId) {
-            console.log('缺少todoId或userId');
-            return;
-        }
+        if (!todoId || !userId) return;
 
         // 找到对应的todo项
         const todo = this.todos[userId]?.find(t => t.id === todoId);
-        console.log('找到的todo:', todo);
-        if (!todo) {
-            console.log('未找到对应的todo');
-            return;
-        }
+        if (!todo) return;
 
         const wasCompleted = todo.completed;
         

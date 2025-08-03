@@ -165,6 +165,37 @@
     opacity: 0.6;
 }
 
+/* 已完成的TODO卡片整体样式 */
+.todo-item.completed {
+    opacity: 0.5;
+    background-color: #f8f9fa;
+    border-radius: 8px;
+    position: relative;
+    transform: scale(0.98);
+    transition: all 0.3s ease;
+}
+
+.todo-item.completed::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background-color: rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    pointer-events: none;
+}
+
+.todo-item.completed .todo-checkbox {
+    border-color: #a0a0a0;
+    background-color: #f0f0f0;
+}
+
+.todo-item.completed .todo-content {
+    filter: grayscale(30%);
+}
+
 .todo-note {
     font-size: 10px;
     color: #9aa0a6;
