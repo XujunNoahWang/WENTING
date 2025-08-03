@@ -11,7 +11,11 @@
       "Bash(git push:*)",
       "Bash(npm start)",
       "Bash(taskkill:*)",
-      "Bash(powershell:*)"
+      "Bash(powershell:*)",
+      "Bash(start index.html)",
+      "Bash(cmd /c start:*)",
+      "Bash(node:*)",
+      "Bash(curl:*)"
     ],
     "deny": []
   }

@@ -22,15 +22,24 @@ const TodoManager = {
             });
         }
 
-        // 设置默认用户
-        if (UserManager.users.length > 0) {
-            this.currentUser = UserManager.users[0].id;
-        }
-
+        // 加载TODO数据
         if (this.isOnline) {
             await this.loadTodosFromAPI();
         } else {
             this.loadTodosFromLocal();
+        }
+
+        // 设置默认用户 - 优先选择有TODO数据的用户
+        if (UserManager.users.length > 0) {
+            // 找到第一个有TODO数据的用户
+            let defaultUser = UserManager.users[0].id;
+            for (const user of UserManager.users) {
+                if (this.todos[user.id] && this.todos[user.id].length > 0) {
+                    defaultUser = user.id;
+                    break;
+                }
+            }
+            this.currentUser = defaultUser;
         }
         
         this.renderTodoPanel(this.currentUser);
