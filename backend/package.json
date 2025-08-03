@@ -1,7 +1,7 @@
 {
   "name": "wenting-backend",
   "version": "1.0.0",
-  "description": "文婷1.0 后端API服务",
+  "description": "雯婷1.0 后端API服务",
   "main": "server.js",
   "scripts": {
     "start": "node server.js",

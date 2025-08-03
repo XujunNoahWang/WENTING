@@ -1,6 +1,6 @@
 @echo off
 echo ========================================
-echo           文婷1.0 启动脚本
+echo           雯婷1.0 启动脚本
 echo ========================================
 echo.
 
@@ -68,7 +68,7 @@ echo ✅ 数据库初始化完成
 
 :: 启动后端服务
 echo 🚀 启动后端服务...
-start "文婷1.0 后端服务" npm run dev
+start "雯婷1.0 后端服务" npm run dev
 
 :: 等待后端启动
 timeout /t 3 /nobreak >nul
@@ -81,7 +81,7 @@ echo 🌐 启动前端服务...
 python --version >nul 2>&1
 if %errorlevel% equ 0 (
     echo 使用Python启动前端服务...
-    start "文婷1.0 前端服务" python -m http.server 3000
+    start "雯婷1.0 前端服务" python -m http.server 3000
     echo.
     echo 🎉 服务启动完成！
     echo.

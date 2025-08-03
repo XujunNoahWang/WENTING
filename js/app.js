@@ -13,7 +13,7 @@ const App = {
 
     // 初始化应用
     async initializeApp() {
-        console.log('文婷 1.0 应用启动中...');
+        console.log('雯婷 1.0 应用启动中...');
         
         try {
             // 按顺序初始化各个模块
@@ -22,7 +22,7 @@ const App = {
             // 绑定全局事件
             this.bindGlobalEvents();
             
-            console.log('文婷 1.0 应用启动完成');
+            console.log('雯婷 1.0 应用启动完成');
         } catch (error) {
             console.error('应用初始化失败:', error);
         }

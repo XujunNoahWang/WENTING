@@ -1,4 +1,4 @@
--- 文婷1.0 数据库设计
+-- 雯婷1.0 数据库设计
 -- 创建数据库
 CREATE DATABASE IF NOT EXISTS wenting_db CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
 

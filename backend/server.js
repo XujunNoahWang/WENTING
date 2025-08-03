@@ -105,7 +105,7 @@ app.use('/api/patterns', patternsRouter);
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: '文婷1.0 API服务',
+        message: '雯婷1.0 API服务',
         version: '1.0.0',
         endpoints: {
             users: '/api/users',
@@ -173,7 +173,7 @@ async function startServer() {
         
         // 启动HTTP服务器
         const server = app.listen(PORT, () => {
-            console.log('🚀 文婷1.0 API服务器启动成功');
+            console.log('🚀 雯婷1.0 API服务器启动成功');
             console.log(`📡 服务地址: http://localhost:${PORT}`);
             console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
             console.log(`📊 健康检查: http://localhost:${PORT}/health`);
