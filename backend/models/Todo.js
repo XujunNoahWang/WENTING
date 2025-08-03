@@ -139,6 +139,7 @@ class Todo {
     static async getTodayTodos(userId, date = null) {
         const targetDate = date || new Date().toISOString().split('T')[0];
         
+        // 简化查询，先获取所有可能的todos，然后在JavaScript中过滤
         const sql = `
             SELECT t.*, rp.pattern_type, rp.interval_value, rp.days_of_week, 
                    rp.days_of_month, rp.end_type, rp.end_after_count, rp.end_date,
@@ -148,23 +149,60 @@ class Todo {
             LEFT JOIN repeat_patterns rp ON t.repeat_pattern_id = rp.id
             LEFT JOIN todo_completions tc ON t.id = tc.todo_id AND tc.completion_date = ?
             WHERE t.user_id = ? AND t.is_deleted = FALSE
-            AND (
-                (rp.pattern_type = 'none' AND t.start_date = ?) OR
-                (rp.pattern_type = 'daily') OR
-                (rp.pattern_type = 'weekly' AND DAYOFWEEK(?) - 1 IN (
-                    SELECT value FROM JSON_TABLE(rp.days_of_week, '$[*]' COLUMNS (value INT PATH '$')) AS jt
-                )) OR
-                (rp.pattern_type = 'monthly' AND DAY(?) IN (
-                    SELECT value FROM JSON_TABLE(rp.days_of_month, '$[*]' COLUMNS (value INT PATH '$')) AS jt
-                )) OR
-                (t.start_date <= ? AND (t.due_date IS NULL OR t.due_date >= ?))
-            )
             ORDER BY t.sort_order, t.reminder_time, t.created_at
         `;
         
-        const params = [targetDate, userId, targetDate, targetDate, targetDate, targetDate, targetDate];
-        const todos = await query(sql, params);
-        return todos.map(todo => new Todo(todo));
+        const params = [targetDate, userId];
+        const allTodos = await query(sql, params);
+        
+        // 在JavaScript中过滤符合条件的todos
+        const targetDateObj = new Date(targetDate);
+        const dayOfWeek = targetDateObj.getDay(); // 0=Sunday, 1=Monday, etc.
+        const dayOfMonth = targetDateObj.getDate();
+        
+        const filteredTodos = allTodos.filter(todo => {
+            if (!todo.pattern_type || todo.pattern_type === 'none') {
+                // 一次性任务：必须是精确日期
+                return todo.start_date === targetDate;
+            }
+            
+            if (todo.pattern_type === 'daily') {
+                // 每日任务：只要开始日期不晚于目标日期
+                return todo.start_date <= targetDate;
+            }
+            
+            if (todo.pattern_type === 'weekly') {
+                // 每周任务：检查星期几
+                if (todo.days_of_week) {
+                    try {
+                        const allowedDays = JSON.parse(todo.days_of_week);
+                        return allowedDays.includes(dayOfWeek) && todo.start_date <= targetDate;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                return false;
+            }
+            
+            if (todo.pattern_type === 'monthly') {
+                // 每月任务：检查日期
+                if (todo.days_of_month) {
+                    try {
+                        const allowedDays = JSON.parse(todo.days_of_month);
+                        return allowedDays.includes(dayOfMonth) && todo.start_date <= targetDate;
+                    } catch (e) {
+                        return false;
+                    }
+                }
+                return false;
+            }
+            
+            // 其他情况：检查是否在有效日期范围内
+            return todo.start_date <= targetDate && 
+                   (!todo.due_date || todo.due_date >= targetDate);
+        });
+        
+        return filteredTodos.map(todo => new Todo(todo));
     }
 
     // 更新TODO
