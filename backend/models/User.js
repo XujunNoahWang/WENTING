@@ -1,0 +1,320 @@
+const { query, transaction } = require('../config/database');
+const bcrypt = require('bcryptjs');
+
+class User {
+    constructor(data) {
+        this.id = data.id;
+        this.username = data.username;
+        this.display_name = data.display_name;
+        this.email = data.email;
+        this.phone = data.phone;
+        this.gender = data.gender;
+        this.birthday = data.birthday;
+        this.avatar_color = data.avatar_color;
+        this.timezone = data.timezone;
+        this.created_at = data.created_at;
+        this.updated_at = data.updated_at;
+        this.is_active = data.is_active;
+    }
+
+    // 创建新用户
+    static async create(userData) {
+        try {
+            const {
+                username,
+                display_name,
+                email,
+                phone,
+                gender,
+                birthday,
+                avatar_color = '#1d9bf0',
+                timezone = 'Asia/Shanghai'
+            } = userData;
+
+            // 检查用户名是否已存在
+            const existingUser = await User.findByUsername(username);
+            if (existingUser) {
+                throw new Error('用户名已存在');
+            }
+
+            // 检查邮箱是否已存在
+            if (email) {
+                const existingEmail = await User.findByEmail(email);
+                if (existingEmail) {
+                    throw new Error('邮箱已被使用');
+                }
+            }
+
+            const sql = `
+                INSERT INTO users (username, display_name, email, phone, gender, birthday, avatar_color, timezone)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            `;
+            
+            const result = await query(sql, [
+                username, display_name, email, phone, gender, birthday, avatar_color, timezone
+            ]);
+
+            // 获取新创建的用户
+            const newUser = await User.findById(result.insertId);
+            
+            // 创建默认设置
+            await User.createDefaultSettings(result.insertId);
+            
+            return newUser;
+        } catch (error) {
+            console.error('创建用户失败:', error);
+            throw error;
+        }
+    }
+
+    // 根据ID查找用户
+    static async findById(id) {
+        const sql = 'SELECT * FROM users WHERE id = ? AND is_active = TRUE';
+        const users = await query(sql, [id]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 根据用户名查找用户
+    static async findByUsername(username) {
+        const sql = 'SELECT * FROM users WHERE username = ? AND is_active = TRUE';
+        const users = await query(sql, [username]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 根据邮箱查找用户
+    static async findByEmail(email) {
+        const sql = 'SELECT * FROM users WHERE email = ? AND is_active = TRUE';
+        const users = await query(sql, [email]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 获取所有活跃用户
+    static async findAll() {
+        const sql = 'SELECT * FROM users WHERE is_active = TRUE ORDER BY created_at DESC';
+        const users = await query(sql);
+        return users.map(user => new User(user));
+    }
+
+    // 更新用户信息
+    static async updateById(id, updateData) {
+        try {
+            const {
+                username,
+                display_name,
+                email,
+                phone,
+                gender,
+                birthday,
+                avatar_color,
+                timezone
+            } = updateData;
+
+            // 如果更新用户名，检查是否已存在
+            if (username) {
+                const existingUser = await User.findByUsername(username);
+                if (existingUser && existingUser.id !== parseInt(id)) {
+                    throw new Error('用户名已存在');
+                }
+            }
+
+            // 如果更新邮箱，检查是否已存在
+            if (email) {
+                const existingEmail = await User.findByEmail(email);
+                if (existingEmail && existingEmail.id !== parseInt(id)) {
+                    throw new Error('邮箱已被使用');
+                }
+            }
+
+            const fields = [];
+            const values = [];
+
+            if (username !== undefined) {
+                fields.push('username = ?');
+                values.push(username);
+            }
+            if (display_name !== undefined) {
+                fields.push('display_name = ?');
+                values.push(display_name);
+            }
+            if (email !== undefined) {
+                fields.push('email = ?');
+                values.push(email);
+            }
+            if (phone !== undefined) {
+                fields.push('phone = ?');
+                values.push(phone);
+            }
+            if (gender !== undefined) {
+                fields.push('gender = ?');
+                values.push(gender);
+            }
+            if (birthday !== undefined) {
+                fields.push('birthday = ?');
+                values.push(birthday);
+            }
+            if (avatar_color !== undefined) {
+                fields.push('avatar_color = ?');
+                values.push(avatar_color);
+            }
+            if (timezone !== undefined) {
+                fields.push('timezone = ?');
+                values.push(timezone);
+            }
+
+            if (fields.length === 0) {
+                throw new Error('没有要更新的字段');
+            }
+
+            values.push(id);
+            const sql = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+            
+            await query(sql, values);
+            return await User.findById(id);
+        } catch (error) {
+            console.error('更新用户失败:', error);
+            throw error;
+        }
+    }
+
+    // 软删除用户
+    static async deleteById(id) {
+        const sql = 'UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE id = ?';
+        const result = await query(sql, [id]);
+        return result.affectedRows > 0;
+    }
+
+    // 硬删除用户（慎用）
+    static async hardDeleteById(id) {
+        const sql = 'DELETE FROM users WHERE id = ?';
+        const result = await query(sql, [id]);
+        return result.affectedRows > 0;
+    }
+
+    // 创建默认用户设置
+    static async createDefaultSettings(userId) {
+        const sql = `
+            INSERT INTO user_settings (user_id, notification_enabled, notification_time_advance, theme, language, week_start_day)
+            VALUES (?, TRUE, 10, 'light', 'zh-CN', 1)
+        `;
+        await query(sql, [userId]);
+    }
+
+    // 获取用户设置
+    static async getSettings(userId) {
+        const sql = 'SELECT * FROM user_settings WHERE user_id = ?';
+        const settings = await query(sql, [userId]);
+        return settings.length > 0 ? settings[0] : null;
+    }
+
+    // 更新用户设置
+    static async updateSettings(userId, settingsData) {
+        const {
+            notification_enabled,
+            notification_time_advance,
+            theme,
+            language,
+            week_start_day,
+            settings_json
+        } = settingsData;
+
+        const fields = [];
+        const values = [];
+
+        if (notification_enabled !== undefined) {
+            fields.push('notification_enabled = ?');
+            values.push(notification_enabled);
+        }
+        if (notification_time_advance !== undefined) {
+            fields.push('notification_time_advance = ?');
+            values.push(notification_time_advance);
+        }
+        if (theme !== undefined) {
+            fields.push('theme = ?');
+            values.push(theme);
+        }
+        if (language !== undefined) {
+            fields.push('language = ?');
+            values.push(language);
+        }
+        if (week_start_day !== undefined) {
+            fields.push('week_start_day = ?');
+            values.push(week_start_day);
+        }
+        if (settings_json !== undefined) {
+            fields.push('settings_json = ?');
+            values.push(JSON.stringify(settings_json));
+        }
+
+        if (fields.length === 0) {
+            throw new Error('没有要更新的设置');
+        }
+
+        values.push(userId);
+        const sql = `UPDATE user_settings SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?`;
+        
+        await query(sql, values);
+        return await User.getSettings(userId);
+    }
+
+    // 验证用户数据
+    static validateUserData(userData, isUpdate = false) {
+        const errors = [];
+
+        if (!isUpdate && !userData.username) {
+            errors.push('用户名不能为空');
+        }
+
+        if (!isUpdate && !userData.display_name) {
+            errors.push('显示名称不能为空');
+        }
+
+        if (userData.username && (userData.username.length < 2 || userData.username.length > 50)) {
+            errors.push('用户名长度必须在2-50字符之间');
+        }
+
+        if (userData.display_name && (userData.display_name.length < 1 || userData.display_name.length > 100)) {
+            errors.push('显示名称长度必须在1-100字符之间');
+        }
+
+        if (userData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
+            errors.push('邮箱格式不正确');
+        }
+
+        if (userData.phone && !/^1[3-9]\d{9}$/.test(userData.phone)) {
+            errors.push('手机号格式不正确');
+        }
+
+        if (userData.gender && !['male', 'female', 'other'].includes(userData.gender)) {
+            errors.push('性别值不正确');
+        }
+
+        if (userData.birthday && new Date(userData.birthday) > new Date()) {
+            errors.push('生日不能是未来日期');
+        }
+
+        if (userData.avatar_color && !/^#[0-9A-Fa-f]{6}$/.test(userData.avatar_color)) {
+            errors.push('头像颜色格式不正确');
+        }
+
+        return errors;
+    }
+
+    // 转换为安全的JSON对象（不包含敏感信息）
+    toJSON() {
+        return {
+            id: this.id,
+            username: this.username,
+            display_name: this.display_name,
+            email: this.email,
+            phone: this.phone,
+            gender: this.gender,
+            birthday: this.birthday,
+            avatar_color: this.avatar_color,
+            timezone: this.timezone,
+            created_at: this.created_at,
+            updated_at: this.updated_at
+        };
+    }
+}
+
+module.exports = User;

@@ -1,0 +1,156 @@
+/* 基础重置样式 */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f7f9fa;
+    color: #14171a;
+    overflow: hidden;
+}
+
+/* 全局工具类 */
+.hidden {
+    display: none;
+}
+
+/* 主容器样式 */
+.iphone-container {
+    width: 430px;
+    height: 932px;
+    margin: 20px auto;
+    background-color: #000;
+    border-radius: 55px;
+    padding: 10px;
+    box-shadow: 0 0 30px rgba(0, 0, 0, 0.2);
+}
+
+.screen {
+    width: 100%;
+    height: 100%;
+    background-color: #fff;
+    border-radius: 45px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 状态栏样式 */
+.status-bar {
+    height: 44px;
+    background-color: #fff;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0 20px;
+    font-size: 14px;
+    font-weight: 600;
+    color: #14171a;
+}
+
+.status-left {
+    display: flex;
+    align-items: center;
+}
+
+.status-right {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+}
+
+/* 主内容区域 */
+.main-content {
+    flex: 1;
+    display: flex;
+    background-color: #fff;
+}
+
+/* 左侧边栏 */
+.left-sidebar {
+    width: 80px;
+    background-color: #f7f9fa;
+    padding: 20px 15px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    border-right: 1px solid #e1e8ed;
+}
+
+.content-area {
+    flex: 1;
+    background-color: #fff;
+    display: flex;
+    flex-direction: column;
+}/* TO
+DO面板布局 */
+.content-panel {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+}
+
+/* 过滤控制栏 */
+.filter-controls {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    background: #f7f9fa;
+    border-bottom: 1px solid #e1e8ed;
+    display: flex;
+    gap: 20px;
+    align-items: center;
+}
+
+/* 日期控制栏 */
+.date-controls {
+    flex-shrink: 0;
+    padding: 16px 20px;
+    background: white;
+    border-bottom: 1px solid #e1e8ed;
+    position: relative;
+}
+
+/* TODO列表容器 - 可滚动区域 */
+.todo-list-container {
+    flex: 1;
+    overflow-y: auto;
+    padding: 16px 20px;
+    background: #f7f9fa;
+}
+
+/* 确保整个屏幕高度正确 */
+.screen {
+    height: 100%;
+}
+
+/* 主内容区域高度计算 */
+.main-content {
+    height: calc(100% - 44px - 80px - 80px); /* 减去状态栏、天气栏、底部导航的高度 */
+}/*
+ 天气栏样式 */
+.weather-bar {
+    height: 80px;
+    flex-shrink: 0;
+    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 20px;
+    font-size: 14px;
+}
+
+/* 底部导航栏 */
+.bottom-nav {
+    height: 80px;
+    flex-shrink: 0;
+    background: white;
+    border-top: 1px solid #e1e8ed;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    padding: 0 20px;
+}

@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(mkdir:*)",
+      "WebFetch(domain:open-meteo.com)",
+      "WebFetch(domain:api.open-meteo.com)",
+      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\weather-test.html\")",
+      "Bash(rm:*)"
+    ],
+    "deny": []
+  }
+}
