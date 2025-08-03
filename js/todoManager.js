@@ -468,15 +468,18 @@ const TodoManager = {
             todo.completed = !todo.completed;
             
             // 更新UI
+            const todoItem = checkbox.closest('.todo-item');
             const todoContent = checkbox.nextElementSibling;
             const todoText = todoContent?.querySelector('.todo-text');
             
             if (todo.completed) {
                 checkbox.classList.add('checked');
                 if (todoText) todoText.classList.add('completed');
+                if (todoItem) todoItem.classList.add('completed');
             } else {
                 checkbox.classList.remove('checked');
                 if (todoText) todoText.classList.remove('completed');
+                if (todoItem) todoItem.classList.remove('completed');
             }
 
             // 保存数据
