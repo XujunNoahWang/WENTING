@@ -108,7 +108,7 @@ DO面板布局 */
 .todo-list-container {
     flex: 1;
     overflow-y: auto;
-    padding: 16px 20px;
+    padding: 16px 20px 66px 20px; /* 增加底部留白，防止添加按钮遮挡最后的TODO项目 */
     background: #f7f9fa;
 }
 
