@@ -62,6 +62,12 @@ const DateManager = {
         this.selectedDate.setDate(this.selectedDate.getDate() + direction);
         console.log('新的选中日期:', this.selectedDate);
         this.updateSelectedDate();
+        
+        // 通知TodoManager重新加载数据
+        if (window.TodoManager && typeof window.TodoManager.loadTodosForDate === 'function') {
+            window.TodoManager.selectedDate = this.selectedDate;
+            window.TodoManager.loadTodosForDate(this.selectedDate);
+        }
     },
 
     // 返回今天
@@ -70,6 +76,12 @@ const DateManager = {
         this.selectedDate = new Date();
         console.log('重置为今天:', this.selectedDate);
         this.updateSelectedDate();
+        
+        // 通知TodoManager重新加载数据
+        if (window.TodoManager && typeof window.TodoManager.loadTodosForDate === 'function') {
+            window.TodoManager.selectedDate = this.selectedDate;
+            window.TodoManager.loadTodosForDate(this.selectedDate);
+        }
     },
 
     // 切换日历显示
@@ -144,6 +156,12 @@ const DateManager = {
         this.selectedDate = new Date(date);
         this.updateSelectedDate();
         this.toggleDatePicker();
+        
+        // 通知TodoManager重新加载数据
+        if (window.TodoManager && typeof window.TodoManager.loadTodosForDate === 'function') {
+            window.TodoManager.selectedDate = this.selectedDate;
+            window.TodoManager.loadTodosForDate(this.selectedDate);
+        }
     },
 
     // 绑定事件

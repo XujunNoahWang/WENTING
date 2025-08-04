@@ -9,7 +9,7 @@ const { testConnection } = require('./config/database');
 
 // 导入路由
 const usersRouter = require('./routes/users');
-const todosRouter = require('./routes/todos');
+const todosRouter = require('./routes/todosNew');
 const patternsRouter = require('./routes/patterns');
 
 const app = express();
@@ -61,10 +61,10 @@ app.use(cors({
     allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
-// 速率限制
+// 速率限制 - 开发环境使用更宽松的限制
 const limiter = rateLimit({
-    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000, // 15分钟
-    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 100, // 限制每个IP 15分钟内最多100个请求
+    windowMs: parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 1 * 60 * 1000, // 1分钟
+    max: parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 1000, // 限制每个IP 1分钟内最多1000个请求
     message: {
         success: false,
         message: '请求过于频繁，请稍后再试'
@@ -73,7 +73,10 @@ const limiter = rateLimit({
     legacyHeaders: false,
 });
 
-app.use('/api', limiter);
+// 只在生产环境启用速率限制
+if (process.env.NODE_ENV === 'production') {
+    app.use('/api', limiter);
+}
 
 // 解析JSON
 app.use(express.json({ limit: '10mb' }));

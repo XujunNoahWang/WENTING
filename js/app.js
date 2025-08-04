@@ -142,10 +142,7 @@ const App = {
 
     // 重置应用
     reset() {
-        if (confirm('确定要重置所有数据吗？这将清除所有自定义设置和TODO项目。')) {
-            localStorage.clear();
-            location.reload();
-        }
+        alert('重置功能已禁用，应用完全依赖服务器数据。');
     },
 
     // 导出数据

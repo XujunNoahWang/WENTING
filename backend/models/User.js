@@ -193,8 +193,8 @@ class User {
     // 创建默认用户设置
     static async createDefaultSettings(userId) {
         const sql = `
-            INSERT INTO user_settings (user_id, notification_enabled, notification_time_advance, theme, language, week_start_day)
-            VALUES (?, TRUE, 10, 'light', 'zh-CN', 1)
+            INSERT INTO user_settings (user_id, notification_enabled, theme, language)
+            VALUES (?, 1, 'light', 'zh-CN')
         `;
         await query(sql, [userId]);
     }
@@ -276,12 +276,12 @@ class User {
             errors.push('显示名称长度必须在1-100字符之间');
         }
 
-        if (userData.email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
+        if (userData.email && userData.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
             errors.push('邮箱格式不正确');
         }
 
-        if (userData.phone && !/^1[3-9]\d{9}$/.test(userData.phone)) {
-            errors.push('手机号格式不正确');
+        if (userData.phone && userData.phone.trim() !== '' && !/^1[3-9]\d{9}$/.test(userData.phone)) {
+            errors.push('手机号格式不正确（应为11位数字，以1开头）');
         }
 
         if (userData.gender && !['male', 'female', 'other'].includes(userData.gender)) {

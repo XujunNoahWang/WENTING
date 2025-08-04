@@ -4,15 +4,15 @@ const UserManager = {
     isOnline: false,
 
     async init() {
-        // 检查后端连接
+        // 检查后端连接 - 必须联网才能使用
         this.isOnline = await ApiClient.testConnection();
         
-        if (this.isOnline) {
-            await this.loadUsersFromAPI();
-        } else {
-            this.loadUsersFromLocal();
+        if (!this.isOnline) {
+            console.error('❌ 无法连接到服务器，应用无法启动');
+            return;
         }
         
+        await this.loadUsersFromAPI();
         this.bindEvents();
         this.renderUserTabs();
     },
@@ -23,65 +23,15 @@ const UserManager = {
             const response = await ApiClient.users.getAll();
             if (response.success) {
                 this.users = response.data;
-                this.saveUsersToLocal(); // 同时保存到本地作为备份
                 console.log('✅ 从服务器加载用户数据成功');
             }
         } catch (error) {
             console.error('从服务器加载用户数据失败:', error);
-            this.loadUsersFromLocal(); // 降级到本地数据
+            throw error; // 不降级到本地数据，直接抛出错误
         }
     },
 
-    // 从本地存储加载用户数据
-    loadUsersFromLocal() {
-        const savedUsers = localStorage.getItem('wenting_users');
-        if (savedUsers) {
-            this.users = JSON.parse(savedUsers);
-        } else {
-            // 使用默认用户数据
-            this.users = [
-                {
-                    id: 1,
-                    username: 'dad',
-                    display_name: 'Dad',
-                    email: 'dad@example.com',
-                    phone: '13800138001',
-                    gender: 'male',
-                    birthday: '1980-05-15',
-                    avatar_color: '#1d9bf0',
-                    created_at: '2025-01-01T00:00:00.000Z'
-                },
-                {
-                    id: 2,
-                    username: 'mom',
-                    display_name: 'Mom',
-                    email: 'mom@example.com',
-                    phone: '13800138002',
-                    gender: 'female',
-                    birthday: '1985-08-20',
-                    avatar_color: '#e91e63',
-                    created_at: '2025-01-01T00:01:00.000Z'
-                },
-                {
-                    id: 3,
-                    username: 'kid',
-                    display_name: 'Kid',
-                    email: 'kid@example.com',
-                    phone: null,
-                    gender: 'other',
-                    birthday: '2010-12-10',
-                    avatar_color: '#ff9800',
-                    created_at: '2025-01-01T00:02:00.000Z'
-                }
-            ];
-        }
-        console.log('📱 使用本地用户数据');
-    },
 
-    // 保存用户数据到本地
-    saveUsersToLocal() {
-        localStorage.setItem('wenting_users', JSON.stringify(this.users));
-    },
 
     // 同步用户数据到服务器
     async syncUserToServer(user) {
@@ -187,6 +137,17 @@ const UserManager = {
     async handleAddUser(event) {
         event.preventDefault();
         
+        // 防止重复提交
+        const submitButton = event.target.querySelector('button[type="submit"]');
+        if (submitButton.disabled) {
+            console.log('⚠️ 表单正在提交中，忽略重复提交');
+            return;
+        }
+        
+        // 禁用提交按钮
+        submitButton.disabled = true;
+        submitButton.textContent = '提交中...';
+        
         const formData = new FormData(event.target);
         const userData = {
             username: formData.get('username'),
@@ -198,44 +159,71 @@ const UserManager = {
             avatar_color: formData.get('avatar_color') || '#1d9bf0'
         };
 
-        try {
-            let newUser;
-            
-            if (this.isOnline) {
-                // 尝试在服务器创建用户
-                const response = await ApiClient.users.create(userData);
-                if (response.success) {
-                    newUser = response.data;
-                    console.log('✅ 在服务器创建用户成功');
-                } else {
-                    throw new Error(response.message || '创建用户失败');
-                }
-            } else {
-                // 离线模式，创建本地用户
-                newUser = {
-                    id: Date.now(), // 临时ID
-                    ...userData,
-                    created_at: new Date().toISOString(),
-                    updated_at: new Date().toISOString()
-                };
-            }
+        console.log('📤 准备创建用户:', userData);
+        console.log('📋 用户数据详情:');
+        Object.keys(userData).forEach(key => {
+            console.log(`  ${key}: "${userData[key]}" (类型: ${typeof userData[key]}, 长度: ${userData[key]?.length || 'N/A'})`);
+        });
 
-            // 添加到本地用户列表
-            this.users.push(newUser);
-            this.saveUsersToLocal();
+        try {
+            // 在服务器创建用户
+            console.log('🔄 正在调用API创建用户...');
+            const response = await ApiClient.users.create(userData);
+            console.log('📥 API响应:', response);
             
-            // 重新渲染用户标签
-            this.renderUserTabs();
-            
-            // 关闭表单
-            this.closeAddUserForm();
-            
-            // 显示成功消息
-            this.showMessage('用户添加成功！', 'success');
+            if (response && response.success) {
+                const newUser = response.data;
+                console.log('✅ 在服务器创建用户成功:', newUser);
+                
+                // 添加到本地用户列表
+                this.users.push(newUser);
+                console.log('📝 已添加到本地用户列表，当前用户数:', this.users.length);
+                
+                // 重新渲染用户标签
+                this.renderUserTabs();
+                console.log('🎨 已重新渲染用户标签');
+                
+                // 关闭表单
+                this.closeAddUserForm();
+                
+                // 显示成功消息
+                this.showMessage('用户添加成功！', 'success');
+                
+                // 如果这是第一个用户或者TODO管理器还没有初始化，重新初始化TODO管理器
+                if (window.TodoManager && typeof window.TodoManager.loadTodosFromAPI === 'function') {
+                    try {
+                        await window.TodoManager.loadTodosFromAPI();
+                        window.TodoManager.renderTodoPanel(window.TodoManager.currentUser);
+                    } catch (todoError) {
+                        console.warn('重新加载TODO数据失败:', todoError);
+                    }
+                }
+                
+            } else {
+                console.error('❌ API返回失败响应:', response);
+                throw new Error(response?.message || '创建用户失败');
+            }
             
         } catch (error) {
-            console.error('添加用户失败:', error);
-            this.showMessage('添加用户失败: ' + error.message, 'error');
+            console.error('❌ 添加用户失败:', error);
+            console.error('错误详情:', {
+                message: error.message,
+                stack: error.stack,
+                response: error.response
+            });
+            
+            // 检查是否是网络错误
+            if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+                this.showMessage('网络连接失败，请检查服务器状态', 'error');
+            } else {
+                this.showMessage('添加用户失败: ' + error.message, 'error');
+            }
+        } finally {
+            // 恢复提交按钮状态
+            if (submitButton) {
+                submitButton.disabled = false;
+                submitButton.textContent = '添加用户';
+            }
         }
     },
 
@@ -246,25 +234,21 @@ const UserManager = {
         }
 
         try {
-            // 如果在线，先从服务器删除
-            if (this.isOnline) {
-                const response = await ApiClient.users.delete(userId);
-                if (!response.success) {
-                    throw new Error(response.message || '删除用户失败');
-                }
-                console.log('✅ 从服务器删除用户成功');
+            // 从服务器删除
+            const response = await ApiClient.users.delete(userId);
+            if (!response.success) {
+                throw new Error(response.message || '删除用户失败');
             }
+            console.log('✅ 从服务器删除用户成功');
 
             // 从本地删除
             const index = this.users.findIndex(user => user.id === userId);
             if (index > -1) {
                 this.users.splice(index, 1);
-                this.saveUsersToLocal();
                 
                 // 清理对应的TODO数据
                 if (TodoManager.todos && TodoManager.todos[userId]) {
                     delete TodoManager.todos[userId];
-                    TodoManager.saveTodosToLocal();
                 }
                 
                 // 如果删除的是当前用户，切换到第一个用户
@@ -324,29 +308,21 @@ const UserManager = {
     // 更新用户信息
     async updateUser(userId, updates) {
         try {
-            let updatedUser;
-            
-            if (this.isOnline) {
-                // 尝试在服务器更新用户
-                const response = await ApiClient.users.update(userId, updates);
-                if (response.success) {
-                    updatedUser = response.data;
-                    console.log('✅ 在服务器更新用户成功');
-                } else {
-                    throw new Error(response.message || '更新用户失败');
-                }
-            }
-
-            // 更新本地用户数据
-            const user = this.getUser(userId);
-            if (user) {
-                Object.assign(user, updates);
-                if (updatedUser) {
+            // 在服务器更新用户
+            const response = await ApiClient.users.update(userId, updates);
+            if (response.success) {
+                const updatedUser = response.data;
+                console.log('✅ 在服务器更新用户成功');
+                
+                // 更新本地用户数据
+                const user = this.getUser(userId);
+                if (user) {
                     Object.assign(user, updatedUser);
+                    this.renderUserTabs();
+                    return true;
                 }
-                this.saveUsersToLocal();
-                this.renderUserTabs();
-                return true;
+            } else {
+                throw new Error(response.message || '更新用户失败');
             }
         } catch (error) {
             console.error('更新用户失败:', error);

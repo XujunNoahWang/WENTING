@@ -18,16 +18,41 @@ const ApiClient = {
         }
 
         try {
+            console.log('🌐 发送API请求:', url, config);
             const response = await fetch(url, config);
-            const data = await response.json();
+            console.log('📡 收到响应:', response.status, response.statusText);
+            
+            let data;
+            try {
+                data = await response.json();
+                console.log('📄 响应数据:', data);
+            } catch (jsonError) {
+                console.error('JSON解析失败:', jsonError);
+                throw new Error('服务器响应格式错误');
+            }
             
             if (!response.ok) {
-                throw new Error(data.message || `HTTP error! status: ${response.status}`);
+                let errorMessage = data.message || `HTTP error! status: ${response.status}`;
+                
+                // 如果有详细的验证错误，显示它们
+                if (data.errors && Array.isArray(data.errors)) {
+                    errorMessage += ': ' + data.errors.join(', ');
+                }
+                
+                console.error('❌ API请求失败:', errorMessage);
+                console.error('❌ 完整错误信息:', data);
+                throw new Error(errorMessage);
             }
             
             return data;
         } catch (error) {
-            console.error('API请求失败:', error);
+            console.error('❌ API请求异常:', error);
+            
+            // 处理网络错误
+            if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                throw new Error('网络连接失败，请检查服务器是否运行');
+            }
+            
             throw error;
         }
     },
@@ -98,22 +123,19 @@ const ApiClient = {
 
     // TODO相关API
     todos: {
-        // 获取用户的TODO列表
-        async getByUserId(userId, options = {}) {
-            const params = new URLSearchParams();
-            Object.keys(options).forEach(key => {
-                if (options[key] !== null && options[key] !== undefined) {
-                    params.append(key, options[key]);
-                }
-            });
-            const queryString = params.toString();
-            return ApiClient.get(`/todos/user/${userId}${queryString ? '?' + queryString : ''}`);
+        // 获取用户的所有TODO
+        async getByUserId(userId) {
+            return ApiClient.get(`/todos/user/${userId}`);
         },
 
         // 获取用户今日TODO
-        async getTodayTodos(userId, date = null) {
-            const params = date ? `?date=${date}` : '';
-            return ApiClient.get(`/todos/user/${userId}/today${params}`);
+        async getTodayTodos(userId) {
+            return ApiClient.get(`/todos/user/${userId}/today`);
+        },
+
+        // 获取用户指定日期的TODO
+        async getTodosForDate(userId, date) {
+            return ApiClient.get(`/todos/user/${userId}/date/${date}`);
         },
 
         // 根据ID获取TODO
@@ -132,39 +154,27 @@ const ApiClient = {
         },
 
         // 删除TODO
-        async delete(id) {
-            return ApiClient.delete(`/todos/${id}`);
+        async delete(id, deletionType = 'all', deletionDate = null) {
+            return ApiClient.request(`/todos/${id}`, {
+                method: 'DELETE',
+                body: { deletion_type: deletionType, deletion_date: deletionDate }
+            });
         },
 
         // 完成TODO
-        async complete(id, userId, date = null, notes = '', mood = null) {
+        async complete(id, userId, date, notes = '') {
             return ApiClient.post(`/todos/${id}/complete`, {
                 user_id: userId,
-                date: date || new Date().toISOString().split('T')[0],
-                notes,
-                mood
+                date: date,
+                notes
             });
         },
 
         // 取消完成TODO
-        async uncomplete(id, date = null) {
+        async uncomplete(id, date) {
             return ApiClient.post(`/todos/${id}/uncomplete`, {
-                date: date || new Date().toISOString().split('T')[0]
+                date: date
             });
-        },
-
-        // 批量更新排序
-        async updateSortOrder(todoOrders) {
-            return ApiClient.put('/todos/batch/sort', { todoOrders });
-        },
-
-        // 获取用户完成统计
-        async getStats(userId, startDate = null, endDate = null) {
-            const params = new URLSearchParams();
-            if (startDate) params.append('startDate', startDate);
-            if (endDate) params.append('endDate', endDate);
-            const queryString = params.toString();
-            return ApiClient.get(`/todos/user/${userId}/stats${queryString ? '?' + queryString : ''}`);
         }
     },
 
