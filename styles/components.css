@@ -995,4 +995,77 @@ DO按钮样式 */
 
 .form-actions .delete-btn:hover {
     background: #d32f2f !important;
+}/* 重复周期样式 
+*/
+.todo-cycle {
+    font-size: 8px;
+    color: #657786;
+    background-color: #e8f4fd;
+    padding: 2px 4px;
+    border-radius: 8px;
+    text-align: center;
+    width: 60px;
+    height: 32px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    line-height: 1.0;
+    margin-top: 2px;
+}
+
+.todo-cycle.custom {
+    background-color: #fff3cd;
+    color: #856404;
+}
+
+/* 表单中的重复周期组 */
+#custom_cycle_group,
+#edit_custom_cycle_group {
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    padding: 12px;
+    background-color: #f8f9fa;
+}
+
+#custom_cycle_group label,
+#edit_custom_cycle_group label {
+    color: #495057;
+    font-weight: 500;
+}
+
+/* 周期单位选择器 */
+#cycle_unit,
+#edit_cycle_unit {
+    margin-left: 8px !important;
+}/* 开始
+日期选择器样式 */
+#todo_start_date,
+#edit_todo_start_date {
+    width: 100%;
+    padding: 10px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+    box-sizing: border-box;
+    background-color: #f8f9fa;
+    color: #495057;
+}
+
+#todo_start_date:focus,
+#edit_todo_start_date:focus {
+    outline: none;
+    border-color: #1d9bf0;
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.1);
+    background-color: white;
+}
+
+/* 日期输入框的标签样式 */
+label[for="todo_start_date"],
+label[for="edit_todo_start_date"] {
+    color: #495057;
+    font-weight: 500;
+    margin-bottom: 6px;
+    display: block;
 }

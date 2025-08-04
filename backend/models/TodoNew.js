@@ -13,6 +13,9 @@ class Todo {
         this.repeat_interval = data.repeat_interval || 1;
         this.start_date = data.start_date;
         this.end_date = data.end_date || null;
+        this.cycle_type = data.cycle_type || 'long_term';
+        this.cycle_duration = data.cycle_duration || null;
+        this.cycle_unit = data.cycle_unit || 'days';
         this.is_active = data.is_active !== false;
         this.sort_order = data.sort_order || 0;
         this.created_at = data.created_at;
@@ -30,8 +33,17 @@ class Todo {
                 priority = 'medium',
                 repeat_type = 'none',
                 repeat_interval = 1,
-                start_date = new Date().toISOString().split('T')[0]
+                start_date = new Date().toISOString().split('T')[0],
+                cycle_type = 'long_term',
+                cycle_duration = null,
+                cycle_unit = 'days'
             } = todoData;
+
+            console.log('📥 后端接收的TODO数据:', todoData);
+            console.log('📋 重复周期数据调试:');
+            console.log('  cycle_type:', cycle_type);
+            console.log('  cycle_duration:', cycle_duration);
+            console.log('  cycle_unit:', cycle_unit);
 
             // 验证数据
             const validationErrors = Todo.validateTodoData(todoData);
@@ -40,12 +52,12 @@ class Todo {
             }
 
             const sql = `
-                INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, repeat_interval, start_date)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, repeat_interval, start_date, cycle_type, cycle_duration, cycle_unit)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             const result = await query(sql, [
-                user_id, title, description, reminder_time, priority, repeat_type, repeat_interval, start_date
+                user_id, title, description, reminder_time, priority, repeat_type, repeat_interval, start_date, cycle_type, cycle_duration, cycle_unit
             ]);
 
             // 获取新创建的TODO
@@ -112,6 +124,16 @@ class Todo {
             console.log(`📅 检查结束日期: TODO ${todo.id}, 结束日期: ${todo.end_date}, 目标日期: ${targetDateStr}, 目标日期 > 结束日期: ${target > endDate}`);
             if (target > endDate) {
                 console.log(`❌ TODO ${todo.id} 在 ${targetDateStr} 不显示，因为超过了结束日期 ${todo.end_date}`);
+                return false;
+            }
+        }
+
+        // 检查重复周期限制
+        if (todo.cycle_type === 'custom' && todo.cycle_duration) {
+            const cycleEndDate = Todo.calculateCycleEndDate(startDate, todo.cycle_duration, todo.cycle_unit);
+            console.log(`📅 检查重复周期: TODO ${todo.id}, 周期结束日期: ${cycleEndDate.toISOString().split('T')[0]}, 目标日期: ${targetDateStr}`);
+            if (target > cycleEndDate) {
+                console.log(`❌ TODO ${todo.id} 在 ${targetDateStr} 不显示，因为超过了重复周期`);
                 return false;
             }
         }
@@ -208,6 +230,10 @@ class Todo {
                 priority,
                 repeat_type,
                 repeat_interval,
+                cycle_type,
+                cycle_duration,
+                cycle_unit,
+                start_date,
                 sort_order
             } = updateData;
 
@@ -243,6 +269,22 @@ class Todo {
             if (repeat_interval !== undefined) {
                 fields.push('repeat_interval = ?');
                 values.push(repeat_interval);
+            }
+            if (cycle_type !== undefined) {
+                fields.push('cycle_type = ?');
+                values.push(cycle_type);
+            }
+            if (cycle_duration !== undefined) {
+                fields.push('cycle_duration = ?');
+                values.push(cycle_duration);
+            }
+            if (cycle_unit !== undefined) {
+                fields.push('cycle_unit = ?');
+                values.push(cycle_unit);
+            }
+            if (start_date !== undefined) {
+                fields.push('start_date = ?');
+                values.push(start_date);
             }
             if (sort_order !== undefined) {
                 fields.push('sort_order = ?');
@@ -367,6 +409,31 @@ class Todo {
         });
     }
 
+    // 计算重复周期的结束日期
+    static calculateCycleEndDate(startDate, cycleDuration, cycleUnit) {
+        const endDate = new Date(startDate);
+        
+        switch (cycleUnit) {
+            case 'days':
+                // 减1是因为开始日期本身算作第1天
+                endDate.setDate(endDate.getDate() + cycleDuration - 1);
+                break;
+            case 'weeks':
+                // 减1是因为开始日期本身算作第1周的第1天
+                endDate.setDate(endDate.getDate() + (cycleDuration * 7) - 1);
+                break;
+            case 'months':
+                // 对于月份，我们设置到该月的最后一天
+                endDate.setMonth(endDate.getMonth() + cycleDuration);
+                endDate.setDate(endDate.getDate() - 1);
+                break;
+            default:
+                endDate.setDate(endDate.getDate() + cycleDuration - 1);
+        }
+        
+        return endDate;
+    }
+
     // 获取重复类型的显示文本
     static getRepeatTypeText(repeatType, repeatInterval = 1) {
         switch (repeatType) {
@@ -387,6 +454,21 @@ class Todo {
             default:
                 return '一次性';
         }
+    }
+
+    // 获取重复周期的显示文本
+    static getCycleText(cycleType, cycleDuration, cycleUnit) {
+        if (cycleType === 'long_term') {
+            return '长期';
+        } else if (cycleType === 'custom' && cycleDuration) {
+            const unitText = {
+                'days': '天',
+                'weeks': '周',
+                'months': '月'
+            };
+            return `${cycleDuration}${unitText[cycleUnit] || '天'}`;
+        }
+        return '长期';
     }
 
     // 验证TODO数据
@@ -425,6 +507,19 @@ class Todo {
             errors.push('提醒时间格式不正确');
         }
 
+        if (todoData.cycle_type && !['long_term', 'custom'].includes(todoData.cycle_type)) {
+            errors.push('重复周期类型值不正确');
+        }
+
+        if (todoData.cycle_type === 'custom') {
+            if (!todoData.cycle_duration || todoData.cycle_duration < 1 || todoData.cycle_duration > 365) {
+                errors.push('重复周期时长必须在1-365之间');
+            }
+            if (todoData.cycle_unit && !['days', 'weeks', 'months'].includes(todoData.cycle_unit)) {
+                errors.push('重复周期单位值不正确');
+            }
+        }
+
         return errors;
     }
 
@@ -441,6 +536,9 @@ class Todo {
             repeat_interval: this.repeat_interval,
             start_date: this.start_date,
             end_date: this.end_date,
+            cycle_type: this.cycle_type,
+            cycle_duration: this.cycle_duration,
+            cycle_unit: this.cycle_unit,
             is_active: this.is_active,
             sort_order: this.sort_order,
             created_at: this.created_at,

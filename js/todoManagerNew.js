@@ -105,6 +105,15 @@ const TodoManager = {
 
     // 将API TODO格式转换为本地格式
     convertApiTodoToLocal(apiTodo) {
+        console.log('📥 从服务器接收的TODO数据:', apiTodo);
+        console.log('📋 重复周期数据调试:');
+        console.log('  cycle_type:', apiTodo.cycle_type);
+        console.log('  cycle_duration:', apiTodo.cycle_duration);
+        console.log('  cycle_unit:', apiTodo.cycle_unit);
+        
+        const cycleText = this.getCycleText(apiTodo.cycle_type, apiTodo.cycle_duration, apiTodo.cycle_unit);
+        console.log('  计算出的cycle文本:', cycleText);
+        
         return {
             id: apiTodo.id,
             text: apiTodo.title,
@@ -113,6 +122,10 @@ const TodoManager = {
             period: this.getRepeatTypeText(apiTodo.repeat_type, apiTodo.repeat_interval),
             periodType: apiTodo.repeat_type,
             customInterval: apiTodo.repeat_interval > 1 ? apiTodo.repeat_interval : null,
+            cycle: cycleText,
+            cycleType: apiTodo.cycle_type || 'long_term',
+            cycleDuration: apiTodo.cycle_duration || null,
+            cycleUnit: apiTodo.cycle_unit || 'days',
             completed: apiTodo.is_completed_today || false,
             priority: apiTodo.priority || 'medium',
             createdDate: apiTodo.start_date || new Date().toISOString().split('T')[0]
@@ -129,6 +142,9 @@ const TodoManager = {
             priority: localTodo.priority || 'medium',
             repeat_type: localTodo.periodType || 'none',
             repeat_interval: localTodo.customInterval || 1,
+            cycle_type: localTodo.cycleType || 'long_term',
+            cycle_duration: localTodo.cycleDuration || null,
+            cycle_unit: localTodo.cycleUnit || 'days',
             start_date: new Date().toISOString().split('T')[0]
         };
     },
@@ -153,6 +169,21 @@ const TodoManager = {
             default:
                 return '一次性';
         }
+    },
+
+    // 获取重复周期的显示文本
+    getCycleText(cycleType, cycleDuration, cycleUnit) {
+        if (cycleType === 'long_term') {
+            return '长期';
+        } else if (cycleType === 'custom' && cycleDuration) {
+            const unitText = {
+                'days': '天',
+                'weeks': '周',
+                'months': '月'
+            };
+            return `${cycleDuration}${unitText[cycleUnit] || '天'}`;
+        }
+        return '长期';
     },
 
     // 切换用户
@@ -243,6 +274,7 @@ const TodoManager = {
                     <div class="todo-right">
                         <div class="todo-time ${timeSpecificClass}">${todo.time}</div>
                         <div class="todo-period">${todo.period}</div>
+                        <div class="todo-cycle">${todo.cycle}</div>
                     </div>
                 </div>
             </div>
@@ -316,6 +348,10 @@ const TodoManager = {
                             <input type="text" id="todo_title" name="title" required maxlength="200" placeholder="例如：吃鱼肝油">
                         </div>
                         <div class="form-group">
+                            <label for="todo_start_date">开始日期</label>
+                            <input type="date" id="todo_start_date" name="start_date" value="${(DateManager.selectedDate || new Date()).toISOString().split('T')[0]}">
+                        </div>
+                        <div class="form-group">
                             <label for="todo_description">备注</label>
                             <textarea id="todo_description" name="description" maxlength="1000" placeholder="详细说明（可选）"></textarea>
                         </div>
@@ -371,6 +407,24 @@ const TodoManager = {
                                 <span style="margin-left: 8px;">天一次</span>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label for="todo_cycle">重复周期</label>
+                            <select id="todo_cycle" name="cycle_type" onchange="TodoManager.handleCycleChange(this)">
+                                <option value="long_term" selected>长期</option>
+                                <option value="custom">自定义周期</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="custom_cycle_group" style="display: none;">
+                            <label for="cycle_duration">周期时长</label>
+                            <div class="form-row">
+                                <input type="number" id="cycle_duration" name="cycle_duration" min="1" max="365" value="1" style="width: 80px;">
+                                <select id="cycle_unit" name="cycle_unit" style="width: 80px; margin-left: 8px;">
+                                    <option value="days">天</option>
+                                    <option value="weeks">周</option>
+                                    <option value="months">月</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="form-actions">
                             <button type="button" onclick="TodoManager.closeAddTodoForm()">取消</button>
                             <button type="submit">添加TODO</button>
@@ -398,6 +452,17 @@ const TodoManager = {
         const formData = new FormData(event.target);
         const repeatType = formData.get('repeat_type') || 'none';
         const customInterval = parseInt(formData.get('custom_interval')) || 1;
+        const cycleType = formData.get('cycle_type') || 'long_term';
+        const cycleDuration = parseInt(formData.get('cycle_duration')) || null;
+        const cycleUnit = formData.get('cycle_unit') || 'days';
+        
+        console.log('📋 表单数据调试:');
+        console.log('  cycleType:', cycleType);
+        console.log('  cycleDuration:', cycleDuration);
+        console.log('  cycleUnit:', cycleUnit);
+        
+        // 使用当前选中的日期作为开始日期，如果用户修改了日期则使用用户选择的日期
+        const selectedStartDate = formData.get('start_date') || (DateManager.selectedDate || new Date()).toISOString().split('T')[0];
         
         const todoData = {
             user_id: userId,
@@ -407,8 +472,13 @@ const TodoManager = {
             priority: formData.get('priority') || 'medium',
             repeat_type: repeatType,
             repeat_interval: repeatType === 'custom' ? customInterval : 1,
-            start_date: new Date().toISOString().split('T')[0]
+            cycle_type: cycleType,
+            cycle_duration: cycleType === 'custom' ? cycleDuration : null,
+            cycle_unit: cycleType === 'custom' ? cycleUnit : 'days',
+            start_date: selectedStartDate
         };
+        
+        console.log('📤 发送到服务器的TODO数据:', todoData);
 
         try {
             // 在服务器创建TODO
@@ -417,17 +487,11 @@ const TodoManager = {
                 const newTodo = this.convertApiTodoToLocal(response.data);
                 console.log('✅ 在服务器创建TODO成功');
                 
-                // 添加到本地TODO列表
-                if (!this.todos[userId]) {
-                    this.todos[userId] = [];
-                }
-                this.todos[userId].push(newTodo);
-                
-                // 重新渲染TODO面板
-                this.renderTodoPanel(userId);
-                
                 // 关闭表单
                 this.closeAddTodoForm();
+                
+                // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
+                await this.loadTodosForDate(DateManager.selectedDate || new Date());
                 
                 // 显示成功消息
                 this.showMessage('TODO添加成功！', 'success');
@@ -446,6 +510,14 @@ const TodoManager = {
         const customGroup = document.getElementById('custom_interval_group');
         if (customGroup) {
             customGroup.style.display = select.value === 'custom' ? 'block' : 'none';
+        }
+    },
+
+    // 处理重复周期变化
+    handleCycleChange(select) {
+        const customCycleGroup = document.getElementById('custom_cycle_group');
+        if (customCycleGroup) {
+            customCycleGroup.style.display = select.value === 'custom' ? 'block' : 'none';
         }
     },
 
@@ -468,6 +540,10 @@ const TodoManager = {
                         <div class="form-group">
                             <label for="edit_todo_title">标题 *</label>
                             <input type="text" id="edit_todo_title" name="title" required maxlength="200" value="${todo.text}" placeholder="例如：吃鱼肝油">
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_todo_start_date">开始日期</label>
+                            <input type="date" id="edit_todo_start_date" name="start_date" value="${todo.createdDate}">
                         </div>
                         <div class="form-group">
                             <label for="edit_todo_description">备注</label>
@@ -525,6 +601,24 @@ const TodoManager = {
                                 <span style="margin-left: 8px;">天一次</span>
                             </div>
                         </div>
+                        <div class="form-group">
+                            <label for="edit_todo_cycle">重复周期</label>
+                            <select id="edit_todo_cycle" name="cycle_type" onchange="TodoManager.handleEditCycleChange(this, '${todo.cycleDuration || 1}', '${todo.cycleUnit || 'days'}')">
+                                <option value="long_term" ${!todo.cycleType || todo.cycleType === 'long_term' ? 'selected' : ''}>长期</option>
+                                <option value="custom" ${todo.cycleType === 'custom' ? 'selected' : ''}>自定义周期</option>
+                            </select>
+                        </div>
+                        <div class="form-group" id="edit_custom_cycle_group" style="display: ${todo.cycleType === 'custom' ? 'block' : 'none'};">
+                            <label for="edit_cycle_duration">周期时长</label>
+                            <div class="form-row">
+                                <input type="number" id="edit_cycle_duration" name="cycle_duration" min="1" max="365" value="${todo.cycleDuration || 1}" style="width: 80px;">
+                                <select id="edit_cycle_unit" name="cycle_unit" style="width: 80px; margin-left: 8px;">
+                                    <option value="days" ${todo.cycleUnit === 'days' ? 'selected' : ''}>天</option>
+                                    <option value="weeks" ${todo.cycleUnit === 'weeks' ? 'selected' : ''}>周</option>
+                                    <option value="months" ${todo.cycleUnit === 'months' ? 'selected' : ''}>月</option>
+                                </select>
+                            </div>
+                        </div>
                         <div class="form-actions">
                             <button type="button" class="delete-btn" onclick="TodoManager.deleteTodo('${todoId}', ${userId})">删除</button>
                             <button type="button" onclick="TodoManager.closeEditTodoForm()">取消</button>
@@ -553,6 +647,9 @@ const TodoManager = {
         const formData = new FormData(event.target);
         const repeatType = formData.get('repeat_type') || 'none';
         const customInterval = parseInt(formData.get('custom_interval')) || 1;
+        const cycleType = formData.get('cycle_type') || 'long_term';
+        const cycleDuration = parseInt(formData.get('cycle_duration')) || null;
+        const cycleUnit = formData.get('cycle_unit') || 'days';
         
         const updateData = {
             title: formData.get('title'),
@@ -560,27 +657,24 @@ const TodoManager = {
             reminder_time: formData.get('reminder_time') || 'all_day',
             priority: formData.get('priority') || 'medium',
             repeat_type: repeatType,
-            repeat_interval: repeatType === 'custom' ? customInterval : 1
+            repeat_interval: repeatType === 'custom' ? customInterval : 1,
+            cycle_type: cycleType,
+            cycle_duration: cycleType === 'custom' ? cycleDuration : null,
+            cycle_unit: cycleType === 'custom' ? cycleUnit : 'days',
+            start_date: formData.get('start_date')
         };
 
         try {
             // 在服务器更新TODO
             const response = await ApiClient.todos.update(todoId, updateData);
             if (response.success) {
-                const updatedTodo = this.convertApiTodoToLocal(response.data);
                 console.log('✅ 在服务器更新TODO成功');
-                
-                // 更新本地TODO
-                const todo = this.todos[userId]?.find(t => t.id == todoId);
-                if (todo) {
-                    Object.assign(todo, updatedTodo);
-                }
-                
-                // 重新渲染TODO面板
-                this.renderTodoPanel(userId);
                 
                 // 关闭表单
                 this.closeEditTodoForm();
+                
+                // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
+                await this.loadTodosForDate(DateManager.selectedDate || new Date());
                 
                 // 显示成功消息
                 this.showMessage('TODO更新成功！', 'success');
@@ -603,6 +697,24 @@ const TodoManager = {
                 const intervalInput = document.getElementById('edit_custom_interval');
                 if (intervalInput && !intervalInput.value) {
                     intervalInput.value = defaultInterval;
+                }
+            }
+        }
+    },
+
+    // 处理编辑重复周期变化
+    handleEditCycleChange(select, defaultDuration, defaultUnit) {
+        const customCycleGroup = document.getElementById('edit_custom_cycle_group');
+        if (customCycleGroup) {
+            customCycleGroup.style.display = select.value === 'custom' ? 'block' : 'none';
+            if (select.value === 'custom') {
+                const durationInput = document.getElementById('edit_cycle_duration');
+                const unitSelect = document.getElementById('edit_cycle_unit');
+                if (durationInput && !durationInput.value) {
+                    durationInput.value = defaultDuration;
+                }
+                if (unitSelect && !unitSelect.value) {
+                    unitSelect.value = defaultUnit;
                 }
             }
         }
