@@ -86,12 +86,17 @@ const DateManager = {
 
     // 切换日历显示
     toggleDatePicker() {
+        console.log('toggleDatePicker 被调用');
         const picker = Utils.$('#datePicker');
+        console.log('找到日历元素:', picker);
         const isVisible = picker && picker.classList.contains('show');
+        console.log('日历当前可见状态:', isVisible);
         
         if (isVisible) {
+            console.log('隐藏日历');
             picker.classList.remove('show');
         } else {
+            console.log('显示日历');
             this.calendarDate = new Date(this.selectedDate);
             this.updateCalendar();
             if (picker) {
@@ -206,6 +211,7 @@ const DateManager = {
         // 使用事件委托绑定日历切换按钮
         document.addEventListener('click', (e) => {
             if (e.target.classList.contains('date-picker-btn')) {
+                console.log('日历按钮被点击！');
                 e.preventDefault();
                 e.stopPropagation();
                 this.toggleDatePicker();
