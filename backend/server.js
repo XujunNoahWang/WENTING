@@ -9,8 +9,7 @@ const { testConnection } = require('./config/database');
 
 // 导入路由
 const usersRouter = require('./routes/users');
-const todosRouter = require('./routes/todosNew');
-const patternsRouter = require('./routes/patterns');
+const todosRouter = require('./routes/todos');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -102,7 +101,6 @@ app.get('/health', (req, res) => {
 // API路由
 app.use('/api/users', usersRouter);
 app.use('/api/todos', todosRouter);
-app.use('/api/patterns', patternsRouter);
 
 // 根路径
 app.get('/', (req, res) => {
