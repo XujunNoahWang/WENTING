@@ -179,7 +179,13 @@ const UserManager = {
                 this.users.push(newUser);
                 console.log('📝 已添加到本地用户列表，当前用户数:', this.users.length);
                 
-                // 重新渲染用户标签
+                // 切换到新创建的用户
+                if (window.TodoManager) {
+                    window.TodoManager.currentUser = newUser.id;
+                    console.log('🎯 已切换到新用户:', newUser.id, newUser.username);
+                }
+                
+                // 重新渲染用户标签（会显示新用户为活跃状态）
                 this.renderUserTabs();
                 console.log('🎨 已重新渲染用户标签');
                 
@@ -189,11 +195,12 @@ const UserManager = {
                 // 显示成功消息
                 this.showMessage('用户添加成功！', 'success');
                 
-                // 如果这是第一个用户或者TODO管理器还没有初始化，重新初始化TODO管理器
+                // 加载并显示新用户的TODO列表
                 if (window.TodoManager && typeof window.TodoManager.loadTodosFromAPI === 'function') {
                     try {
                         await window.TodoManager.loadTodosFromAPI();
-                        window.TodoManager.renderTodoPanel(window.TodoManager.currentUser);
+                        window.TodoManager.renderTodoPanel(newUser.id);
+                        console.log('✅ 已加载新用户的TODO列表');
                     } catch (todoError) {
                         console.warn('重新加载TODO数据失败:', todoError);
                     }
