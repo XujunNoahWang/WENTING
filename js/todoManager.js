@@ -229,7 +229,24 @@ const TodoManager = {
                         <div class="current-date">${currentDateFormatted}</div>
                         <div class="date-nav-btn">›</div>
                     </div>
-                    <div class="date-picker-btn">📅</div>
+                    <div class="date-picker-btn" onclick="DateManager.toggleDatePicker()">📅</div>
+                    <div class="date-picker" id="datePicker">
+                        <div class="calendar-header">
+                            <button class="calendar-nav" onclick="DateManager.changeMonth(-1)">‹</button>
+                            <span id="calendarMonth">2025年8月</span>
+                            <button class="calendar-nav" onclick="DateManager.changeMonth(1)">›</button>
+                        </div>
+                        <div class="calendar-grid">
+                            <div class="calendar-weekday">日</div>
+                            <div class="calendar-weekday">一</div>
+                            <div class="calendar-weekday">二</div>
+                            <div class="calendar-weekday">三</div>
+                            <div class="calendar-weekday">四</div>
+                            <div class="calendar-weekday">五</div>
+                            <div class="calendar-weekday">六</div>
+                        </div>
+                        <div class="calendar-grid" id="calendarDays"></div>
+                    </div>
                 </div>
                 <div class="todo-list-container">
                     ${userTodos.map(todo => this.renderTodoItem(todo, userId)).join('')}
