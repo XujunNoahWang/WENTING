@@ -132,6 +132,9 @@ const NotesManager = {
                     </div>
                 </div>
                 ${shortDescription ? `<p class="note-description">${Utils.escapeHtml(shortDescription)}</p>` : ''}
+                ${note.precautions ? `<div class="note-precautions">
+                    <strong>注意事项:</strong> ${Utils.escapeHtml(note.precautions.length > 80 ? note.precautions.substring(0, 80) + '...' : note.precautions)}
+                </div>` : ''}
                 <div class="note-footer">
                     <button class="view-details-btn" onclick="NotesManager.showNoteDetails(${note.id})">
                         查看更多

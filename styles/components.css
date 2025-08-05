@@ -1045,6 +1045,22 @@
     margin: 0 0 12px 0;
 }
 
+.note-precautions {
+    background: #f8f9fa;
+    color: #495057;
+    font-size: 13px;
+    line-height: 1.4;
+    padding: 8px 12px;
+    border-radius: 6px;
+    margin: 8px 0 12px 0;
+    border-left: 3px solid #1d9bf0;
+}
+
+.note-precautions strong {
+    color: #1d9bf0;
+    font-weight: 600;
+}
+
 .note-footer {
     display: flex;
     justify-content: flex-end;
