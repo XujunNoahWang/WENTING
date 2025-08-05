@@ -1008,6 +1008,10 @@
     margin-left: 8px;
 }
 
+.note-action-btn svg {
+    transition: all 0.2s ease;
+}
+
 .note-action-btn {
     width: 32px;
     height: 32px;

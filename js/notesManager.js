@@ -119,6 +119,11 @@ const NotesManager = {
                 <div class="note-header">
                     <h3 class="note-title">${Utils.escapeHtml(note.title)}</h3>
                     <div class="note-actions">
+                        <button class="note-action-btn" onclick="NotesManager.shareNote(${note.id})" title="分享">
+                            <svg viewBox="0 0 24 24" width="16" height="16">
+                                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.50-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
+                            </svg>
+                        </button>
                         <button class="note-action-btn" onclick="NotesManager.showEditNoteForm(${note.id})" title="编辑">
                             <svg viewBox="0 0 24 24" width="16" height="16">
                                 <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
@@ -715,6 +720,179 @@ const NotesManager = {
         }
         
         return `<div style="white-space: normal; line-height: 1.6;">${formatted}</div>`;
+    },
+
+    // 分享笔记功能
+    async shareNote(noteId) {
+        try {
+            console.log('🔗 开始分享笔记，ID:', noteId);
+            
+            // 获取笔记详情
+            const response = await ApiClient.notes.getById(noteId);
+            if (!response.success) {
+                throw new Error(response.message);
+            }
+            
+            const note = response.data;
+            
+            // 创建分享内容
+            await this.generateShareImage(note);
+            
+        } catch (error) {
+            console.error('❌ 分享笔记失败:', error);
+            this.showMessage('分享笔记失败: ' + error.message, 'error');
+        }
+    },
+
+    // 生成分享图片
+    async generateShareImage(note) {
+        try {
+            // 创建分享内容容器
+            const shareContainer = document.createElement('div');
+            shareContainer.className = 'share-content-container';
+            shareContainer.style.cssText = `
+                position: fixed;
+                top: -9999px;
+                left: -9999px;
+                width: 600px;
+                background: white;
+                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+                z-index: -1;
+            `;
+            
+            // 格式化分享内容
+            const shareContent = this.formatShareContent(note);
+            shareContainer.innerHTML = shareContent;
+            
+            document.body.appendChild(shareContainer);
+            
+            // 检查是否有html2canvas库
+            if (typeof html2canvas === 'undefined') {
+                // 动态加载html2canvas库
+                await this.loadHtml2Canvas();
+            }
+            
+            // 生成图片
+            console.log('📸 开始生成分享图片...');
+            const canvas = await html2canvas(shareContainer, {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                width: 600,
+                height: shareContainer.offsetHeight
+            });
+            
+            // 清理临时容器
+            document.body.removeChild(shareContainer);
+            
+            // 下载图片
+            this.downloadImage(canvas, `健康档案-${note.title}-${new Date().toISOString().split('T')[0]}.png`);
+            
+            this.showMessage('健康档案图片已生成，正在下载...', 'success');
+            
+        } catch (error) {
+            console.error('❌ 生成分享图片失败:', error);
+            this.showMessage('生成分享图片失败: ' + error.message, 'error');
+        }
+    },
+
+    // 格式化分享内容
+    formatShareContent(note) {
+        const currentDate = new Date().toLocaleDateString('zh-CN');
+        
+        return `
+            <div style="padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
+                <div style="background: white; border-radius: 16px; padding: 32px; color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
+                    <div style="text-align: center; margin-bottom: 32px;">
+                        <h1 style="font-size: 24px; font-weight: 700; color: #1d9bf0; margin: 0 0 8px 0;">雯婷1.0 健康档案</h1>
+                        <p style="color: #657786; margin: 0; font-size: 14px;">生成日期: ${currentDate}</p>
+                    </div>
+                    
+                    <div style="margin-bottom: 24px;">
+                        <h2 style="font-size: 20px; font-weight: 600; color: #14171a; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 2px solid #1d9bf0;">${Utils.escapeHtml(note.title)}</h2>
+                    </div>
+                    
+                    ${note.description ? `
+                        <div style="margin-bottom: 24px;">
+                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">详细描述</h3>
+                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #28a745;">
+                                <p style="margin: 0; line-height: 1.6; color: #495057;">${Utils.escapeHtml(note.description)}</p>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    ${note.precautions ? `
+                        <div style="margin-bottom: 24px;">
+                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">注意事项/医嘱</h3>
+                            <div style="background: #fff3cd; padding: 16px; border-radius: 8px; border-left: 4px solid #ffc107;">
+                                <p style="margin: 0; line-height: 1.6; color: #856404;">${Utils.escapeHtml(note.precautions)}</p>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    ${note.ai_suggestions ? `
+                        <div style="margin-bottom: 24px;">
+                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">AI健康建议</h3>
+                            <div style="background: #e7f3ff; padding: 16px; border-radius: 8px; border-left: 4px solid #1d9bf0;">
+                                <div style="margin: 0; line-height: 1.6; color: #0c5460;">${this.formatAISuggestionsForShare(note.ai_suggestions)}</div>
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e1e8ed;">
+                        <p style="margin: 0; font-size: 12px; color: #657786;">此健康档案由雯婷1.0应用生成 | 仅供参考，如有疑问请咨询专业医师</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    },
+
+    // 格式化AI建议用于分享
+    formatAISuggestionsForShare(suggestions) {
+        if (!suggestions) return '';
+        
+        return suggestions
+            .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #1d9bf0;">$1</strong>')
+            .replace(/\n/g, '<br>')
+            .replace(/<br><br>/g, '<br><br>');
+    },
+
+    // 动态加载html2canvas库
+    async loadHtml2Canvas() {
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+            script.onload = () => {
+                console.log('✅ html2canvas库加载成功');
+                resolve();
+            };
+            script.onerror = () => {
+                console.error('❌ html2canvas库加载失败');
+                reject(new Error('无法加载图片生成库'));
+            };
+            document.head.appendChild(script);
+        });
+    },
+
+    // 下载图片
+    downloadImage(canvas, filename) {
+        try {
+            // 创建下载链接
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = canvas.toDataURL('image/png');
+            
+            // 触发下载
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('✅ 图片下载成功:', filename);
+        } catch (error) {
+            console.error('❌ 图片下载失败:', error);
+            throw error;
+        }
     },
 
     // 绑定事件
