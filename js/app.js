@@ -50,8 +50,10 @@ const App = {
         // 初始化TODO管理器（最后初始化，因为它依赖用户管理器）
         await TodoManager.init();
         
-        // 绑定全局用户选择器事件
+        // 设置默认模块为todo
         if (window.GlobalUserState) {
+            GlobalUserState.setCurrentModule('todo');
+            // 绑定全局用户选择器事件
             GlobalUserState.bindUserSelectorEvents();
         }
     },

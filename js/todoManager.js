@@ -26,10 +26,8 @@ const TodoManager = {
         // 设置默认用户
         this.setDefaultUser();
         
-        // 设置当前模块为todo
+        // 监听全局用户状态变化，但不设置模块
         if (window.GlobalUserState) {
-            GlobalUserState.setCurrentModule('todo');
-            // 监听全局用户状态变化
             GlobalUserState.addListener(this.handleGlobalStateChange.bind(this));
         }
         
