@@ -259,9 +259,7 @@ const WeatherManager = {
         const locationElement = Utils.$('.weather-location');
         if (locationElement) {
             locationElement.textContent = '位置未授权';
-            locationElement.style.color = '#e0245e';
-            locationElement.style.backgroundColor = 'rgba(224, 36, 94, 0.1)';
-            locationElement.style.borderColor = 'rgba(224, 36, 94, 0.2)';
+            locationElement.className = 'weather-location error';
             locationElement.title = '请允许浏览器访问您的位置信息';
         }
     },
@@ -359,16 +357,12 @@ const WeatherManager = {
             if (this.weatherData.isError) {
                 console.log('❌ 显示错误状态');
                 elements.location.textContent = '位置未授权';
-                elements.location.style.color = '#e0245e';
-                elements.location.style.backgroundColor = 'rgba(224, 36, 94, 0.1)';
-                elements.location.style.borderColor = 'rgba(224, 36, 94, 0.2)';
+                elements.location.className = 'weather-location error';
             } else if (this.weatherData.location) {
                 console.log('🏙️ 使用天气数据中的位置:', this.weatherData.location);
                 // 优先使用天气数据中的位置信息
                 elements.location.textContent = this.weatherData.location;
-                elements.location.style.color = '#1d9bf0';
-                elements.location.style.backgroundColor = 'rgba(29, 155, 240, 0.1)';
-                elements.location.style.borderColor = 'rgba(29, 155, 240, 0.2)';
+                elements.location.className = 'weather-location';
                 
                 // 如果有用户位置坐标，添加到title中
                 if (this.userLocation && this.userLocation.latitude && this.userLocation.longitude) {
@@ -381,16 +375,12 @@ const WeatherManager = {
                 console.log('📍 使用用户位置数据:', this.userLocation.city);
                 // 备用：使用用户位置数据
                 elements.location.textContent = this.userLocation.city || '当前位置';
-                elements.location.style.color = '#1d9bf0';
-                elements.location.style.backgroundColor = 'rgba(29, 155, 240, 0.1)';
-                elements.location.style.borderColor = 'rgba(29, 155, 240, 0.2)';
+                elements.location.className = 'weather-location';
                 elements.location.title = `纬度: ${this.userLocation.latitude.toFixed(4)}, 经度: ${this.userLocation.longitude.toFixed(4)}`;
             } else {
                 console.log('⏳ 显示定位中状态');
                 elements.location.textContent = '定位中...';
-                elements.location.style.color = '#657786';
-                elements.location.style.backgroundColor = 'rgba(101, 119, 134, 0.1)';
-                elements.location.style.borderColor = 'rgba(101, 119, 134, 0.2)';
+                elements.location.className = 'weather-location loading';
             }
         } else {
             console.log('❌ 未找到location元素');
