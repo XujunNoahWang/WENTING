@@ -33,8 +33,8 @@ const App = {
         // 初始化日期管理器
         DateManager.init();
         
-        // 初始化天气管理器
-        WeatherManager.init();
+        // 初始化天气管理器（等待地理位置获取完成）
+        await WeatherManager.init();
         
         // 启动天气自动更新（30分钟间隔）
         WeatherManager.startAutoUpdate();
@@ -235,3 +235,13 @@ App.init();
 
 // 将App暴露到全局，方便调试
 window.App = App;
+
+// 调试方法：清除位置缓存并重新获取
+window.debugClearLocation = function() {
+    console.log('🔧 调试：清除位置缓存并重新获取');
+    WeatherManager.clearLocationCache();
+    WeatherManager.getCurrentLocation().then(() => {
+        WeatherManager.fetchRealWeatherData();
+        WeatherManager.updateWeatherDisplay();
+    });
+};

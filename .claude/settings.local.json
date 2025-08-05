@@ -25,7 +25,9 @@
       "Bash(del start.bat)",
       "Bash(python:*)",
       "Bash(npm install:*)",
-      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-weather.html\")"
+      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-weather.html\")",
+      "Bash(start \"雯婷1.0 后端服务 - 新API密钥\" npm run dev)",
+      "Bash(del nul)"
     ],
     "deny": []
   }

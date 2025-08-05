@@ -20,46 +20,37 @@ class AIService {
     }
 
     /**
-     * 为健康笔记生成AI建议（让AI自己获取天气）
+     * 为健康笔记生成AI建议（完全依赖AI获取真实天气）
      * @param {Object} noteData - 笔记数据
-     * @param {Object} weatherData - 天气数据（备用）
+     * @param {Object} userLocation - 用户位置信息
      * @returns {Promise<string>} AI建议内容
      */
-    async generateHealthSuggestions(noteData, weatherData = null) {
+    async generateHealthSuggestions(noteData, userLocation = null) {
         try {
             const { title, description, precautions } = noteData;
 
-            console.log('🤖 让AI自己获取天气数据并生成今日建议');
-            
-            // 尝试两种方案：先让AI自己获取天气，如果失败则使用我们的数据
-            let prompt = this.buildHealthPromptWithAIWeather(title, description, precautions);
-            
-            console.log('🔄 正在生成AI今日建议（AI自获取天气）...');
+            console.log('🤖 让AI获取用户真实位置的天气数据并生成建议');
+            console.log('📍 用户位置信息:', userLocation);
+
+            const prompt = this.buildRealWeatherPrompt(title, description, precautions, userLocation);
+
+            console.log('🔄 正在生成AI建议（AI自获取真实天气）...');
             console.log('📄 提示词长度:', prompt.length);
 
             // 调用Gemini API
             const result = await this.model.generateContent(prompt);
             const response = await result.response;
             const text = response.text();
-            
-            console.log('✅ AI今日建议生成成功');
+
+            console.log('✅ AI建议生成成功');
             console.log('📝 生成内容长度:', text.length);
             console.log('📝 生成内容预览:', text.substring(0, 200) + '...');
-
-            // 检查AI是否成功获取了天气信息
-            if (text.includes('无法获取天气') || text.includes('天气信息不可用')) {
-                console.log('🔄 AI无法获取天气，使用备用方案...');
-                const backupPrompt = this.buildHealthPromptWithProvidedWeather(title, description, precautions, weatherData);
-                const backupResult = await this.model.generateContent(backupPrompt);
-                const backupResponse = await backupResult.response;
-                return backupResponse.text();
-            }
 
             return text;
 
         } catch (error) {
             console.error('❌ 生成AI建议失败:', error);
-            
+
             // 根据错误类型返回不同的错误信息
             if (error.message.includes('API_KEY')) {
                 throw new Error('AI服务配置错误，请检查API密钥');
@@ -74,19 +65,35 @@ class AIService {
     }
 
     /**
-     * 构建让AI自己获取天气的提示词
+     * 构建让AI获取真实天气的提示词
      * @param {string} title - 标题
      * @param {string} description - 描述  
      * @param {string} precautions - 注意事项
+     * @param {Object} userLocation - 用户位置信息
      * @returns {string} 构建的提示词
      */
-    buildHealthPromptWithAIWeather(title, description, precautions) {
+    buildRealWeatherPrompt(title, description, precautions, userLocation = null) {
         // 获取当前日期
         const now = new Date();
         const month = now.getMonth() + 1;
         const day = now.getDate();
 
-        let prompt = `【重要任务】请为用户生成今日健康建议
+        // 构建位置信息
+        let locationInfo = '';
+        if (userLocation) {
+            if (userLocation.latitude && userLocation.longitude) {
+                locationInfo = `用户当前精确位置：纬度${userLocation.latitude}，经度${userLocation.longitude}`;
+                if (userLocation.city) {
+                    locationInfo += `（${userLocation.city}）`;
+                }
+            } else if (userLocation.city) {
+                locationInfo = `用户当前城市：${userLocation.city}`;
+            } else if (typeof userLocation === 'string') {
+                locationInfo = `用户位置：${userLocation}`;
+            }
+        }
+
+        let prompt = `【严格要求】你必须获取用户实际位置的实时天气数据来生成健康建议
 
 【用户健康信息】
 健康状况：${title}`;
@@ -102,88 +109,37 @@ class AIService {
         prompt += `
 
 【今日日期】${month}月${day}日
+${locationInfo ? `【用户位置】${locationInfo}` : '【位置要求】请获取用户当前实际位置'}
 
-【任务要求】
-1. 请先获取上海市今天的实时天气信息（温度、湿度、天气状况、风力等）
-2. 以具体的天气数据开头，格式如："今天上海的天气是晴朗，温度25°C，湿度60%，风力3级"
-3. 然后分析这种天气对用户健康状况的具体影响
-4. 最后给出针对性的实用建议
+【关键任务】
+1. 必须使用上面提供的用户位置坐标获取今日实时天气数据（温度、湿度、天气状况、风力等）
+2. 你可以使用Open-Meteo API或其他天气服务来获取准确的天气数据
+3. 如果无法获取天气数据，请明确说明"无法获取天气数据"，不要编造虚假信息
+4. 必须以真实的天气数据开头，格式："今天[具体城市名]的天气是[实际天气状况]，温度[实际温度]，湿度[实际湿度]，风力[实际风力]"
+5. 基于真实天气数据分析对用户健康状况的影响
+6. 给出针对性的实用建议
 
-【建议重点】
-- 关节疾病：重点关注温湿度变化、空调环境、保暖防潮措施
-- 外伤骨折：重点关注防水保护、活动限制、环境安全  
-- 心理疾病：重点关注天气对情绪的影响、室内活动建议
-- 呼吸疾病：重点关注空气质量、温差变化、人群密集度
-
-【格式要求】
-- 直接给出建议内容，无需标题
-- 语言自然流畅，中文回答
-- 建议要具体可操作
-
-请现在获取天气信息并生成建议：`;
-
-        return prompt;
-    }
-
-    /**
-     * 构建使用提供天气数据的提示词（备用方案）
-     * @param {string} title - 标题
-     * @param {string} description - 描述  
-     * @param {string} precautions - 注意事项
-     * @param {Object} weatherData - 天气数据
-     * @returns {string} 构建的提示词
-     */
-    buildHealthPromptWithProvidedWeather(title, description, precautions, weatherData) {
-        // 获取当前日期
-        const now = new Date();
-        const month = now.getMonth() + 1;
-        const day = now.getDate();
-
-        // 格式化天气信息
-        let weatherInfo = '天气数据不可用';
-        if (weatherData) {
-            weatherInfo = `今天${weatherData.location}的天气是${weatherData.condition}，温度${weatherData.temperature}，湿度${weatherData.humidity?.value}，风力${weatherData.wind?.level}`;
-        }
-
-        let prompt = `【备用方案】使用提供的天气数据生成建议
-
-【用户健康信息】
-健康状况：${title}`;
-
-        if (description) {
-            prompt += `\n详细描述：${description}`;
-        }
-
-        if (precautions) {
-            prompt += `\n医嘱/注意事项：${precautions}`;
-        }
-
-        prompt += `
-
-【今日日期】${month}月${day}日
-【天气信息】${weatherInfo}
-
-【任务要求】
-1. 必须以上面的天气信息开头
-2. 分析这种天气对用户健康状况的影响
-3. 给出具体的应对建议
+【绝对禁止】
+- 不能使用虚假或编造的天气数据
+- 不能说"天气信息暂不可用"然后继续给建议
+- 不能使用模糊的天气描述
+- 如果获取不到天气数据，必须明确说明失败原因
 
 【建议重点】
-- 关节疾病：温湿度变化、保暖措施
-- 外伤骨折：防水保护、活动限制
-- 心理疾病：天气对情绪影响
+- 关节疾病：温湿度变化、保暖防潮措施
+- 外伤骨折：防水保护、活动限制、环境安全  
+- 心理疾病：天气对情绪影响、室内活动建议
 - 呼吸疾病：空气质量、温差变化
 
-请生成建议：`;
+【输出要求】
+- 必须以实际天气数据开头
+- 语言自然流畅，中文回答
+- 建议具体可操作
+- 如果无法获取天气，直接说明原因
+
+请现在获取实时天气数据并生成建议：`;
 
         return prompt;
-    }
-
-    /**
-     * 原有的构建方法（保留兼容性）
-     */
-    buildHealthPrompt(title, description, precautions, weatherData) {
-        return this.buildHealthPromptWithProvidedWeather(title, description, precautions, weatherData);
     }
 
     /**
@@ -195,7 +151,7 @@ class AIService {
             const result = await this.model.generateContent('测试连接，请回复"连接成功"');
             const response = await result.response;
             const text = response.text();
-            
+
             console.log('🧪 AI服务连接测试成功:', text);
             return true;
         } catch (error) {

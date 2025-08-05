@@ -282,7 +282,34 @@ const ApiClient = {
 
         // 生成AI建议
         async generateAISuggestions(id) {
-            return ApiClient.post(`/notes/${id}/ai-suggestions`);
+            // 获取用户位置信息
+            console.log('🔍 检查WeatherManager状态:', window.WeatherManager);
+            
+            let userLocation = null;
+            
+            if (window.WeatherManager && window.WeatherManager.locationReady) {
+                userLocation = window.WeatherManager.userLocation;
+                console.log('📍 发送用户真实位置给AI服务:', userLocation);
+            } else if (window.WeatherManager) {
+                console.log('⏳ 用户位置还未准备好，等待获取...');
+                // 等待位置获取完成
+                await new Promise(resolve => setTimeout(resolve, 3000));
+                
+                if (window.WeatherManager.locationReady && window.WeatherManager.userLocation) {
+                    userLocation = window.WeatherManager.userLocation;
+                    console.log('📍 等待后获取到用户位置:', userLocation);
+                } else {
+                    console.log('❌ 无法获取用户位置，AI将无法获取准确的天气数据');
+                }
+            } else {
+                console.log('❌ WeatherManager未初始化');
+            }
+            
+            console.log('📍 最终发送给AI服务的位置:', userLocation);
+            
+            return ApiClient.post(`/notes/${id}/ai-suggestions`, {
+                userLocation: userLocation
+            });
         }
     },
 
