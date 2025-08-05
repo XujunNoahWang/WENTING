@@ -115,63 +115,6 @@
     border-right: 1px solid #e1e8ed;
 }
 
-.sidebar-tab {
-    width: 50px;
-    height: 50px;
-    border-radius: 25px;
-    background-color: #fff;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    cursor: pointer;
-    transition: all 0.2s;
-    font-size: 12px;
-    text-align: center;
-    color: #14171a;
-    border: 1px solid #e1e8ed;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-}
-
-.sidebar-tab[data-tab="dad"] {
-    border-color: #1d9bf0;
-}
-
-.sidebar-tab[data-tab="mom"] {
-    border-color: #e91e63;
-}
-
-.sidebar-tab[data-tab="kid"] {
-    border-color: #ff9800;
-}
-
-.sidebar-tab.active {
-    background-color: #1d9bf0;
-    color: #fff;
-    border-color: #1d9bf0;
-}
-
-.sidebar-tab[data-tab="dad"].active {
-    background-color: #1d9bf0;
-    border-color: #1d9bf0;
-}
-
-.sidebar-tab[data-tab="mom"].active {
-    background-color: #e91e63;
-    border-color: #e91e63;
-}
-
-.sidebar-tab[data-tab="kid"].active {
-    background-color: #ff9800;
-    border-color: #ff9800;
-}
-
-.sidebar-tab:hover {
-    background-color: #f0f3f4;
-}
-
-.sidebar-tab.active:hover {
-    opacity: 0.9;
-}
 
 .add-user-btn {
     width: 50px;
@@ -798,34 +741,68 @@
     background: #1a8cd8;
 }
 
-/* 用户标签圆形样式 */
+/* 统一的用户标签样式 - 合并重复定义 */
 .sidebar-tab {
     width: 50px;
     height: 50px;
     border-radius: 50%;
+    background-color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
     margin-bottom: 12px;
     cursor: pointer;
     transition: all 0.3s ease;
-    background: white;
-    border: 3px solid #e1e8ed;
-    font-weight: 600;
     font-size: 14px;
-    color: #333;
+    font-weight: 600;
+    text-align: center;
+    color: #14171a;
+    border: 3px solid #e1e8ed;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     position: relative;
+}
+
+.sidebar-tab[data-tab="dad"] {
+    border-color: #1d9bf0;
+}
+
+.sidebar-tab[data-tab="mom"] {
+    border-color: #e91e63;
+}
+
+.sidebar-tab[data-tab="kid"] {
+    border-color: #ff9800;
 }
 
 .sidebar-tab:hover {
     transform: scale(1.05);
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    background-color: #f0f3f4;
 }
 
-/* 选中状态通过内联样式控制，这里只定义基础的active效果 */
 .sidebar-tab.active {
     transform: scale(1.1);
     box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
+    color: #fff;
+}
+
+.sidebar-tab[data-tab="dad"].active {
+    background-color: #1d9bf0;
+    border-color: #1d9bf0;
+}
+
+.sidebar-tab[data-tab="mom"].active {
+    background-color: #e91e63;
+    border-color: #e91e63;
+}
+
+.sidebar-tab[data-tab="kid"].active {
+    background-color: #ff9800;
+    border-color: #ff9800;
+}
+
+.sidebar-tab.active:hover {
+    opacity: 0.9;
 }
 
 /* 消息提示样式 */

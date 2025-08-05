@@ -30,6 +30,11 @@ const App = {
 
     // 初始化模块
     async initializeModules() {
+        // 初始化全局用户状态管理器
+        if (window.GlobalUserState) {
+            GlobalUserState.init();
+        }
+        
         // 初始化日期管理器
         DateManager.init();
         
@@ -44,6 +49,11 @@ const App = {
         
         // 初始化TODO管理器（最后初始化，因为它依赖用户管理器）
         await TodoManager.init();
+        
+        // 绑定全局用户选择器事件
+        if (window.GlobalUserState) {
+            GlobalUserState.bindUserSelectorEvents();
+        }
     },
 
     // 绑定全局事件
@@ -134,14 +144,27 @@ const App = {
     // 显示Todo页面
     showTodoPage() {
         console.log('切换到Todo页面');
-        if (window.TodoManager && TodoManager.currentUser) {
-            TodoManager.renderTodoPanel(TodoManager.currentUser);
+        
+        // 设置全局状态为todo模块
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentModule('todo');
+        }
+        
+        if (window.TodoManager) {
+            const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : TodoManager.currentUser;
+            TodoManager.renderTodoPanel(currentUser);
         }
     },
 
     // 显示Notes页面
     async showNotesPage() {
         console.log('切换到Notes页面');
+        
+        // 设置全局状态为notes模块
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentModule('notes');
+        }
+        
         if (window.NotesManager) {
             await NotesManager.init();
         } else {

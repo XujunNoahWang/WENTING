@@ -26,6 +26,13 @@ const TodoManager = {
         // 设置默认用户
         this.setDefaultUser();
         
+        // 设置当前模块为todo
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentModule('todo');
+            // 监听全局用户状态变化
+            GlobalUserState.addListener(this.handleGlobalStateChange.bind(this));
+        }
+        
         // 渲染界面
         this.renderTodoPanel(this.currentUser);
         this.bindEvents();
@@ -75,15 +82,39 @@ const TodoManager = {
     // 设置默认用户
     setDefaultUser() {
         if (UserManager.users.length > 0) {
-            // 找到第一个有TODO数据的用户，否则使用第一个用户
+            // 优先使用全局状态的用户，否则找第一个有TODO数据的用户
             let defaultUser = UserManager.users[0].id;
-            for (const user of UserManager.users) {
-                if (this.todos[user.id] && this.todos[user.id].length > 0) {
-                    defaultUser = user.id;
-                    break;
+            
+            if (window.GlobalUserState && GlobalUserState.getCurrentUser()) {
+                defaultUser = GlobalUserState.getCurrentUser();
+            } else {
+                for (const user of UserManager.users) {
+                    if (this.todos[user.id] && this.todos[user.id].length > 0) {
+                        defaultUser = user.id;
+                        break;
+                    }
                 }
             }
+            
             this.currentUser = defaultUser;
+            
+            // 同步到全局状态
+            if (window.GlobalUserState) {
+                GlobalUserState.setCurrentUser(defaultUser);
+            }
+        }
+    },
+
+    // 处理全局状态变化
+    handleGlobalStateChange(type, data) {
+        console.log('📢 TODO管理器收到全局状态变化:', type, data);
+        
+        if (type === 'userChanged') {
+            const newUserId = data.userId;
+            if (this.currentUser !== newUserId) {
+                this.currentUser = newUserId;
+                this.renderTodoPanel(newUserId);
+            }
         }
     },
 

@@ -285,13 +285,19 @@ const UserManager = {
             return a.id - b.id;
         });
 
-        const tabsHtml = sortedUsers.map(user => `
-            <div class="sidebar-tab ${parseInt(user.id) === parseInt(TodoManager.currentUser) ? 'active' : ''}" 
-                 data-tab="${user.id}"
-                 style="border-color: ${user.avatar_color || '#1d9bf0'}; ${parseInt(user.id) === parseInt(TodoManager.currentUser) ? `background-color: ${user.avatar_color || '#1d9bf0'}; color: white;` : 'background-color: white; color: #333;'}">
-                ${user.display_name || user.username}
-            </div>
-        `).join('');
+        // 获取当前选中的用户ID
+        const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : (TodoManager.currentUser || null);
+        
+        const tabsHtml = sortedUsers.map(user => {
+            const isActive = parseInt(user.id) === parseInt(currentUserId);
+            return `
+                <div class="sidebar-tab ${isActive ? 'active' : ''}" 
+                     data-tab="${user.id}"
+                     style="border-color: ${user.avatar_color || '#1d9bf0'}; ${isActive ? `background-color: ${user.avatar_color || '#1d9bf0'}; color: white;` : 'background-color: white; color: #333;'}">
+                    ${user.display_name || user.username}
+                </div>
+            `;
+        }).join('');
 
         const addButtonHtml = `
             <div class="add-user-btn" onclick="UserManager.addUser()" title="添加新用户">
