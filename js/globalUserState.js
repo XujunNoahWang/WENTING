@@ -115,22 +115,26 @@ const GlobalUserState = {
 
     // 绑定用户选择器事件
     bindUserSelectorEvents() {
+        // 移除所有现有的事件监听器
+        document.querySelectorAll('.sidebar-tab').forEach(tab => {
+            const newTab = tab.cloneNode(true);
+            tab.parentNode.replaceChild(newTab, tab);
+        });
+        
+        // 重新获取元素并绑定事件
         const userTabs = document.querySelectorAll('.sidebar-tab');
         userTabs.forEach(tab => {
-            // 移除之前的事件监听器，避免重复绑定
-            tab.removeEventListener('click', this._userTabClickHandler);
-            
-            // 绑定新的事件监听器
-            this._userTabClickHandler = (e) => {
+            tab.addEventListener('click', (e) => {
                 e.preventDefault();
+                e.stopPropagation();
                 const userId = parseInt(tab.dataset.tab);
                 if (userId && !isNaN(userId)) {
                     console.log('🖱️ 用户按钮点击，切换到用户:', userId);
                     this.setCurrentUser(userId);
                 }
-            };
-            tab.addEventListener('click', this._userTabClickHandler);
+            });
         });
+        console.log('🔗 用户选择器事件绑定完成，共绑定', userTabs.length, '个按钮');
     }
 };
 

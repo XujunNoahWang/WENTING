@@ -108,7 +108,13 @@ const NotesManager = {
             const newUserId = data.userId;
             if (this.currentUser !== newUserId) {
                 this.currentUser = newUserId;
-                this.renderNotesPanel(newUserId);
+                // 只有当前模块是notes时才渲染
+                if (GlobalUserState.getCurrentModule() === 'notes') {
+                    console.log('✅ 当前是Notes模块，渲染Notes内容');
+                    this.renderNotesPanel(newUserId);
+                } else {
+                    console.log('⏸️ 当前不是Notes模块，跳过渲染');
+                }
             }
         }
     },

@@ -111,7 +111,13 @@ const TodoManager = {
             const newUserId = data.userId;
             if (this.currentUser !== newUserId) {
                 this.currentUser = newUserId;
-                this.renderTodoPanel(newUserId);
+                // 只有当前模块是todo时才渲染
+                if (GlobalUserState.getCurrentModule() === 'todo') {
+                    console.log('✅ 当前是TODO模块，渲染TODO内容');
+                    this.renderTodoPanel(newUserId);
+                } else {
+                    console.log('⏸️ 当前不是TODO模块，跳过渲染');
+                }
             }
         }
     },
