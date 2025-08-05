@@ -283,26 +283,50 @@ const ApiClient = {
         // 生成AI建议
         async generateAISuggestions(id) {
             // 获取用户位置信息
-            console.log('🔍 检查WeatherManager状态:', window.WeatherManager);
+            console.log('🔍 开始获取用户位置信息...');
             
             let userLocation = null;
             
-            if (window.WeatherManager && window.WeatherManager.locationReady) {
-                userLocation = window.WeatherManager.userLocation;
-                console.log('📍 发送用户真实位置给AI服务:', userLocation);
-            } else if (window.WeatherManager) {
-                console.log('⏳ 用户位置还未准备好，等待获取...');
-                // 等待位置获取完成
-                await new Promise(resolve => setTimeout(resolve, 3000));
+            // 检查WeatherManager是否存在和初始化
+            if (!window.WeatherManager) {
+                console.log('❌ WeatherManager未初始化，无法获取位置信息');
+            } else {
+                console.log('✅ WeatherManager已初始化，状态:', {
+                    locationReady: window.WeatherManager.locationReady,
+                    hasUserLocation: !!window.WeatherManager.userLocation
+                });
                 
                 if (window.WeatherManager.locationReady && window.WeatherManager.userLocation) {
                     userLocation = window.WeatherManager.userLocation;
-                    console.log('📍 等待后获取到用户位置:', userLocation);
+                    console.log('📍 直接获取到用户位置:', userLocation);
                 } else {
-                    console.log('❌ 无法获取用户位置，AI将无法获取准确的天气数据');
+                    console.log('⏳ 用户位置还未准备好，尝试等待获取...');
+                    
+                    // 等待位置获取完成，最多等待5秒
+                    let attempts = 0;
+                    const maxAttempts = 10; // 5秒内检查10次
+                    
+                    while (attempts < maxAttempts && !userLocation) {
+                        await new Promise(resolve => setTimeout(resolve, 500));
+                        
+                        if (window.WeatherManager.locationReady && window.WeatherManager.userLocation) {
+                            userLocation = window.WeatherManager.userLocation;
+                            console.log('📍 等待后获取到用户位置:', userLocation);
+                            break;
+                        }
+                        
+                        attempts++;
+                        console.log(`⏳ 位置获取尝试 ${attempts}/${maxAttempts}`);
+                    }
+                    
+                    if (!userLocation) {
+                        console.log('❌ 等待超时，无法获取用户位置');
+                        console.log('🔍 最终WeatherManager状态:', {
+                            locationReady: window.WeatherManager.locationReady,
+                            userLocation: window.WeatherManager.userLocation
+                        });
+                    }
                 }
-            } else {
-                console.log('❌ WeatherManager未初始化');
             }
             
             console.log('📍 最终发送给AI服务的位置:', userLocation);

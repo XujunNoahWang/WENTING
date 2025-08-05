@@ -466,3 +466,6 @@ const WeatherManager = {
         return iconMap[condition] || '☀️';
     }
 };
+
+// 暴露WeatherManager到全局作用域，供其他模块使用
+window.WeatherManager = WeatherManager;
