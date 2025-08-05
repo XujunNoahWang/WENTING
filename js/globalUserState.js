@@ -117,13 +117,19 @@ const GlobalUserState = {
     bindUserSelectorEvents() {
         const userTabs = document.querySelectorAll('.sidebar-tab');
         userTabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
+            // 移除之前的事件监听器，避免重复绑定
+            tab.removeEventListener('click', this._userTabClickHandler);
+            
+            // 绑定新的事件监听器
+            this._userTabClickHandler = (e) => {
                 e.preventDefault();
                 const userId = parseInt(tab.dataset.tab);
                 if (userId && !isNaN(userId)) {
+                    console.log('🖱️ 用户按钮点击，切换到用户:', userId);
                     this.setCurrentUser(userId);
                 }
-            });
+            };
+            tab.addEventListener('click', this._userTabClickHandler);
         });
     }
 };

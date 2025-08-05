@@ -307,9 +307,9 @@ const UserManager = {
 
         sidebar.innerHTML = tabsHtml + addButtonHtml;
         
-        // 重新绑定事件
-        if (TodoManager && TodoManager.bindEvents) {
-            TodoManager.bindEvents();
+        // 重新绑定全局用户选择器事件
+        if (window.GlobalUserState) {
+            GlobalUserState.bindUserSelectorEvents();
         }
     },
 

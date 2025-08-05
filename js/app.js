@@ -154,7 +154,10 @@ const App = {
         
         if (window.TodoManager) {
             const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : TodoManager.currentUser;
+            console.log('渲染TODO页面，用户:', currentUser);
             TodoManager.renderTodoPanel(currentUser);
+        } else {
+            console.error('TodoManager未初始化');
         }
     },
 
