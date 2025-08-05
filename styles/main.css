@@ -120,18 +120,6 @@ DO面板布局 */
 /* 主内容区域高度计算 */
 .main-content {
     height: calc(100% - 44px - 80px - 80px); /* 减去状态栏、天气栏、底部导航的高度 */
-}/*
- 天气栏样式 */
-.weather-bar {
-    height: 80px;
-    flex-shrink: 0;
-    background: linear-gradient(135deg, #74b9ff 0%, #0984e3 100%);
-    color: white;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0 20px;
-    font-size: 14px;
 }
 
 /* 底部导航栏 */
