@@ -226,6 +226,12 @@ const TodoManager = {
         }
         
         this.currentUser = numericUserId;
+        
+        // 同步到全局状态
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentUser(this.currentUser);
+        }
+        
         this.renderTodoPanel(this.currentUser);
         
         // 重新渲染用户标签以更新选中状态
@@ -954,24 +960,8 @@ const TodoManager = {
 
     // 绑定事件
     bindEvents() {
-        // 用户标签点击事件
-        document.addEventListener('click', (event) => {
-            if (event.target.classList.contains('sidebar-tab')) {
-                const userId = parseInt(event.target.dataset.tab);
-                if (userId) {
-                    // 检查当前页面是否是Notes页面
-                    const isNotesPage = document.querySelector('.notes-panel') !== null;
-                    
-                    if (isNotesPage && window.NotesManager) {
-                        // 在Notes页面，切换到对应用户的Notes
-                        NotesManager.switchUser(userId);
-                    } else {
-                        // 在Todo页面或其他页面，使用原来的逻辑
-                        this.switchUser(userId);
-                    }
-                }
-            }
-        });
+        // 用户标签点击事件现在由GlobalUserState统一处理
+        // 不需要在这里重复绑定事件
     }
 };
 
