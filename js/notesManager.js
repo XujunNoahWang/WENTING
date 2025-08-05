@@ -535,8 +535,8 @@ const NotesManager = {
             
             console.log('🔄 再次生成AI建议，笔记ID:', noteId);
             
-            // 调用后端API生成AI建议，Gemini将自主获取天气数据
-            console.log('🚀 再次调用API，Gemini将自主获取天气数据');
+            // 调用后端API生成AI建议，传递真实天气数据给Gemini
+            console.log('🚀 再次调用API，传递真实天气数据给Gemini');
             const response = await ApiClient.notes.generateAISuggestions(noteId);
             
             if (response.success) {
@@ -589,8 +589,8 @@ const NotesManager = {
             
             console.log('🤖 开始生成AI建议，笔记ID:', noteId);
             
-            // 调用后端API生成AI建议，Gemini将自主获取天气数据
-            console.log('🚀 调用API，Gemini将自主获取天气数据');
+            // 调用后端API生成AI建议，传递真实天气数据给Gemini
+            console.log('🚀 调用API，传递真实天气数据给Gemini');
             const response = await ApiClient.notes.generateAISuggestions(noteId);
             
             if (response.success) {

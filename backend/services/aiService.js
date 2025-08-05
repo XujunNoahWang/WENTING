@@ -20,21 +20,23 @@ class AIService {
     }
 
     /**
-     * 为健康笔记生成AI建议（完全依赖AI获取真实天气）
+     * 为健康笔记生成AI建议（使用真实天气数据）
      * @param {Object} noteData - 笔记数据
+     * @param {Object} weatherData - 真实天气数据
      * @param {Object} userLocation - 用户位置信息
      * @returns {Promise<string>} AI建议内容
      */
-    async generateHealthSuggestions(noteData, userLocation = null) {
+    async generateHealthSuggestions(noteData, weatherData = null, userLocation = null) {
         try {
             const { title, description, precautions } = noteData;
 
-            console.log('🤖 让AI获取用户真实位置的天气数据并生成建议');
+            console.log('🤖 使用真实天气数据生成AI健康建议');
+            console.log('🌤️ 天气数据:', weatherData);
             console.log('📍 用户位置信息:', userLocation);
 
-            const prompt = this.buildRealWeatherPrompt(title, description, precautions, userLocation);
+            const prompt = this.buildWeatherBasedPrompt(title, description, precautions, weatherData, userLocation);
 
-            console.log('🔄 正在生成AI建议（AI自获取真实天气）...');
+            console.log('🔄 正在生成AI建议（使用真实天气数据）...');
             console.log('📄 提示词长度:', prompt.length);
 
             // 调用Gemini API
@@ -65,7 +67,139 @@ class AIService {
     }
 
     /**
-     * 构建让AI获取真实天气的提示词
+     * 构建基于真实天气数据的提示词
+     * @param {string} title - 标题
+     * @param {string} description - 描述  
+     * @param {string} precautions - 注意事项
+     * @param {Object} weatherData - 真实天气数据
+     * @param {Object} userLocation - 用户位置信息
+     * @returns {string} 构建的提示词
+     */
+    buildWeatherBasedPrompt(title, description, precautions, weatherData, userLocation = null) {
+        // 获取完整的日期和时间信息
+        const now = new Date();
+        const dateInfo = this.buildDetailedDateInfo(now);
+        
+        // 构建详细的位置信息
+        const locationInfo = this.buildDetailedLocationInfo(userLocation);
+
+        console.log('📅 构建的日期信息:', dateInfo);
+        console.log('📍 构建的位置信息:', locationInfo);
+        console.log('🌤️ 使用的天气数据:', weatherData);
+
+        // 构建优化的提示词
+        let prompt = `【健康建议生成任务】基于真实天气数据的个性化健康建议
+
+【用户健康信息】
+健康状况：${title}`;
+
+        if (description) {
+            prompt += `\n详细描述：${description}`;
+        }
+
+        if (precautions) {
+            prompt += `\n医嘱/注意事项：${precautions}`;
+        }
+
+        // 添加详细的时间信息
+        prompt += `
+
+【当前时间信息】
+完整日期：${dateInfo.dateWithWeekday}
+当前季节：${dateInfo.season}
+时间段：${dateInfo.timeOfDay}`;
+
+        // 添加详细的位置信息
+        if (locationInfo.hasLocation) {
+            prompt += `
+
+【用户位置信息】
+具体位置：${locationInfo.formattedLocation}`;
+            
+            if (locationInfo.climate) {
+                prompt += `\n气候特征：${locationInfo.climate}`;
+            }
+        }
+
+        // 添加真实天气数据
+        if (weatherData && !weatherData.isError) {
+            prompt += `
+
+【实时天气数据】
+位置：${weatherData.location || '当前位置'}
+天气状况：${weatherData.condition}
+温度：${weatherData.temperature}
+湿度：${weatherData.humidity.value}
+风力：${weatherData.wind.level}
+数据更新时间：${weatherData.lastUpdated ? new Date(weatherData.lastUpdated).toLocaleString('zh-CN') : '刚刚'}`;
+        } else {
+            prompt += `
+
+【天气信息】
+抱歉，当前无法获取准确的天气数据。请基于${locationInfo.climate || '当地气候'}和${dateInfo.season}季节特点给出通用建议。`;
+        }
+
+        prompt += `
+
+【个性化分析要求】
+1. 🎯 **天气影响分析**
+   - 结合当前天气状况分析对健康的具体影响
+   - 考虑${dateInfo.season}季节和${dateInfo.timeOfDay}时段特点
+   - 基于${locationInfo.climate || '当地气候'}特征评估风险
+
+2. 📊 **疾病特定关注点**`;
+
+        // 根据疾病类型添加特定关注点
+        if (title.includes('关节') || title.includes('骨折') || title.includes('风湿')) {
+            prompt += `
+   - 关节疾病重点：温湿度变化、气压影响、保暖防潮措施`;
+        }
+        if (title.includes('呼吸') || title.includes('咳嗽') || title.includes('哮喘')) {
+            prompt += `
+   - 呼吸疾病重点：空气质量、温差变化、湿度影响`;
+        }
+        if (title.includes('心血管') || title.includes('高血压') || title.includes('心脏')) {
+            prompt += `
+   - 心血管疾病重点：气压变化、温度波动、运动建议`;
+        }
+        if (title.includes('皮肤') || title.includes('湿疹') || title.includes('过敏')) {
+            prompt += `
+   - 皮肤疾病重点：湿度影响、紫外线防护、${dateInfo.season}季护理`;
+        }
+
+        prompt += `
+
+【健康建议格式】
+请按以下格式提供3-5个具体可行的建议：
+
+🌡️ **天气适应建议**
+- 根据当前${weatherData?.temperature || '温度'}和${weatherData?.condition || '天气状况'}的具体建议
+
+💧 **湿度风力应对**
+- 针对${weatherData?.humidity?.value || '当前湿度'}和${weatherData?.wind?.level || '风力条件'}的措施
+
+🏠 **日常生活调整**
+- 结合${dateInfo.timeOfDay}时段和健康状况的生活建议
+
+⚠️ **特别注意事项**
+- 基于病情和天气的重要提醒
+
+📋 **监测要点**
+- 需要特别关注的身体指标和症状变化
+
+【输出要求】
+✅ 语言自然专业，易于理解
+✅ 建议具体可行，有实际指导意义
+✅ 充分结合天气数据和健康状况
+✅ 避免过于宽泛的通用建议
+
+请立即生成个性化健康建议：`;
+
+        return prompt;
+    },
+
+    /**
+     * 构建让AI获取真实天气的提示词（备用方法）
      * @param {string} title - 标题
      * @param {string} description - 描述  
      * @param {string} precautions - 注意事项

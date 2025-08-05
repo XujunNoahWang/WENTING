@@ -280,10 +280,10 @@ const ApiClient = {
             return ApiClient.get(`/notes/search/${encodeURIComponent(searchTerm)}${params}`);
         },
 
-        // 生成AI建议
+        // 生成AI建议（传递真实天气数据）
         async generateAISuggestions(id) {
             // 获取用户位置信息
-            console.log('🔍 开始获取用户位置信息...');
+            console.log('🔍 开始获取用户位置和天气信息...');
             
             let userLocation = null;
             
@@ -329,10 +329,23 @@ const ApiClient = {
                 }
             }
             
+            // 获取天气数据
+            console.log('🌤️ 开始获取天气数据...');
+            let weatherData = null;
+            
+            if (window.WeatherManager && window.WeatherManager.weatherData) {
+                weatherData = window.WeatherManager.weatherData;
+                console.log('🌤️ 获取到天气数据:', weatherData);
+            } else {
+                console.log('❌ WeatherManager中无天气数据');
+            }
+            
             console.log('📍 最终发送给AI服务的位置:', userLocation);
+            console.log('🌤️ 最终发送给AI服务的天气数据:', weatherData);
             
             return ApiClient.post(`/notes/${id}/ai-suggestions`, {
-                userLocation: userLocation
+                userLocation: userLocation,
+                weatherData: weatherData
             });
         }
     },

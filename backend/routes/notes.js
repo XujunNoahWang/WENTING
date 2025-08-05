@@ -185,20 +185,23 @@ router.post('/:id/ai-suggestions', async (req, res) => {
             });
         }
 
-        console.log(`🤖 开始为笔记 ${id} 生成AI建议（完全依赖AI获取真实天气）...`);
+        console.log(`🤖 开始为笔记 ${id} 生成AI建议（使用真实天气数据）...`);
         
-        // 获取用户位置信息（从前端传递）
+        // 获取用户位置信息和天气数据（从前端传递）
         const userLocation = req.body.userLocation || req.query.userLocation;
+        const weatherData = req.body.weatherData || req.query.weatherData;
+        
         console.log('📍 接收到的请求体:', JSON.stringify(req.body, null, 2));
         console.log('📍 接收到的查询参数:', JSON.stringify(req.query, null, 2));
         console.log('📍 解析出的用户位置信息:', userLocation);
+        console.log('🌤️ 解析出的天气数据:', weatherData);
         
-        // 完全依赖AI获取真实天气数据，不使用任何本地天气API
+        // 使用真实天气数据生成AI建议
         const aiSuggestions = await aiService.generateHealthSuggestions({
             title: note.title,
             description: note.description,
             precautions: note.precautions
-        }, userLocation);
+        }, weatherData, userLocation);
 
         // 更新笔记的AI建议
         const updatedNote = await Note.updateById(id, {
@@ -211,7 +214,7 @@ router.post('/:id/ai-suggestions', async (req, res) => {
                 ai_suggestions: aiSuggestions,
                 note: updatedNote
             },
-            message: 'AI建议生成成功（AI自获取真实天气）'
+            message: 'AI建议生成成功（基于真实天气数据）'
         });
     } catch (error) {
         console.error('生成AI建议失败:', error);
