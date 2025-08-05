@@ -213,7 +213,8 @@ const WeatherManager = {
                 value: Math.round(current.relative_humidity_2m) + '%',
                 label: '湿度'
             },
-            lastUpdated: new Date().toISOString()
+            lastUpdated: new Date().toISOString(),
+            isError: false
         };
     },
 
