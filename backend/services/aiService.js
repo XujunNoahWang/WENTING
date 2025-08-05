@@ -73,27 +73,18 @@ class AIService {
      * @returns {string} 构建的提示词
      */
     buildRealWeatherPrompt(title, description, precautions, userLocation = null) {
-        // 获取当前日期
+        // 获取完整的日期和时间信息
         const now = new Date();
-        const month = now.getMonth() + 1;
-        const day = now.getDate();
+        const dateInfo = this.buildDetailedDateInfo(now);
+        
+        // 构建详细的位置信息
+        const locationInfo = this.buildDetailedLocationInfo(userLocation);
 
-        // 构建位置信息
-        let locationInfo = '';
-        if (userLocation) {
-            if (userLocation.latitude && userLocation.longitude) {
-                locationInfo = `用户当前精确位置：纬度${userLocation.latitude}，经度${userLocation.longitude}`;
-                if (userLocation.city) {
-                    locationInfo += `（${userLocation.city}）`;
-                }
-            } else if (userLocation.city) {
-                locationInfo = `用户当前城市：${userLocation.city}`;
-            } else if (typeof userLocation === 'string') {
-                locationInfo = `用户位置：${userLocation}`;
-            }
-        }
+        console.log('📅 构建的日期信息:', dateInfo);
+        console.log('📍 构建的位置信息:', locationInfo);
 
-        let prompt = `【严格要求】你必须获取用户实际位置的实时天气数据来生成健康建议
+        // 构建优化的提示词
+        let prompt = `【健康建议生成任务】基于用户真实位置和时间的个性化健康建议
 
 【用户健康信息】
 健康状况：${title}`;
@@ -106,40 +97,207 @@ class AIService {
             prompt += `\n医嘱/注意事项：${precautions}`;
         }
 
+        // 添加详细的时间信息
         prompt += `
 
-【今日日期】${month}月${day}日
-${locationInfo ? `【用户位置】${locationInfo}` : '【位置要求】请获取用户当前实际位置'}
+【当前时间信息】
+完整日期：${dateInfo.dateWithWeekday}
+当前季节：${dateInfo.season}
+时间段：${dateInfo.timeOfDay}`;
 
-【关键任务】
-1. 必须使用上面提供的用户位置坐标获取今日实时天气数据（温度、湿度、天气状况、风力等）
-2. 你可以使用Open-Meteo API或其他天气服务来获取准确的天气数据
-3. 如果无法获取天气数据，请明确说明"无法获取天气数据"，不要编造虚假信息
-4. 必须以真实的天气数据开头，格式："今天[具体城市名]的天气是[实际天气状况]，温度[实际温度]，湿度[实际湿度]，风力[实际风力]"
-5. 基于真实天气数据分析对用户健康状况的影响
-6. 给出针对性的实用建议
+        // 添加详细的位置信息
+        if (locationInfo.hasLocation) {
+            prompt += `
 
-【绝对禁止】
-- 不能使用虚假或编造的天气数据
-- 不能说"天气信息暂不可用"然后继续给建议
-- 不能使用模糊的天气描述
-- 如果获取不到天气数据，必须明确说明失败原因
+【用户位置信息】
+具体位置：${locationInfo.formattedLocation}`;
+            
+            if (locationInfo.climate) {
+                prompt += `\n气候特征：${locationInfo.climate}`;
+            }
+            
+            if (locationInfo.coordinates) {
+                prompt += `\n精确坐标：纬度${locationInfo.coordinates.latitude}°，经度${locationInfo.coordinates.longitude}°`;
+            }
+        } else {
+            prompt += `
 
-【建议重点】
-- 关节疾病：温湿度变化、保暖防潮措施
-- 外伤骨折：防水保护、活动限制、环境安全  
-- 心理疾病：天气对情绪影响、室内活动建议
-- 呼吸疾病：空气质量、温差变化
+【位置信息】${locationInfo.message}`;
+        }
 
-【输出要求】
-- 必须以实际天气数据开头
-- 语言自然流畅，中文回答
-- 建议具体可操作
-- 如果无法获取天气，直接说明原因
+        prompt += `
 
-请现在获取实时天气数据并生成建议：`;
+【核心任务要求】
+1. 🌤️ **获取实时天气数据**
+   - 使用上述精确位置坐标获取当前实时天气
+   - 包含：温度、湿度、天气状况、风力、气压、能见度等
+   - 可使用Open-Meteo API或其他可靠天气服务
+
+2. 📊 **天气数据格式要求**
+   - 必须以此格式开头："【${dateInfo.fullDate} ${locationInfo.city || '当前位置'}天气实况】"
+   - 然后详细列出：温度XX°C，湿度XX%，天气状况XXX，风力X级，等等
+
+3. 🎯 **个性化分析要求**
+   - 结合${dateInfo.season}季节特点分析天气影响
+   - 考虑${dateInfo.timeOfDay}时段的特殊需求
+   - 基于${locationInfo.climate || '当地气候'}特征给出建议
+
+【健康建议重点】（根据疾病类型重点关注）
+- 关节疾病：温湿度变化、气压变化、${dateInfo.season}季保暖防潮
+- 外伤骨折：防水保护、活动限制、${dateInfo.timeOfDay}环境安全
+- 心理疾病：天气对情绪影响、${dateInfo.season}季节性情绪调节
+- 呼吸疾病：空气质量、温差变化、湿度影响
+- 心血管疾病：气压变化、温度波动影响
+- 皮肤疾病：湿度、紫外线、${dateInfo.season}季护理
+
+【严格禁止】
+❌ 编造虚假天气数据
+❌ 使用模糊表述如"天气适宜"
+❌ 忽略位置和时间信息
+❌ 给出不具体的建议
+
+【输出格式要求】
+✅ 必须以实时天气数据开头
+✅ 分点列出3-5个具体可行的建议
+✅ 结合季节、时段、位置特点
+✅ 语言自然流畅，专业但易懂
+✅ 如无法获取天气数据，明确说明原因
+
+请立即获取实时天气数据并生成个性化健康建议：`;
 
         return prompt;
+    }
+
+    /**
+     * 构建详细的日期信息
+     * @param {Date} date - 日期对象
+     * @returns {Object} 详细的日期信息
+     */
+    buildDetailedDateInfo(date) {
+        const year = date.getFullYear();
+        const month = date.getMonth() + 1;
+        const day = date.getDate();
+        const hour = date.getHours();
+        
+        // 获取星期
+        const weekdays = ['星期日', '星期一', '星期二', '星期三', '星期四', '星期五', '星期六'];
+        const weekday = weekdays[date.getDay()];
+        
+        // 获取季节
+        const season = this.getSeason(month);
+        
+        // 获取时段
+        const timeOfDay = this.getTimeOfDay(hour);
+        
+        return {
+            year,
+            month,
+            day,
+            weekday,
+            season,
+            timeOfDay,
+            fullDate: `${year}年${month}月${day}日`,
+            dateWithWeekday: `${year}年${month}月${day}日 ${weekday}`
+        };
+    }
+
+    /**
+     * 构建详细的位置信息
+     * @param {Object} userLocation - 用户位置信息
+     * @returns {Object} 详细的位置信息
+     */
+    buildDetailedLocationInfo(userLocation) {
+        if (!userLocation) {
+            return {
+                hasLocation: false,
+                message: '未提供位置信息'
+            };
+        }
+
+        const info = {
+            hasLocation: true,
+            coordinates: null,
+            city: null,
+            formattedLocation: '',
+            climate: null
+        };
+
+        // 处理坐标信息
+        if (userLocation.latitude && userLocation.longitude) {
+            info.coordinates = {
+                latitude: parseFloat(userLocation.latitude).toFixed(4),
+                longitude: parseFloat(userLocation.longitude).toFixed(4)
+            };
+            
+            // 推断气候区域
+            info.climate = this.inferClimateZone(userLocation.latitude, userLocation.longitude);
+        }
+
+        // 处理城市信息
+        if (userLocation.city) {
+            info.city = userLocation.city;
+        } else if (typeof userLocation === 'string') {
+            info.city = userLocation;
+        }
+
+        // 构建格式化的位置描述
+        if (info.coordinates && info.city) {
+            info.formattedLocation = `${info.city}（纬度${info.coordinates.latitude}°，经度${info.coordinates.longitude}°）`;
+        } else if (info.coordinates) {
+            info.formattedLocation = `纬度${info.coordinates.latitude}°，经度${info.coordinates.longitude}°`;
+        } else if (info.city) {
+            info.formattedLocation = info.city;
+        }
+
+        return info;
+    }
+
+    /**
+     * 根据月份获取季节
+     * @param {number} month - 月份 (1-12)
+     * @returns {string} 季节
+     */
+    getSeason(month) {
+        if (month >= 3 && month <= 5) return '春季';
+        if (month >= 6 && month <= 8) return '夏季';
+        if (month >= 9 && month <= 11) return '秋季';
+        return '冬季';
+    }
+
+    /**
+     * 根据小时获取时段
+     * @param {number} hour - 小时 (0-23)
+     * @returns {string} 时段
+     */
+    getTimeOfDay(hour) {
+        if (hour >= 6 && hour < 9) return '早晨';
+        if (hour >= 9 && hour < 12) return '上午';
+        if (hour >= 12 && hour < 14) return '中午';
+        if (hour >= 14 && hour < 18) return '下午';
+        if (hour >= 18 && hour < 22) return '晚上';
+        return '深夜';
+    }
+
+    /**
+     * 根据经纬度推断气候区域
+     * @param {number} lat - 纬度
+     * @param {number} lon - 经度
+     * @returns {string} 气候特征
+     */
+    inferClimateZone(lat, lon) {
+        const latitude = parseFloat(lat);
+        const longitude = parseFloat(lon);
+        
+        // 简单的气候区域推断
+        if (Math.abs(latitude) <= 23.5) {
+            return '热带气候';
+        } else if (Math.abs(latitude) <= 40) {
+            return '亚热带气候';
+        } else if (Math.abs(latitude) <= 60) {
+            return '温带气候';
+        } else {
+            return '寒带气候';
+        }
     }
 
     /**
