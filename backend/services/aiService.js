@@ -196,7 +196,7 @@ class AIService {
 请立即生成个性化健康建议：`;
 
         return prompt;
-    },
+    }
 
     /**
      * 构建让AI获取真实天气的提示词（备用方法）
