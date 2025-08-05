@@ -426,21 +426,72 @@ const NotesManager = {
         }
     },
 
+    // 设置AI生成加载状态
+    setAIGenerationLoadingState(isLoading) {
+        const modal = document.querySelector('.modal-overlay');
+        if (!modal) return;
+
+        // 获取所有需要禁用的按钮
+        const editButton = modal.querySelector('button[onclick*="showEditNoteForm"]');
+        const regenerateButton = modal.querySelector('.regenerate-ai-btn');
+        const closeButton = modal.querySelector('button[onclick*="closeNoteDetails"]');
+        const generateButton = modal.querySelector('.generate-ai-btn');
+
+        const buttons = [editButton, regenerateButton, closeButton, generateButton].filter(btn => btn);
+
+        if (isLoading) {
+            // 启用加载状态
+            buttons.forEach(button => {
+                if (button) {
+                    button.disabled = true;
+                    button.style.opacity = '0.6';
+                    button.style.cursor = 'not-allowed';
+                }
+            });
+
+            // 添加加载遮罩
+            if (!modal.querySelector('.ai-loading-overlay')) {
+                const loadingOverlay = document.createElement('div');
+                loadingOverlay.className = 'ai-loading-overlay';
+                loadingOverlay.innerHTML = `
+                    <div class="ai-loading-spinner">
+                        <div class="spinner"></div>
+                        <p>AI正在生成健康建议...</p>
+                        <small>请勿关闭窗口</small>
+                    </div>
+                `;
+                modal.appendChild(loadingOverlay);
+            }
+        } else {
+            // 禁用加载状态
+            buttons.forEach(button => {
+                if (button) {
+                    button.disabled = false;
+                    button.style.opacity = '1';
+                    button.style.cursor = 'pointer';
+                }
+            });
+
+            // 移除加载遮罩
+            const loadingOverlay = modal.querySelector('.ai-loading-overlay');
+            if (loadingOverlay) {
+                loadingOverlay.remove();
+            }
+        }
+    },
+
     // 再次生成AI建议
     async regenerateAISuggestions(noteId) {
         try {
+            // 设置加载状态
+            this.setAIGenerationLoadingState(true);
+            
             const regenerateButton = document.querySelector('.regenerate-ai-btn');
-            if (regenerateButton) {
-                regenerateButton.disabled = true;
-                regenerateButton.textContent = '再次生成中...';
-            }
-            
-            console.log('🔄 再次生成AI建议，笔记ID:', noteId);
-            
-            // 更新按钮状态
             if (regenerateButton) {
                 regenerateButton.textContent = '生成AI建议中...';
             }
+            
+            console.log('🔄 再次生成AI建议，笔记ID:', noteId);
             
             // 调用后端API生成AI建议，Gemini将自主获取天气数据
             console.log('🚀 再次调用API，Gemini将自主获取天气数据');
@@ -473,10 +524,11 @@ const NotesManager = {
             console.error('❌ 再次生成AI建议失败:', error);
             this.showMessage('再次生成AI建议失败: ' + error.message, 'error');
         } finally {
-            // 恢复按钮状态
+            // 恢复所有按钮状态
+            this.setAIGenerationLoadingState(false);
+            
             const regenerateButton = document.querySelector('.regenerate-ai-btn');
             if (regenerateButton) {
-                regenerateButton.disabled = false;
                 regenerateButton.textContent = '再次生成AI建议';
             }
         }
@@ -485,9 +537,11 @@ const NotesManager = {
     // 生成AI建议
     async generateAISuggestions(noteId) {
         try {
+            // 设置加载状态
+            this.setAIGenerationLoadingState(true);
+            
             const button = document.querySelector('.generate-ai-btn');
             if (button) {
-                button.disabled = true;
                 button.textContent = '生成中...';
             }
             
@@ -531,11 +585,12 @@ const NotesManager = {
         } catch (error) {
             console.error('❌ 生成AI建议失败:', error);
             this.showMessage('生成AI建议失败: ' + error.message, 'error');
+        } finally {
+            // 恢复所有按钮状态
+            this.setAIGenerationLoadingState(false);
             
-            // 恢复按钮状态
             const button = document.querySelector('.generate-ai-btn');
             if (button) {
-                button.disabled = false;
                 button.textContent = '获取AI建议';
             }
         }
