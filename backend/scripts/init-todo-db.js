@@ -24,8 +24,10 @@ async function initTodoDatabase() {
         console.log('📄 删除旧表并创建新表...');
         
         // 删除旧表（如果存在）
+        await query('DROP TABLE IF EXISTS todo_deletions');
         await query('DROP TABLE IF EXISTS todo_completions');
         await query('DROP TABLE IF EXISTS todos');
+        await query('DROP TABLE IF EXISTS notes');
         await query('DROP TABLE IF EXISTS repeat_patterns');
         await query('DROP TABLE IF EXISTS user_settings');
         await query('DROP TABLE IF EXISTS users');
@@ -48,7 +50,7 @@ async function initTodoDatabase() {
             )
         `);
         
-        // 创建TODO表 - 包含end_date字段
+        // 创建TODO表 - 包含end_date字段和周期字段
         await query(`
             CREATE TABLE todos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -61,8 +63,26 @@ async function initTodoDatabase() {
                 repeat_interval INTEGER DEFAULT 1,
                 start_date DATE NOT NULL DEFAULT (date('now')),
                 end_date DATE DEFAULT NULL,
+                cycle_type TEXT DEFAULT 'long_term' CHECK(cycle_type IN ('long_term', 'custom')),
+                cycle_duration INTEGER DEFAULT NULL,
+                cycle_unit TEXT DEFAULT 'days' CHECK(cycle_unit IN ('days', 'weeks', 'months')),
                 is_active BOOLEAN DEFAULT 1,
                 sort_order INTEGER DEFAULT 0,
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        `);
+        
+        // 创建Notes表 - 健康笔记
+        await query(`
+            CREATE TABLE notes (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                user_id INTEGER NOT NULL,
+                title TEXT NOT NULL,
+                description TEXT DEFAULT '',
+                precautions TEXT DEFAULT '',
+                ai_suggestions TEXT DEFAULT '',
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
@@ -81,6 +101,19 @@ async function initTodoDatabase() {
                 FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
                 UNIQUE(todo_id, completion_date)
+            )
+        `);
+        
+        // 创建TODO删除记录表
+        await query(`
+            CREATE TABLE todo_deletions (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                todo_id INTEGER NOT NULL,
+                deletion_date DATE NOT NULL,
+                deletion_type TEXT DEFAULT 'single' CHECK(deletion_type IN ('single', 'from_date')),
+                created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (todo_id) REFERENCES todos(id) ON DELETE CASCADE,
+                UNIQUE(todo_id, deletion_date)
             )
         `);
         
@@ -103,10 +136,12 @@ async function initTodoDatabase() {
         // 验证数据
         const users = await query('SELECT COUNT(*) as count FROM users');
         const todos = await query('SELECT COUNT(*) as count FROM todos');
+        const notes = await query('SELECT COUNT(*) as count FROM notes');
         
         console.log('📈 数据统计:');
         console.log(`  - 用户: ${users[0].count} 条`);
         console.log(`  - TODO: ${todos[0].count} 条`);
+        console.log(`  - Notes: ${notes[0].count} 条`);
         
         console.log('🎉 TODO数据库初始化完成！');
         

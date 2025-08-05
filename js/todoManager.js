@@ -928,7 +928,16 @@ const TodoManager = {
             if (event.target.classList.contains('sidebar-tab')) {
                 const userId = parseInt(event.target.dataset.tab);
                 if (userId) {
-                    this.switchUser(userId);
+                    // 检查当前页面是否是Notes页面
+                    const isNotesPage = document.querySelector('.notes-panel') !== null;
+                    
+                    if (isNotesPage && window.NotesManager) {
+                        // 在Notes页面，切换到对应用户的Notes
+                        NotesManager.switchUser(userId);
+                    } else {
+                        // 在Todo页面或其他页面，使用原来的逻辑
+                        this.switchUser(userId);
+                    }
                 }
             }
         });

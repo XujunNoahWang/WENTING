@@ -10,6 +10,7 @@ const { testConnection } = require('./config/database');
 // 导入路由
 const usersRouter = require('./routes/users');
 const todosRouter = require('./routes/todos');
+const notesRouter = require('./routes/notes');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -41,7 +42,9 @@ app.use(cors({
             'http://localhost:3000',
             'http://localhost:3001',
             'http://127.0.0.1:3000',
-            'http://127.0.0.1:3001'
+            'http://127.0.0.1:3001',
+            'http://192.168.3.5:3000',
+            'http://192.168.3.5:3001'
         ];
         
         // 检查环境变量中的自定义origin
@@ -101,6 +104,7 @@ app.get('/health', (req, res) => {
 // API路由
 app.use('/api/users', usersRouter);
 app.use('/api/todos', todosRouter);
+app.use('/api/notes', notesRouter);
 
 // 根路径
 app.get('/', (req, res) => {
@@ -111,6 +115,7 @@ app.get('/', (req, res) => {
         endpoints: {
             users: '/api/users',
             todos: '/api/todos',
+            notes: '/api/notes',
             patterns: '/api/patterns',
             health: '/health'
         },
@@ -172,10 +177,11 @@ async function startServer() {
             process.exit(1);
         }
         
-        // 启动HTTP服务器
-        const server = app.listen(PORT, () => {
+        // 启动HTTP服务器，监听所有网络接口
+        const server = app.listen(PORT, '0.0.0.0', () => {
             console.log('🚀 雯婷1.0 API服务器启动成功');
             console.log(`📡 服务地址: http://localhost:${PORT}`);
+            console.log(`📱 局域网地址: http://192.168.3.5:${PORT}`);
             console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
             console.log(`📊 健康检查: http://localhost:${PORT}/health`);
             console.log(`📚 API文档: http://localhost:${PORT}/api`);

@@ -113,10 +113,12 @@ const App = {
     handleNavigation(page) {
         switch (page) {
             case 'Todo':
-                // 已经在Todo页面
+                // 显示Todo页面
+                this.showTodoPage();
                 break;
-            case 'Dashboard':
-                alert('Dashboard 功能开发中');
+            case 'Notes':
+                // 显示Notes页面
+                this.showNotesPage();
                 break;
             case 'New':
                 alert('快速添加功能开发中');
@@ -126,6 +128,35 @@ const App = {
                 break;
             default:
                 console.log('未知导航目标:', page);
+        }
+    },
+
+    // 显示Todo页面
+    showTodoPage() {
+        console.log('切换到Todo页面');
+        if (window.TodoManager && TodoManager.currentUser) {
+            TodoManager.renderTodoPanel(TodoManager.currentUser);
+        }
+    },
+
+    // 显示Notes页面
+    async showNotesPage() {
+        console.log('切换到Notes页面');
+        if (window.NotesManager) {
+            await NotesManager.init();
+        } else {
+            // 如果NotesManager还未加载，显示占位内容
+            const contentArea = Utils.$('#contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = `
+                    <div class="notes-content-panel">
+                        <div class="notes-placeholder">
+                            <h3>Notes 功能</h3>
+                            <p>正在加载笔记功能...</p>
+                        </div>
+                    </div>
+                `;
+            }
         }
     },
 

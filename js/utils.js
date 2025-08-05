@@ -93,5 +93,13 @@ const Utils = {
                 setTimeout(() => inThrottle = false, limit);
             }
         };
+    },
+
+    // HTML转义函数，防止XSS攻击
+    escapeHtml: (text) => {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 };

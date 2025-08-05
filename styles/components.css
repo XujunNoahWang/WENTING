@@ -1,5 +1,108 @@
 /* 组件样式 */
 
+/* AI建议显示样式 */
+.ai-suggestions-content {
+    line-height: 1.6;
+    color: #14171a;
+}
+
+.ai-suggestions-content strong {
+    color: #1d9bf0;
+    font-weight: 600;
+    margin-top: 15px;
+    display: inline-block;
+}
+
+.today-suggestion-highlight {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 2px solid #1d9bf0;
+    border-radius: 12px;
+    padding: 16px;
+    margin: 12px 0;
+    position: relative;
+    box-shadow: 0 4px 12px rgba(29, 155, 240, 0.15);
+}
+
+.today-suggestion-highlight::before {
+    content: '🌟';
+    position: absolute;
+    top: -8px;
+    right: -8px;
+    background: #1d9bf0;
+    color: white;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 12px;
+    box-shadow: 0 2px 6px rgba(29, 155, 240, 0.3);
+}
+
+.today-suggestion-highlight strong {
+    color: #0d47a1;
+    font-size: 16px;
+    margin-bottom: 8px;
+}
+
+.ai-suggestions-content .today-suggestion-highlight + div strong:first-child {
+    margin-top: 20px;
+    border-top: 1px solid #e1e8ed;
+    padding-top: 15px;
+}
+
+/* 编辑表单样式 */
+.form-note {
+    font-size: 12px;
+    color: #657786;
+    font-weight: normal;
+}
+
+.form-group textarea[name="ai_suggestions"] {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+    background-color: #f7f9fa;
+    border: 2px solid #e1e8ed;
+    border-radius: 8px;
+    transition: border-color 0.2s, background-color 0.2s;
+}
+
+.form-group textarea[name="ai_suggestions"]:focus {
+    background-color: #fff;
+    border-color: #1d9bf0;
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.1);
+}
+
+/* 再次生成AI建议按钮样式 */
+.regenerate-ai-btn {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    margin: 0 5px;
+}
+
+.regenerate-ai-btn:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(102, 126, 234, 0.3);
+}
+
+.regenerate-ai-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+    transform: none;
+    box-shadow: none;
+}
+
+.regenerate-ai-btn:disabled:hover {
+    transform: none;
+    box-shadow: none;
+}
+
 /* 左侧边栏 */
 .left-sidebar {
     width: 80px;
@@ -854,8 +957,314 @@
     flex-shrink: 0;
 }
 
+/* Notes页面样式 */
+.notes-panel {
+    height: 100%;
+    position: relative;
+    padding: 16px 20px 66px 20px;
+    background: #f7f9fa;
+}
+
+.notes-container {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 16px;
+    padding-bottom: 20px;
+}
+
+.note-card {
+    background: white;
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+    transition: transform 0.2s ease, box-shadow 0.2s ease;
+    border: 1px solid #e1e8ed;
+}
+
+.note-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
+}
+
+.note-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    margin-bottom: 12px;
+}
+
+.note-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #14171a;
+    margin: 0;
+    line-height: 1.3;
+    flex: 1;
+}
+
+.note-actions {
+    display: flex;
+    gap: 4px;
+    margin-left: 8px;
+}
+
+.note-action-btn {
+    width: 32px;
+    height: 32px;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background-color 0.2s ease;
+}
+
+.note-action-btn:hover {
+    background-color: #f7f9fa;
+}
+
+.note-action-btn.delete:hover {
+    background-color: #fee;
+    color: #e53e3e;
+}
+
+.note-action-btn svg {
+    fill: #657786;
+}
+
+.note-action-btn.delete:hover svg {
+    fill: #e53e3e;
+}
+
+.note-description {
+    color: #657786;
+    font-size: 14px;
+    line-height: 1.4;
+    margin: 0 0 12px 0;
+}
+
+.note-footer {
+    display: flex;
+    justify-content: flex-end;
+}
+
+.view-details-btn {
+    background: #1d9bf0;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.view-details-btn:hover {
+    background: #1a8cd8;
+}
+
+/* 空状态样式 */
+.notes-empty-state {
+    text-align: center;
+    padding: 60px 20px;
+    color: #657786;
+}
+
+.notes-empty-state .empty-icon {
+    font-size: 48px;
+    margin-bottom: 16px;
+}
+
+.notes-empty-state h3 {
+    font-size: 20px;
+    color: #14171a;
+    margin: 0 0 8px 0;
+}
+
+.notes-empty-state p {
+    font-size: 16px;
+    margin: 0;
+}
+
+/* 添加新笔记按钮 */
+.new-note-btn {
+    position: absolute;
+    bottom: 10px;
+    right: 10px;
+    background: #1d9bf0;
+    color: white;
+    border: none;
+    border-radius: 50px;
+    padding: 12px 16px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    box-shadow: 0 2px 8px rgba(29, 155, 240, 0.3);
+    text-decoration: none;
+}
+
+.new-note-btn:hover {
+    background: #1a8cd8;
+    box-shadow: 0 4px 12px rgba(29, 155, 240, 0.4);
+    transform: translateY(-1px);
+}
+
+/* 笔记表单样式 */
+.note-form {
+    padding: 20px;
+}
+
+.note-form .form-group {
+    margin-bottom: 16px;
+}
+
+.note-form label {
+    display: block;
+    margin-bottom: 4px;
+    font-weight: 500;
+    color: #14171a;
+}
+
+.note-form input[type="text"],
+.note-form textarea {
+    width: 100%;
+    padding: 8px 12px;
+    border: 1px solid #e1e8ed;
+    border-radius: 6px;
+    font-size: 14px;
+    transition: border-color 0.2s ease;
+    resize: vertical;
+}
+
+.note-form input[type="text"]:focus,
+.note-form textarea:focus {
+    outline: none;
+    border-color: #1d9bf0;
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.1);
+}
+
+.form-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-top: 20px;
+}
+
+.form-actions button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.form-actions button[type="button"] {
+    background: transparent;
+    border: 1px solid #e1e8ed;
+    color: #657786;
+}
+
+.form-actions button[type="button"]:hover {
+    background: #f7f9fa;
+}
+
+.form-actions button[type="submit"] {
+    background: #1d9bf0;
+    border: 1px solid #1d9bf0;
+    color: white;
+}
+
+.form-actions button[type="submit"]:hover {
+    background: #1a8cd8;
+    border-color: #1a8cd8;
+}
+
+/* 笔记详情模态框样式 */
+.modal-content.large {
+    max-width: 600px;
+    width: 95%;
+}
+
+.note-details {
+    padding: 20px;
+    max-height: 60vh;
+    overflow-y: auto;
+}
+
+.detail-section {
+    margin-bottom: 24px;
+}
+
+.detail-section:last-child {
+    margin-bottom: 0;
+}
+
+.detail-section h4 {
+    font-size: 16px;
+    font-weight: 600;
+    color: #14171a;
+    margin: 0 0 8px 0;
+}
+
+.detail-section p {
+    color: #657786;
+    line-height: 1.5;
+    margin: 0;
+}
+
+.no-suggestions {
+    color: #a0a0a0;
+    font-style: italic;
+    margin-bottom: 12px !important;
+}
+
+.generate-ai-btn {
+    background: #10a37f;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+}
+
+.generate-ai-btn:hover {
+    background: #0d8f6f;
+}
+
+.modal-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    padding: 0 20px 20px 20px;
+    border-top: 1px solid #e1e8ed;
+    margin-top: 20px;
+    padding-top: 20px;
+}
+
+.modal-actions button {
+    padding: 8px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    background: transparent;
+    border: 1px solid #e1e8ed;
+    color: #657786;
+}
+
+.modal-actions button:hover {
+    background: #f7f9fa;
+}
+
 /* 确保滚动条样式 */
-.todo-list-container::-webkit-scrollbar {
+.todo-list-container::-webkit-scrollbar,
+.notes-container::-webkit-scrollbar,
+.note-details::-webkit-scrollbar {
     width: 6px;
 }
 

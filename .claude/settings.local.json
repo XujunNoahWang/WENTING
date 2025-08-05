@@ -15,7 +15,17 @@
       "Bash(start index.html)",
       "Bash(cmd /c start:*)",
       "Bash(node:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(npm run init-db:*)",
+      "Bash(npm install)",
+      "Bash(start \"雯婷1.0 后端服务\" npm run dev)",
+      "Bash(start cmd /k \"npm start\")",
+      "Bash(start http://localhost:3000)",
+      "Bash(start http://localhost:8080)",
+      "Bash(del start.bat)",
+      "Bash(python:*)",
+      "Bash(npm install:*)",
+      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-weather.html\")"
     ],
     "deny": []
   }

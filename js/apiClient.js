@@ -1,6 +1,22 @@
 // API客户端 - 连接前端和后端
 const ApiClient = {
-    baseURL: 'http://localhost:3001/api',
+    // 动态获取API基础URL
+    get baseURL() {
+        const hostname = window.location.hostname;
+        let apiHost;
+        
+        // 根据当前访问的主机名决定API地址
+        if (hostname === '192.168.3.5') {
+            apiHost = 'http://192.168.3.5:3001';
+        } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+            apiHost = 'http://localhost:3001';
+        } else {
+            // 默认使用当前主机的3001端口
+            apiHost = `http://${hostname}:3001`;
+        }
+        
+        return `${apiHost}/api`;
+    },
     
     // 通用请求方法
     async request(endpoint, options = {}) {
@@ -228,6 +244,45 @@ const ApiClient = {
                 rangeStart,
                 rangeEnd
             });
+        }
+    },
+
+    // Notes相关API
+    notes: {
+        // 获取用户的所有Notes
+        async getByUserId(userId) {
+            return ApiClient.get(`/notes/user/${userId}`);
+        },
+
+        // 根据ID获取Note
+        async getById(id) {
+            return ApiClient.get(`/notes/${id}`);
+        },
+
+        // 创建Note
+        async create(noteData) {
+            return ApiClient.post('/notes', noteData);
+        },
+
+        // 更新Note
+        async update(id, noteData) {
+            return ApiClient.put(`/notes/${id}`, noteData);
+        },
+
+        // 删除Note
+        async delete(id) {
+            return ApiClient.delete(`/notes/${id}`);
+        },
+
+        // 搜索Notes
+        async search(searchTerm, userId = null) {
+            const params = userId ? `?userId=${userId}` : '';
+            return ApiClient.get(`/notes/search/${encodeURIComponent(searchTerm)}${params}`);
+        },
+
+        // 生成AI建议
+        async generateAISuggestions(id) {
+            return ApiClient.post(`/notes/${id}/ai-suggestions`);
         }
     },
 
