@@ -80,26 +80,25 @@ const TodoManager = {
     // 设置默认用户
     setDefaultUser() {
         if (UserManager.users.length > 0) {
-            // 优先使用全局状态的用户，否则找第一个有TODO数据的用户
-            let defaultUser = UserManager.users[0].id;
+            // 按ID排序，选择ID最小的用户（最早添加的用户）
+            const sortedUsers = [...UserManager.users].sort((a, b) => a.id - b.id);
+            let defaultUser = sortedUsers[0].id;
             
-            if (window.GlobalUserState && GlobalUserState.getCurrentUser()) {
-                defaultUser = GlobalUserState.getCurrentUser();
-            } else {
-                for (const user of UserManager.users) {
-                    if (this.todos[user.id] && this.todos[user.id].length > 0) {
-                        defaultUser = user.id;
-                        break;
-                    }
-                }
-            }
-            
+            console.log('🎯 设置默认用户为最早添加的用户:', defaultUser, '(用户名:', sortedUsers[0].username, ')');
+            console.log('📋 所有用户按ID排序:', sortedUsers.map(u => `ID:${u.id}(${u.username})`).join(', '));
             this.currentUser = defaultUser;
             
-            // 同步到全局状态
+            // 同步到全局状态，这会触发UI更新
             if (window.GlobalUserState) {
                 GlobalUserState.setCurrentUser(defaultUser);
             }
+            
+            // 确保UI正确更新
+            setTimeout(() => {
+                if (window.UserManager) {
+                    UserManager.renderUserTabs();
+                }
+            }, 100);
         }
     },
 

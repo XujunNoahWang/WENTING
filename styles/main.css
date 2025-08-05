@@ -71,9 +71,9 @@ body {
 
 /* 左侧边栏 */
 .left-sidebar {
-    width: 80px;
+    width: 100px;
     background-color: #f7f9fa;
-    padding: 20px 15px;
+    padding: 20px 10px;
     display: flex;
     flex-direction: column;
     align-items: center;

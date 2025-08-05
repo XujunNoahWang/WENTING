@@ -277,23 +277,21 @@ const UserManager = {
         const sidebar = Utils.$('.left-sidebar');
         if (!sidebar) return;
 
-        // 按创建时间或ID排序，确保新用户在最后
-        const sortedUsers = [...this.users].sort((a, b) => {
-            if (a.created_at && b.created_at) {
-                return new Date(a.created_at) - new Date(b.created_at);
-            }
-            return a.id - b.id;
-        });
+        // 按ID排序，确保用户按创建顺序显示（ID越小越靠前）
+        const sortedUsers = [...this.users].sort((a, b) => a.id - b.id);
+        console.log('📋 用户排序:', sortedUsers.map(u => `ID:${u.id}(${u.username})`).join(', '));
 
         // 获取当前选中的用户ID
         const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : (TodoManager.currentUser || null);
         
         const tabsHtml = sortedUsers.map(user => {
             const isActive = parseInt(user.id) === parseInt(currentUserId);
+            const userColor = user.avatar_color || '#1d9bf0';
+            
             return `
                 <div class="sidebar-tab ${isActive ? 'active' : ''}" 
                      data-tab="${user.id}"
-                     style="border-color: ${user.avatar_color || '#1d9bf0'}; ${isActive ? `background-color: ${user.avatar_color || '#1d9bf0'}; color: white;` : 'background-color: white; color: #333;'}">
+                     style="--user-color: ${userColor};">
                     ${user.display_name || user.username}
                 </div>
             `;

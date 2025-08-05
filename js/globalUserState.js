@@ -8,27 +8,24 @@ const GlobalUserState = {
     init() {
         console.log('🌐 初始化全局用户状态管理器');
         
-        // 从localStorage恢复状态
-        const savedUserId = localStorage.getItem('wenting_current_user_id');
+        // 只恢复模块状态，用户状态由TodoManager的setDefaultUser决定
         const savedModule = localStorage.getItem('wenting_current_module');
-        
-        if (savedUserId) {
-            this.currentUserId = parseInt(savedUserId);
-        }
         
         if (savedModule) {
             this.currentModule = savedModule;
         }
         
-        console.log('📍 恢复状态:', {
+        // 不从localStorage恢复用户ID，让TodoManager决定默认用户
+        console.log('📍 初始化状态:', {
             currentUserId: this.currentUserId,
             currentModule: this.currentModule
         });
+        console.log('🔄 用户ID将由TodoManager的setDefaultUser方法设置');
     },
 
     // 设置当前用户
     setCurrentUser(userId) {
-        console.log('👤 切换当前用户:', userId);
+        console.log('👤 切换当前用户:', this.currentUserId, '->', userId);
         
         if (this.currentUserId !== userId) {
             this.currentUserId = userId;
@@ -38,10 +35,11 @@ const GlobalUserState = {
             
             // 通知所有监听器
             this.notifyListeners('userChanged', { userId: userId });
-            
-            // 更新用户选择器UI
-            this.updateUserSelectorUI();
         }
+        
+        // 无论是否相同，都更新UI（确保样式正确）
+        console.log('🎨 强制更新用户选择器UI...');
+        this.updateUserSelectorUI();
     },
 
     // 设置当前模块
@@ -96,45 +94,71 @@ const GlobalUserState = {
 
     // 更新用户选择器UI
     updateUserSelectorUI() {
-        // 如果UserManager存在，重新渲染用户标签以确保样式正确
-        if (window.UserManager && UserManager.renderUserTabs) {
-            UserManager.renderUserTabs();
-        } else {
-            // 备用方案：直接更新active类
-            const userTabs = document.querySelectorAll('.sidebar-tab');
-            userTabs.forEach(tab => {
-                const tabUserId = parseInt(tab.dataset.tab);
-                if (tabUserId === this.currentUserId) {
-                    tab.classList.add('active');
-                } else {
-                    tab.classList.remove('active');
+        console.log('🎨 更新用户选择器UI，当前用户:', this.currentUserId);
+        
+        // 直接更新样式，不重新渲染整个HTML（避免丢失状态）
+        console.log('📝 直接更新用户标签样式');
+        const userTabs = document.querySelectorAll('.sidebar-tab');
+        console.log('🔍 找到', userTabs.length, '个用户标签');
+        
+        userTabs.forEach(tab => {
+            const tabUserId = parseInt(tab.dataset.tab);
+            console.log('🏷️ 处理标签，用户ID:', tabUserId, '当前用户:', this.currentUserId);
+            
+            if (tabUserId === this.currentUserId) {
+                console.log('✅ 设置为选中状态:', tabUserId);
+                tab.classList.add('active');
+                
+                // 更新CSS变量用于颜色条
+                if (window.UserManager) {
+                    const user = UserManager.getUser(tabUserId);
+                    if (user) {
+                        tab.style.setProperty('--user-color', user.avatar_color || '#1d9bf0');
+                        console.log('🎨 应用选中样式，颜色条:', user.avatar_color);
+                    }
                 }
-            });
-        }
+            } else {
+                console.log('❌ 设置为未选中状态:', tabUserId);
+                tab.classList.remove('active');
+                
+                // 保持颜色条颜色不变
+                if (window.UserManager) {
+                    const user = UserManager.getUser(tabUserId);
+                    if (user) {
+                        tab.style.setProperty('--user-color', user.avatar_color || '#1d9bf0');
+                    }
+                }
+            }
+        });
     },
 
     // 绑定用户选择器事件
     bindUserSelectorEvents() {
-        // 移除所有现有的事件监听器
-        document.querySelectorAll('.sidebar-tab').forEach(tab => {
-            const newTab = tab.cloneNode(true);
-            tab.parentNode.replaceChild(newTab, tab);
-        });
+        console.log('🔗 开始绑定用户选择器事件...');
         
-        // 重新获取元素并绑定事件
-        const userTabs = document.querySelectorAll('.sidebar-tab');
-        userTabs.forEach(tab => {
-            tab.addEventListener('click', (e) => {
-                e.preventDefault();
-                e.stopPropagation();
-                const userId = parseInt(tab.dataset.tab);
-                if (userId && !isNaN(userId)) {
-                    console.log('🖱️ 用户按钮点击，切换到用户:', userId);
-                    this.setCurrentUser(userId);
+        // 使用事件委托，避免重复绑定问题
+        const sidebar = document.querySelector('.left-sidebar');
+        if (sidebar) {
+            // 移除已存在的事件监听器
+            sidebar.removeEventListener('click', this._sidebarClickHandler);
+            
+            // 绑定事件委托
+            this._sidebarClickHandler = (e) => {
+                const tab = e.target.closest('.sidebar-tab');
+                if (tab) {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    const userId = parseInt(tab.dataset.tab);
+                    if (userId && !isNaN(userId)) {
+                        console.log('🖱️ 用户按钮点击，切换到用户:', userId);
+                        this.setCurrentUser(userId);
+                    }
                 }
-            });
-        });
-        console.log('🔗 用户选择器事件绑定完成，共绑定', userTabs.length, '个按钮');
+            };
+            
+            sidebar.addEventListener('click', this._sidebarClickHandler);
+            console.log('🔗 用户选择器事件委托绑定完成');
+        }
     }
 };
 

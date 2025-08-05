@@ -743,66 +743,55 @@
 
 /* 统一的用户标签样式 - 合并重复定义 */
 .sidebar-tab {
-    width: 50px;
-    height: 50px;
-    border-radius: 50%;
+    width: 65px;
+    height: 40px;
+    border-radius: 5px;
     background-color: #fff;
     display: flex;
     align-items: center;
     justify-content: center;
-    margin-bottom: 12px;
+    margin-bottom: 4px;
     cursor: pointer;
     transition: all 0.3s ease;
-    font-size: 14px;
-    font-weight: 600;
+    font-size: 11px;
+    font-weight: 500;
     text-align: center;
     color: #14171a;
-    border: 3px solid #e1e8ed;
+    border: 1px solid #e1e8ed;
     box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
     position: relative;
+    padding-left: 8px;
+    overflow: hidden;
 }
 
-.sidebar-tab[data-tab="dad"] {
-    border-color: #1d9bf0;
+.sidebar-tab::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 0;
+    bottom: 0;
+    width: 5px;
+    background-color: var(--user-color, #ccc);
+    border-radius: 5px 0 0 5px;
 }
 
-.sidebar-tab[data-tab="mom"] {
-    border-color: #e91e63;
-}
+/* 动态用户边框色通过JavaScript内联样式设置 */
 
-.sidebar-tab[data-tab="kid"] {
-    border-color: #ff9800;
-}
-
-.sidebar-tab:hover {
-    transform: scale(1.05);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    background-color: #f0f3f4;
+.sidebar-tab:hover:not(.active) {
+    transform: scale(1.02);
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+    background-color: #f8f9fa;
 }
 
 .sidebar-tab.active {
-    transform: scale(1.1);
-    box-shadow: 0 6px 20px rgba(0, 0, 0, 0.2);
-    color: #fff;
-}
-
-.sidebar-tab[data-tab="dad"].active {
-    background-color: #1d9bf0;
-    border-color: #1d9bf0;
-}
-
-.sidebar-tab[data-tab="mom"].active {
-    background-color: #e91e63;
-    border-color: #e91e63;
-}
-
-.sidebar-tab[data-tab="kid"].active {
-    background-color: #ff9800;
-    border-color: #ff9800;
+    transform: scale(1.08);
+    box-shadow: 0 3px 12px rgba(0, 0, 0, 0.2);
+    font-weight: 700;
+    font-size: 12px;
 }
 
 .sidebar-tab.active:hover {
-    opacity: 0.9;
+    opacity: 0.95;
 }
 
 /* 消息提示样式 */
