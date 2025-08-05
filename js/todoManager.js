@@ -217,26 +217,6 @@ const TodoManager = {
         return '长期';
     },
 
-    // 切换用户
-    switchUser(userId) {
-        const numericUserId = parseInt(userId);
-        if (isNaN(numericUserId) || numericUserId <= 0) {
-            console.error('无效的用户ID:', userId);
-            return;
-        }
-        
-        this.currentUser = numericUserId;
-        
-        // 同步到全局状态
-        if (window.GlobalUserState) {
-            GlobalUserState.setCurrentUser(this.currentUser);
-        }
-        
-        this.renderTodoPanel(this.currentUser);
-        
-        // 重新渲染用户标签以更新选中状态
-        UserManager.renderUserTabs();
-    },
 
     // 渲染TODO面板
     renderTodoPanel(userId) {

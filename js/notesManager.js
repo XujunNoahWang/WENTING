@@ -37,9 +37,6 @@ const NotesManager = {
         this.renderNotesPanel(this.currentUser);
         this.bindEvents();
         
-        // 确保用户标签样式正确
-        this.updateUserTabs(this.currentUser);
-        
         console.log('✅ Notes管理器初始化完成');
     },
 
@@ -114,8 +111,6 @@ const NotesManager = {
             if (this.currentUser !== newUserId) {
                 this.currentUser = newUserId;
                 this.renderNotesPanel(newUserId);
-                // 确保用户标签样式也更新
-                this.updateUserTabs(newUserId);
             }
         }
     },
@@ -141,9 +136,6 @@ const NotesManager = {
         `;
 
         contentArea.innerHTML = panelHtml;
-        
-        // 更新用户标签状态
-        this.updateUserTabs(userId);
     },
 
     // 渲染笔记卡片
@@ -670,52 +662,7 @@ const NotesManager = {
         }
     },
 
-    // 切换用户
-    switchUser(userId) {
-        console.log('切换到用户:', userId);
-        this.currentUser = parseInt(userId);
-        
-        // 同步到全局状态
-        if (window.GlobalUserState) {
-            GlobalUserState.setCurrentUser(this.currentUser);
-        }
-        
-        this.renderNotesPanel(this.currentUser);
-        this.updateUserTabs(this.currentUser);
-    },
 
-    // 更新用户标签状态
-    updateUserTabs(activeUserId) {
-        // 使用UserManager重新渲染用户标签，确保样式正确
-        if (window.UserManager && UserManager.renderUserTabs) {
-            UserManager.renderUserTabs();
-        } else {
-            // 备用方案：手动更新样式
-            const userTabs = Utils.$$('.sidebar-tab');
-            userTabs.forEach(tab => {
-                const tabUserId = tab.dataset.tab;
-                const isActive = parseInt(tabUserId) === parseInt(activeUserId);
-                
-                if (isActive) {
-                    tab.classList.add('active');
-                    // 从用户数据中获取颜色
-                    const user = UserManager.users.find(u => u.id === parseInt(tabUserId));
-                    const avatarColor = user?.avatar_color || '#1d9bf0';
-                    tab.style.backgroundColor = avatarColor;
-                    tab.style.color = 'white';
-                    tab.style.borderColor = avatarColor;
-                } else {
-                    tab.classList.remove('active');
-                    tab.style.backgroundColor = 'white';
-                    tab.style.color = '#333';
-                    // 保持原有的边框颜色
-                    const user = UserManager.users.find(u => u.id === parseInt(tabUserId));
-                    const avatarColor = user?.avatar_color || '#1d9bf0';
-                    tab.style.borderColor = avatarColor;
-                }
-            });
-        }
-    },
 
     // 显示离线错误
     showOfflineError() {
