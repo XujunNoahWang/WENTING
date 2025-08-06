@@ -1598,4 +1598,77 @@ label[for="edit_todo_start_date"] {
         transform: translateX(-50%) translateY(0);
         opacity: 1;
     }
+}/
+* 位置权限对话框样式 */
+.location-permission-content {
+    padding: 20px 0;
+}
+
+.permission-explanation {
+    margin-bottom: 24px;
+    line-height: 1.6;
+}
+
+.permission-explanation p {
+    margin: 0 0 12px 0;
+    color: #14171a;
+    font-size: 14px;
+}
+
+.permission-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+}
+
+.permission-btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+}
+
+.permission-btn.allow {
+    background: #1d9bf0;
+    color: white;
+}
+
+.permission-btn.allow:hover {
+    background: #1a8cd8;
+    transform: translateY(-1px);
+}
+
+.permission-btn.cancel {
+    background: #f7f9fa;
+    color: #657786;
+    border: 1px solid #e1e8ed;
+}
+
+.permission-btn.cancel:hover {
+    background: #e7f3ff;
+    border-color: #1d9bf0;
+    color: #1d9bf0;
+}
+
+/* 移动端优化 */
+@media screen and (max-width: 430px) {
+    .permission-actions {
+        flex-direction: column;
+    }
+    
+    .permission-btn {
+        width: 100%;
+    }
+    
+    .permission-explanation {
+        margin-bottom: 20px;
+    }
+    
+    .permission-explanation p {
+        font-size: 13px;
+    }
 }

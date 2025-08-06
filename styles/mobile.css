@@ -106,6 +106,22 @@
     border-color: #cc0000 !important;
 }
 
+.weather-location.error.clickable {
+    cursor: pointer !important;
+    transition: all 0.2s ease;
+}
+
+.weather-location.error.clickable:hover {
+    background-color: #ffe6e6 !important;
+    border-color: #ff0000 !important;
+    color: #ff0000 !important;
+    transform: scale(1.02);
+}
+
+.weather-location.error.clickable:active {
+    transform: scale(0.98);
+}
+
 .weather-location.loading {
     color: #888888 !important;
     border-color: #cccccc !important;

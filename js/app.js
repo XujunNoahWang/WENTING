@@ -88,13 +88,20 @@ const App = {
                     return;
                 }
                 
-                console.log('用户点击天气栏，刷新天气数据');
-                WeatherManager.refreshWeather();
+                // 如果点击的是位置区域且位置未授权，请求位置权限
+                const locationElement = e.target.closest('.weather-location');
+                if (locationElement && locationElement.classList.contains('error')) {
+                    console.log('用户点击位置未授权区域，请求位置权限');
+                    WeatherManager.requestLocationPermission();
+                } else {
+                    console.log('用户点击天气栏，刷新天气数据');
+                    WeatherManager.refreshWeather();
+                }
             });
             
             // 添加悬停提示
             weatherBar.style.cursor = 'pointer';
-            weatherBar.title = '点击刷新天气数据';
+            weatherBar.title = '点击刷新天气数据，位置未授权时点击可请求权限';
         }
 
         // 全局错误处理

@@ -261,7 +261,79 @@ const WeatherManager = {
     // 显示位置权限被拒绝的消息
     showLocationDeniedMessage() {
         // 显示一个临时提示消息
-        this.showTemporaryMessage('位置权限被拒绝，天气功能不可用', 'warning');
+        this.showTemporaryMessage('位置权限被拒绝，点击位置区域可重新请求', 'warning');
+    },
+
+    // 请求位置权限
+    async requestLocationPermission() {
+        console.log('🌍 用户主动请求位置权限...');
+        
+        // 显示位置权限说明对话框
+        this.showLocationPermissionDialog();
+    },
+
+    // 显示位置权限说明对话框
+    showLocationPermissionDialog() {
+        const modalHtml = `
+            <div class="modal-overlay" id="locationPermissionModal">
+                <div class="modal-content">
+                    <div class="modal-header">
+                        <h3>📍 位置权限请求</h3>
+                        <button class="modal-close" onclick="WeatherManager.closeLocationPermissionDialog()">×</button>
+                    </div>
+                    <div class="location-permission-content">
+                        <div class="permission-explanation">
+                            <p>🌤️ 天气功能需要获取您的地理位置来提供准确的天气信息。</p>
+                            <p>📱 点击"获取位置"后，浏览器会询问您是否允许访问位置信息。</p>
+                            <p>🔒 您的位置信息仅用于获取天气数据，不会被存储或分享。</p>
+                        </div>
+                        <div class="permission-actions">
+                            <button class="permission-btn allow" onclick="WeatherManager.startLocationRequest()">
+                                📍 获取位置
+                            </button>
+                            <button class="permission-btn cancel" onclick="WeatherManager.closeLocationPermissionDialog()">
+                                取消
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        document.body.insertAdjacentHTML('beforeend', modalHtml);
+    },
+
+    // 关闭位置权限对话框
+    closeLocationPermissionDialog() {
+        const modal = document.getElementById('locationPermissionModal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
+    // 开始位置请求
+    async startLocationRequest() {
+        // 关闭对话框
+        this.closeLocationPermissionDialog();
+        
+        // 显示请求中状态
+        this.showLocationPermissionPrompt();
+        
+        try {
+            // 重新获取位置
+            await this.getCurrentLocation();
+            
+            if (this.userLocation && this.locationReady) {
+                console.log('✅ 位置权限获取成功');
+                this.fetchRealWeatherData();
+                this.updateWeatherDisplay();
+                this.showTemporaryMessage('位置权限获取成功！', 'success');
+            }
+        } catch (error) {
+            console.log('❌ 位置权限请求失败:', error);
+            this.showLocationError();
+            this.showTemporaryMessage('位置权限被拒绝，请在浏览器设置中允许位置访问', 'error');
+        }
     },
 
     // 显示临时消息
@@ -328,12 +400,18 @@ const WeatherManager = {
 
         this.updateWeather(errorData);
 
-        // 直接更新位置显示
+        // 直接更新位置显示，并添加点击事件
         const locationElement = Utils.$('.weather-location');
         if (locationElement) {
-            locationElement.textContent = '位置未授权';
-            locationElement.className = 'weather-location error';
-            locationElement.title = '天气功能需要地理位置权限';
+            locationElement.textContent = '点击授权位置';
+            locationElement.className = 'weather-location error clickable';
+            locationElement.title = '点击请求地理位置权限';
+            
+            // 添加点击事件来请求位置权限
+            locationElement.style.cursor = 'pointer';
+            locationElement.onclick = () => {
+                this.requestLocationPermission();
+            };
         }
     },
 
