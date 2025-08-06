@@ -44,10 +44,13 @@ const App = {
         DateManager.init();
         
         // 初始化天气管理器（等待地理位置获取完成）
-        await WeatherManager.init();
-        
-        // 启动天气自动更新（30分钟间隔）
-        WeatherManager.startAutoUpdate();
+        if (window.WeatherManager) {
+            await WeatherManager.init();
+            // 启动天气自动更新（30分钟间隔）
+            WeatherManager.startAutoUpdate();
+        } else {
+            console.error('❌ WeatherManager未加载');
+        }
         
         // 初始化用户管理器（异步，需要等待完成）
         await UserManager.init();
@@ -80,6 +83,11 @@ const App = {
         const weatherBar = Utils.$('.weather-bar');
         if (weatherBar) {
             weatherBar.addEventListener('click', (e) => {
+                if (!window.WeatherManager) {
+                    console.error('❌ WeatherManager未加载');
+                    return;
+                }
+                
                 // 如果点击的是位置区域，显示位置设置
                 if (e.target.closest('.weather-location-section')) {
                     console.log('用户点击位置区域，显示位置设置');
@@ -104,10 +112,12 @@ const App = {
         document.addEventListener('visibilitychange', () => {
             if (!document.hidden) {
                 // 页面变为可见时，更新当前时间和天气
-                DateManager.updateCurrentDate();
+                if (window.DateManager) {
+                    DateManager.updateCurrentDate();
+                }
                 
                 // 检查天气数据是否需要更新
-                if (WeatherManager.weatherData?.lastUpdated) {
+                if (window.WeatherManager && WeatherManager.weatherData?.lastUpdated) {
                     const lastUpdate = new Date(WeatherManager.weatherData.lastUpdated);
                     const now = new Date();
                     const diffMinutes = (now - lastUpdate) / (1000 * 60);
@@ -124,7 +134,9 @@ const App = {
         // 在线/离线状态处理
         window.addEventListener('online', () => {
             console.log('网络连接恢复，刷新天气数据');
-            WeatherManager.fetchRealWeatherData();
+            if (window.WeatherManager) {
+                WeatherManager.fetchRealWeatherData();
+            }
         });
 
         window.addEventListener('offline', () => {

@@ -565,7 +565,8 @@ const WeatherManager = {
         };
 
         return iconMap[condition] || '☀️';
-    }
+    },
+
     // 显示位置设置对话框
     showLocationSettings() {
         const modalHtml = `
