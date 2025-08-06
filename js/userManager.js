@@ -130,9 +130,9 @@ const UserManager = {
                 <div class="modal-content">
                     <div class="modal-header">
                         <h3>添加新用户</h3>
-                        <button class="modal-close" onclick="UserManager.closeAddUserForm()">×</button>
+                        <button class="modal-close" data-action="close-add-user-form">×</button>
                     </div>
-                    <form class="user-form" onsubmit="UserManager.handleAddUser(event)">
+                    <form class="user-form" id="addUserForm">
                         <div class="form-group">
                             <label for="username">用户名 *</label>
                             <input type="text" id="username" name="username" required maxlength="50">
@@ -167,7 +167,7 @@ const UserManager = {
                             <input type="color" id="avatar_color" name="avatar_color" value="#1d9bf0">
                         </div>
                         <div class="form-actions">
-                            <button type="button" onclick="UserManager.closeAddUserForm()">取消</button>
+                            <button type="button" data-action="close-add-user-form">取消</button>
                             <button type="submit">添加用户</button>
                         </div>
                     </form>
@@ -176,6 +176,23 @@ const UserManager = {
         `;
         
         document.body.insertAdjacentHTML('beforeend', formHtml);
+        
+        // 绑定事件监听器
+        const modal = document.getElementById('addUserModal');
+        if (modal) {
+            // 关闭按钮事件
+            modal.addEventListener('click', (e) => {
+                if (e.target.dataset.action === 'close-add-user-form' || e.target.classList.contains('modal-overlay')) {
+                    this.closeAddUserForm();
+                }
+            });
+            
+            // 表单提交事件
+            const form = modal.querySelector('#addUserForm');
+            if (form) {
+                form.addEventListener('submit', (e) => this.handleAddUser(e));
+            }
+        }
     },
 
     // 关闭添加用户表单
@@ -351,7 +368,7 @@ const UserManager = {
         }).join('');
 
         const addButtonHtml = `
-            <div class="add-user-btn" onclick="UserManager.addUser()" title="添加新用户">
+            <div class="add-user-btn" data-action="add-user" title="添加新用户">
                 +
             </div>
         `;
@@ -440,7 +457,13 @@ const UserManager = {
 
     // 绑定事件
     bindEvents() {
-        // 用户标签点击事件在TodoManager中处理
+        // 事件委托：处理动态生成的添加用户按钮
+        document.addEventListener('click', (e) => {
+            if (e.target.dataset.action === 'add-user' || e.target.closest('[data-action="add-user"]')) {
+                e.preventDefault();
+                this.addUser();
+            }
+        });
     }
 };
 

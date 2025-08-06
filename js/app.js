@@ -74,6 +74,18 @@ const App = {
 
     // 绑定全局事件
     bindGlobalEvents() {
+        // 绑定添加用户按钮事件
+        const addUserBtn = document.getElementById('addUserBtn');
+        if (addUserBtn) {
+            addUserBtn.addEventListener('click', () => {
+                if (window.UserManager && typeof UserManager.addUser === 'function') {
+                    UserManager.addUser();
+                } else {
+                    console.error('UserManager.addUser 方法不可用');
+                }
+            });
+        }
+        
         // 底部导航点击效果
         Utils.$$('.nav-item').forEach(item => {
             item.addEventListener('click', () => {
