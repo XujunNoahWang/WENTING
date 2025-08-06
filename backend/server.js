@@ -101,6 +101,29 @@ app.get('/health', (req, res) => {
     });
 });
 
+// 静态文件服务 - 服务前端文件
+app.use(express.static('../', {
+    setHeaders: (res, path) => {
+        // 为JS文件设置正确的MIME类型
+        if (path.endsWith('.js')) {
+            res.set('Content-Type', 'application/javascript');
+            res.set('Cache-Control', 'no-cache, no-store, must-revalidate');
+        }
+        // 为CSS文件设置正确的MIME类型
+        if (path.endsWith('.css')) {
+            res.set('Content-Type', 'text/css');
+        }
+        // 为HTML文件设置正确的MIME类型
+        if (path.endsWith('.html')) {
+            res.set('Content-Type', 'text/html');
+        }
+        // 为favicon设置正确的MIME类型
+        if (path.endsWith('favicon.ico')) {
+            res.set('Content-Type', 'image/x-icon');
+        }
+    }
+}));
+
 // API路由
 app.use('/api/users', usersRouter);
 app.use('/api/todos', todosRouter);

@@ -4,6 +4,12 @@ const UserManager = {
     isOnline: false,
 
     async init() {
+        // 确保 ApiClient 已加载
+        if (typeof ApiClient === 'undefined') {
+            console.error('❌ ApiClient 未定义，请检查脚本加载顺序');
+            return;
+        }
+        
         // 检查后端连接 - 必须联网才能使用
         this.isOnline = await ApiClient.testConnection();
         

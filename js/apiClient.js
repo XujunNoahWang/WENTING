@@ -3,10 +3,14 @@ const ApiClient = {
     // 动态获取API基础URL
     get baseURL() {
         const hostname = window.location.hostname;
+        const protocol = window.location.protocol;
         let apiHost;
-        
-        // 根据当前访问的主机名决定API地址
-        if (hostname === '192.168.3.5') {
+
+        // 自动适配 cloudflare tunnel 的 https 域名
+        if (protocol === 'https:' && hostname.endsWith('.trycloudflare.com')) {
+            // 直接用当前域名的 https，且不加端口
+            apiHost = `https://${hostname}`;
+        } else if (hostname === '192.168.3.5') {
             apiHost = 'http://192.168.3.5:3001';
         } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
             apiHost = 'http://localhost:3001';
@@ -14,7 +18,7 @@ const ApiClient = {
             // 默认使用当前主机的3001端口
             apiHost = `http://${hostname}:3001`;
         }
-        
+
         return `${apiHost}/api`;
     },
     

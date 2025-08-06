@@ -2,15 +2,28 @@
 const sqlite3 = require('sqlite3').verbose();
 const path = require('path');
 
-// 数据库文件路径
-const dbPath = path.join(__dirname, '../data/wenting.db');
+// 数据库文件路径 - 使用绝对路径确保无论工作目录如何都能找到
+const dbPath = path.resolve(__dirname, '../data/wenting.db');
+
+// 确保数据库目录存在
+const fs = require('fs');
+const dataDir = path.dirname(dbPath);
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir, { recursive: true });
+    console.log(`✅ 创建数据库目录: ${dataDir}`);
+}
 
 // 创建数据库连接
+console.log(`📁 数据库路径: ${dbPath}`);
+console.log(`📁 数据库文件存在: ${fs.existsSync(dbPath) ? '是' : '否'}`);
+
 const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
         console.error('❌ SQLite连接失败:', err.message);
+        console.error('❌ 数据库路径:', dbPath);
     } else {
         console.log('✅ SQLite数据库连接成功');
+        console.log(`✅ 数据库文件路径: ${dbPath}`);
     }
 });
 

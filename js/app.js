@@ -35,6 +35,12 @@ const App = {
             DeviceManager.init();
         }
         
+        // 确保 ApiClient 已加载
+        if (typeof window.ApiClient === 'undefined') {
+            console.error('❌ ApiClient 未加载，请检查脚本加载顺序');
+            return;
+        }
+        
         // 初始化全局用户状态管理器
         if (window.GlobalUserState) {
             GlobalUserState.init();
