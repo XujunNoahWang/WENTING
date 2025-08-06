@@ -2,10 +2,19 @@ const express = require('express');
 const router = express.Router();
 const User = require('../models/User');
 
-// 获取所有用户
+// 获取所有用户（按设备ID过滤）
 router.get('/', async (req, res) => {
     try {
-        const users = await User.findAll();
+        const { device_id } = req.query;
+        
+        if (!device_id) {
+            return res.status(400).json({
+                success: false,
+                message: '设备ID不能为空'
+            });
+        }
+
+        const users = await User.findAllByDevice(device_id);
         res.json({
             success: true,
             data: users,

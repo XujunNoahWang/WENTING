@@ -36,17 +36,19 @@ async function initTodoDatabase() {
         await query(`
             CREATE TABLE users (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
-                username TEXT NOT NULL UNIQUE,
+                username TEXT NOT NULL,
                 display_name TEXT NOT NULL,
-                email TEXT UNIQUE,
+                email TEXT,
                 phone TEXT,
                 gender TEXT CHECK(gender IN ('male', 'female', 'other')),
                 birthday DATE,
                 avatar_color TEXT DEFAULT '#1d9bf0',
                 timezone TEXT DEFAULT 'Asia/Shanghai',
+                device_id TEXT NOT NULL,
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-                is_active BOOLEAN DEFAULT 1
+                is_active BOOLEAN DEFAULT 1,
+                UNIQUE(username, device_id)
             )
         `);
         

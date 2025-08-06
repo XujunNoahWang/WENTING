@@ -19,11 +19,12 @@ async function clearDatabase() {
         await query('DELETE FROM todo_completions');
         await query('DELETE FROM todo_deletions');
         await query('DELETE FROM todos');
+        await query('DELETE FROM notes');
         await query('DELETE FROM user_settings');
         await query('DELETE FROM users');
         
         // 重置自增ID
-        await query('DELETE FROM sqlite_sequence WHERE name IN ("users", "todos", "todo_completions", "todo_deletions", "user_settings")');
+        await query('DELETE FROM sqlite_sequence WHERE name IN ("users", "todos", "notes", "todo_completions", "todo_deletions", "user_settings")');
         
         console.log('✅ 数据库清理完成！');
         console.log('📊 当前数据统计:');
@@ -31,11 +32,13 @@ async function clearDatabase() {
         // 验证清理结果
         const users = await query('SELECT COUNT(*) as count FROM users');
         const todos = await query('SELECT COUNT(*) as count FROM todos');
+        const notes = await query('SELECT COUNT(*) as count FROM notes');
         const completions = await query('SELECT COUNT(*) as count FROM todo_completions');
         const deletions = await query('SELECT COUNT(*) as count FROM todo_deletions');
         
         console.log(`  - 用户: ${users[0].count} 条`);
         console.log(`  - TODO: ${todos[0].count} 条`);
+        console.log(`  - Notes: ${notes[0].count} 条`);
         console.log(`  - 完成记录: ${completions[0].count} 条`);
         console.log(`  - 删除记录: ${deletions[0].count} 条`);
         

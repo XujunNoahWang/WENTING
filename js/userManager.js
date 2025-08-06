@@ -23,11 +23,58 @@ const UserManager = {
             const response = await ApiClient.users.getAll();
             if (response.success) {
                 this.users = response.data;
-                console.log('✅ 从服务器加载用户数据成功');
+                console.log('✅ 从服务器加载用户数据成功，用户数量:', this.users.length);
+                
+                // 数据库为空，等待用户手动添加用户
+                if (this.users.length === 0) {
+                    console.log('📝 数据库中没有用户，等待用户手动添加');
+                }
             }
         } catch (error) {
             console.error('从服务器加载用户数据失败:', error);
             throw error; // 不降级到本地数据，直接抛出错误
+        }
+    },
+
+    // 创建默认用户
+    async createDefaultUsers() {
+        try {
+            const defaultUsers = [
+                {
+                    username: 'Dad',
+                    display_name: 'Dad',
+                    avatar_color: '#1d9bf0'
+                },
+                {
+                    username: 'Mom',
+                    display_name: 'Mom',
+                    avatar_color: '#e91e63'
+                },
+                {
+                    username: 'Kid',
+                    display_name: 'Kid',
+                    avatar_color: '#ff9800'
+                }
+            ];
+
+            console.log('🔄 开始创建默认用户...');
+            
+            for (const userData of defaultUsers) {
+                try {
+                    const response = await ApiClient.users.create(userData);
+                    if (response.success) {
+                        this.users.push(response.data);
+                        console.log(`✅ 创建用户成功: ${userData.username}`);
+                    }
+                } catch (error) {
+                    console.error(`❌ 创建用户失败: ${userData.username}`, error);
+                }
+            }
+            
+            console.log('✅ 默认用户创建完成，总用户数:', this.users.length);
+        } catch (error) {
+            console.error('❌ 创建默认用户失败:', error);
+            throw error;
         }
     },
 

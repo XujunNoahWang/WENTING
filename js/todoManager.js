@@ -99,6 +99,12 @@ const TodoManager = {
                     UserManager.renderUserTabs();
                 }
             }, 100);
+        } else {
+            console.log('📝 没有用户，等待用户添加');
+            this.currentUser = null;
+            
+            // 显示空状态
+            this.showEmptyUserState();
         }
     },
 
@@ -132,6 +138,21 @@ const TodoManager = {
                     <p>此应用需要连接到服务器才能正常使用。</p>
                     <p>请检查您的网络连接和服务器状态。</p>
                     <button onclick="location.reload()" class="retry-btn">重试</button>
+                </div>
+            `;
+        }
+    },
+
+    // 显示空用户状态
+    showEmptyUserState() {
+        const contentArea = document.getElementById('contentArea');
+        if (contentArea) {
+            contentArea.innerHTML = `
+                <div class="empty-user-state">
+                    <div class="empty-icon">👥</div>
+                    <h2>欢迎使用雯婷</h2>
+                    <p>还没有用户，请先添加一个用户开始使用。</p>
+                    <button onclick="UserManager.addUser()" class="add-first-user-btn">添加第一个用户</button>
                 </div>
             `;
         }

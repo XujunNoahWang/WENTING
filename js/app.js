@@ -30,6 +30,11 @@ const App = {
 
     // 初始化模块
     async initializeModules() {
+        // 首先初始化设备管理器
+        if (window.DeviceManager) {
+            DeviceManager.init();
+        }
+        
         // 初始化全局用户状态管理器
         if (window.GlobalUserState) {
             GlobalUserState.init();

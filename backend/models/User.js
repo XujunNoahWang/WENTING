@@ -12,6 +12,7 @@ class User {
         this.birthday = data.birthday;
         this.avatar_color = data.avatar_color;
         this.timezone = data.timezone;
+        this.device_id = data.device_id;
         this.created_at = data.created_at;
         this.updated_at = data.updated_at;
         this.is_active = data.is_active;
@@ -28,30 +29,35 @@ class User {
                 gender,
                 birthday,
                 avatar_color = '#1d9bf0',
-                timezone = 'Asia/Shanghai'
+                timezone = 'Asia/Shanghai',
+                device_id
             } = userData;
 
-            // 检查用户名是否已存在
-            const existingUser = await User.findByUsername(username);
-            if (existingUser) {
-                throw new Error('用户名已存在');
+            if (!device_id) {
+                throw new Error('设备ID不能为空');
             }
 
-            // 检查邮箱是否已存在
+            // 检查同一设备上用户名是否已存在
+            const existingUser = await User.findByUsernameAndDevice(username, device_id);
+            if (existingUser) {
+                throw new Error('该设备上用户名已存在');
+            }
+
+            // 检查邮箱是否已存在（如果提供了邮箱）
             if (email) {
-                const existingEmail = await User.findByEmail(email);
+                const existingEmail = await User.findByEmailAndDevice(email, device_id);
                 if (existingEmail) {
-                    throw new Error('邮箱已被使用');
+                    throw new Error('该设备上邮箱已被使用');
                 }
             }
 
             const sql = `
-                INSERT INTO users (username, display_name, email, phone, gender, birthday, avatar_color, timezone)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             const result = await query(sql, [
-                username, display_name, email, phone, gender, birthday, avatar_color, timezone
+                username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id
             ]);
 
             // 获取新创建的用户
@@ -74,24 +80,45 @@ class User {
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 根据用户名查找用户
+    // 根据用户名查找用户（已废弃，使用findByUsernameAndDevice）
     static async findByUsername(username) {
         const sql = 'SELECT * FROM users WHERE username = ? AND is_active = TRUE';
         const users = await query(sql, [username]);
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 根据邮箱查找用户
+    // 根据用户名和设备ID查找用户
+    static async findByUsernameAndDevice(username, deviceId) {
+        const sql = 'SELECT * FROM users WHERE username = ? AND device_id = ? AND is_active = TRUE';
+        const users = await query(sql, [username, deviceId]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 根据邮箱查找用户（已废弃，使用findByEmailAndDevice）
     static async findByEmail(email) {
         const sql = 'SELECT * FROM users WHERE email = ? AND is_active = TRUE';
         const users = await query(sql, [email]);
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 获取所有活跃用户
+    // 根据邮箱和设备ID查找用户
+    static async findByEmailAndDevice(email, deviceId) {
+        const sql = 'SELECT * FROM users WHERE email = ? AND device_id = ? AND is_active = TRUE';
+        const users = await query(sql, [email, deviceId]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 获取所有活跃用户（已废弃，使用findAllByDevice）
     static async findAll() {
         const sql = 'SELECT * FROM users WHERE is_active = TRUE ORDER BY created_at DESC';
         const users = await query(sql);
+        return users.map(user => new User(user));
+    }
+
+    // 根据设备ID获取所有活跃用户
+    static async findAllByDevice(deviceId) {
+        const sql = 'SELECT * FROM users WHERE device_id = ? AND is_active = TRUE ORDER BY created_at DESC';
+        const users = await query(sql, [deviceId]);
         return users.map(user => new User(user));
     }
 

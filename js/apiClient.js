@@ -21,9 +21,14 @@ const ApiClient = {
     // 通用请求方法
     async request(endpoint, options = {}) {
         const url = `${this.baseURL}${endpoint}`;
+        
+        // 添加设备ID到请求头
+        const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
+        
         const config = {
             headers: {
                 'Content-Type': 'application/json',
+                'X-Device-ID': deviceId,
                 ...options.headers
             },
             ...options
@@ -101,9 +106,13 @@ const ApiClient = {
 
     // 用户相关API
     users: {
-        // 获取所有用户
+        // 获取所有用户（按设备过滤）
         async getAll() {
-            return ApiClient.get('/users');
+            const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
+            if (!deviceId) {
+                throw new Error('设备ID未初始化');
+            }
+            return ApiClient.get(`/users?device_id=${encodeURIComponent(deviceId)}`);
         },
 
         // 根据ID获取用户
@@ -113,7 +122,18 @@ const ApiClient = {
 
         // 创建用户
         async create(userData) {
-            return ApiClient.post('/users', userData);
+            const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
+            if (!deviceId) {
+                throw new Error('设备ID未初始化');
+            }
+            
+            // 添加设备ID到用户数据
+            const userDataWithDevice = {
+                ...userData,
+                device_id: deviceId
+            };
+            
+            return ApiClient.post('/users', userDataWithDevice);
         },
 
         // 更新用户
