@@ -559,11 +559,11 @@
     font-weight: 500;
 }
 
-/* 添加新todo按钮 - 悬浮实体按钮样式 */
+/* 添加新todo按钮 - 悬浮固定按钮样式 */
 .new-todo-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
+    position: fixed;
+    bottom: 100px; /* 距离底部导航栏 100px (80px导航栏 + 20px间距) */
+    right: 20px;
     background: #1d9bf0;
     color: white;
     border: none;
@@ -575,6 +575,7 @@
     transition: all 0.2s ease;
     box-shadow: 0 2px 8px rgba(29, 155, 240, 0.3);
     text-decoration: none;
+    z-index: 999; /* 确保按钮在内容之上，但低于导航栏 */
 }
 
 .new-todo-btn:hover {
@@ -924,18 +925,25 @@
 }
 
 /* Notes页面样式 */
-.notes-panel {
-    height: 100%;
-    position: relative;
-    padding: 16px 20px 66px 20px;
-    background: #f7f9fa;
-}
+/* Notes页面现在使用 content-panel，不需要单独的 notes-panel 样式 */
 
 .notes-container {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 16px;
-    padding-bottom: 20px;
+    /* 移除padding-bottom，使用外层容器的底部留白 */
+}
+
+/* 移动端优化 - Notes卡片布局 */
+@media screen and (max-width: 430px) {
+    .notes-container {
+        grid-template-columns: 1fr; /* 小屏幕上单列布局 */
+        gap: 12px;
+    }
+    
+    .note-card {
+        padding: 12px;
+    }
 }
 
 .note-card {
@@ -1074,11 +1082,11 @@
     margin: 0;
 }
 
-/* 添加新笔记按钮 */
+/* 添加新笔记按钮 - 悬浮固定按钮样式 */
 .new-note-btn {
-    position: absolute;
-    bottom: 10px;
-    right: 10px;
+    position: fixed;
+    bottom: 100px; /* 距离底部导航栏 100px (80px导航栏 + 20px间距) */
+    right: 20px;
     background: #1d9bf0;
     color: white;
     border: none;
@@ -1090,6 +1098,7 @@
     transition: all 0.2s ease;
     box-shadow: 0 2px 8px rgba(29, 155, 240, 0.3);
     text-decoration: none;
+    z-index: 999; /* 确保按钮在内容之上，但低于导航栏 */
 }
 
 .new-note-btn:hover {

@@ -3,7 +3,10 @@
 
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <meta name="mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
     <title>WENTING</title>
     <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/mobile.css">
@@ -11,103 +14,89 @@
 </head>
 
 <body>
-    <div class="iphone-container">
-        <div class="screen">
-            <!-- 状态栏 -->
-            <div class="status-bar">
-                <div class="status-left">
-                    <span>9:41</span>
+    <div class="app-container">
+        <!-- 天气栏 -->
+        <div class="weather-bar">
+            <div class="weather-date-section">
+                <div class="weather-date-day" id="currentDate">加载中...</div>
+                <div class="weather-date-weekday">...</div>
+            </div>
+            <div class="weather-location-section">
+                <div class="weather-location" id="currentLocation">定位中...</div>
+            </div>
+            <div class="weather-condition-section">
+                <div class="weather-icon">🌤️</div>
+                <div class="weather-condition">获取天气中...</div>
+            </div>
+            <div class="weather-temp">--°C</div>
+            <div class="weather-wind">
+                <div class="weather-wind-value">--</div>
+                <div class="weather-wind-label">风力</div>
+            </div>
+            <div class="weather-humidity">
+                <div class="weather-humidity-value">--%</div>
+                <div class="weather-humidity-label">湿度</div>
+            </div>
+        </div>
+
+        <!-- 主内容区 -->
+        <div class="main-content">
+            <!-- 左侧边栏 -->
+            <div class="left-sidebar">
+                <div class="sidebar-tab active" data-tab="dad">
+                    Dad
                 </div>
-                <div class="status-right">
-                    <span>📶</span>
-                    <span>📶</span>
-                    <span>🔋</span>
+                <div class="sidebar-tab" data-tab="mom">
+                    Mom
+                </div>
+                <div class="sidebar-tab" data-tab="kid">
+                    Kid
+                </div>
+                <div class="add-user-btn" onclick="UserManager.addUser()" title="添加新用户">
+                    +
                 </div>
             </div>
 
-            <!-- 天气栏 -->
-            <div class="weather-bar">
-                <div class="weather-date-section">
-                    <div class="weather-date-day" id="currentDate">加载中...</div>
-                    <div class="weather-date-weekday">...</div>
-                </div>
-                <div class="weather-location-section">
-                    <div class="weather-location" id="currentLocation">定位中...</div>
-                </div>
-                <div class="weather-condition-section">
-                    <div class="weather-icon">🌤️</div>
-                    <div class="weather-condition">获取天气中...</div>
-                </div>
-                <div class="weather-temp">--°C</div>
-                <div class="weather-wind">
-                    <div class="weather-wind-value">--</div>
-                    <div class="weather-wind-label">风力</div>
-                </div>
-                <div class="weather-humidity">
-                    <div class="weather-humidity-value">--%</div>
-                    <div class="weather-humidity-label">湿度</div>
-                </div>
+            <!-- 右侧内容区 -->
+            <div class="content-area" id="contentArea">
+                <!-- 动态加载的TODO面板 -->
             </div>
+        </div>
 
-            <!-- 主内容区 -->
-            <div class="main-content">
-                <!-- 左侧边栏 -->
-                <div class="left-sidebar">
-                    <div class="sidebar-tab active" data-tab="dad">
-                        Dad
-                    </div>
-                    <div class="sidebar-tab" data-tab="mom">
-                        Mom
-                    </div>
-                    <div class="sidebar-tab" data-tab="kid">
-                        Kid
-                    </div>
-                    <div class="add-user-btn" onclick="UserManager.addUser()" title="添加新用户">
-                        +
-                    </div>
+        <!-- 底部导航栏 -->
+        <div class="bottom-nav">
+            <div class="nav-item">
+                <div class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
+                    </svg>
                 </div>
-
-                <!-- 右侧内容区 -->
-                <div class="content-area" id="contentArea">
-                    <!-- 动态加载的TODO面板 -->
-                </div>
+                <div class="nav-label">Todo</div>
             </div>
-
-            <!-- 底部导航栏 -->
-            <div class="bottom-nav">
-                <div class="nav-item">
-                    <div class="nav-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M9 16.17L4.83 12l-1.42 1.41L9 19 21 7l-1.41-1.41z" />
-                        </svg>
-                    </div>
-                    <div class="nav-label">Todo</div>
+            <div class="nav-item">
+                <div class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
+                    </svg>
                 </div>
-                <div class="nav-item">
-                    <div class="nav-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M3 18h18v-2H3v2zm0-5h18v-2H3v2zm0-7v2h18V6H3z"/>
-                        </svg>
-                    </div>
-                    <div class="nav-label">Notes</div>
+                <div class="nav-label">Notes</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
+                    </svg>
                 </div>
-                <div class="nav-item">
-                    <div class="nav-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path d="M19 13h-6v6h-2v-6H5v-2h6V5h2v6h6v2z" />
-                        </svg>
-                    </div>
-                    <div class="nav-label">New</div>
+                <div class="nav-label">New</div>
+            </div>
+            <div class="nav-item">
+                <div class="nav-icon">
+                    <svg viewBox="0 0 24 24">
+                        <path
+                            d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
+                    </svg>
                 </div>
-                <div class="nav-item">
-                    <div class="nav-icon">
-                        <svg viewBox="0 0 24 24">
-                            <path
-                                d="M12 12c2.21 0 4-1.79 4-4s-1.79-4-4-4-4 1.79-4 4 1.79 4 4 4zm0 2c-2.67 0-8 1.34-8 4v2h16v-2c0-2.66-5.33-4-8-4z" />
-                        </svg>
-                    </div>
-                    <div class="nav-label">Profile</div>
-                </div>
+                <div class="nav-label">Profile</div>
             </div>
         </div>
     </div>

@@ -128,12 +128,14 @@ const NotesManager = {
         console.log(`🎨 渲染用户 ${userId} 的Notes面板，共 ${userNotes.length} 条笔记`);
 
         const panelHtml = `
-            <div class="notes-panel" id="${userId}-notes-panel">
-                <div class="notes-container">
-                    ${userNotes.length > 0 
-                        ? userNotes.map(note => this.renderNoteCard(note, userId)).join('')
-                        : this.renderEmptyState()
-                    }
+            <div class="content-panel" id="${userId}-notes-panel">
+                <div class="notes-content">
+                    <div class="notes-container">
+                        ${userNotes.length > 0 
+                            ? userNotes.map(note => this.renderNoteCard(note, userId)).join('')
+                            : this.renderEmptyState()
+                        }
+                    </div>
                 </div>
                 <button class="new-note-btn" onclick="NotesManager.showAddNoteForm(${userId})">+ 添加新笔记</button>
             </div>
