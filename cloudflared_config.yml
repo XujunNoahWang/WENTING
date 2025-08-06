@@ -1,0 +1,4 @@
+ingress:
+- path: /api/*
+  service: http://localhost:3001
+- service: http://localhost:3000

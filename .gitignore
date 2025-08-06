@@ -50,3 +50,12 @@ Thumbs.db
 # 测试覆盖率
 coverage/
 .nyc_output/
+
+# Cloudflare tunnel 二进制文件
+cloudflared.exe
+
+# 临时文件和调试文件
+nul
+
+# Claude 本地设置
+.claude/settings.local.json
