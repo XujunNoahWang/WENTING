@@ -823,7 +823,7 @@ const NotesManager = {
             <div style="padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
                 <div style="background: white; border-radius: 16px; padding: 32px; color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
                     <div style="text-align: center; margin-bottom: 32px;">
-                        <h1 style="font-size: 24px; font-weight: 700; color: #1d9bf0; margin: 0 0 8px 0;">雯婷1.0 健康档案</h1>
+                        <h1 style="font-size: 24px; font-weight: 700; color: #1d9bf0; margin: 0 0 8px 0;">雯婷健康档案</h1>
                         <p style="color: #657786; margin: 0; font-size: 14px;">生成日期: ${currentDate}</p>
                     </div>
                     
@@ -859,7 +859,7 @@ const NotesManager = {
                     ` : ''}
                     
                     <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e1e8ed;">
-                        <p style="margin: 0; font-size: 12px; color: #657786;">此健康档案由雯婷1.0应用生成 | 仅供参考，如有疑问请咨询专业医师</p>
+                        <p style="margin: 0; font-size: 12px; color: #657786;">此健康档案由雯婷应用生成 | 仅供参考，如有疑问请咨询专业医师</p>
                     </div>
                 </div>
             </div>

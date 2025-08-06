@@ -110,7 +110,7 @@ app.use('/api/notes', notesRouter);
 app.get('/', (req, res) => {
     res.json({
         success: true,
-        message: '雯婷1.0 API服务',
+        message: '雯婷 API服务',
         version: '1.0.0',
         endpoints: {
             users: '/api/users',
@@ -179,7 +179,7 @@ async function startServer() {
         
         // 启动HTTP服务器，监听所有网络接口
         const server = app.listen(PORT, '0.0.0.0', () => {
-            console.log('🚀 雯婷1.0 API服务器启动成功');
+            console.log('🚀 雯婷 API服务器启动成功');
             console.log(`📡 服务地址: http://localhost:${PORT}`);
             console.log(`📱 局域网地址: http://192.168.3.5:${PORT}`);
             console.log(`🌍 环境: ${process.env.NODE_ENV || 'development'}`);
