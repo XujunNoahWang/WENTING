@@ -132,8 +132,8 @@ const App = {
                 // 显示Notes页面
                 this.showNotesPage();
                 break;
-            case 'New':
-                alert('快速添加功能开发中');
+            case 'Link':
+                alert('链接功能开发中');
                 break;
             case 'Profile':
                 alert('个人设置功能开发中');
