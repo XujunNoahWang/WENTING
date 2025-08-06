@@ -98,20 +98,7 @@
 }
 
 .weather-location:hover {
-    border-color: #1d9bf0;
-    background-color: #f0f8ff;
-    color: #1d9bf0;
-}
-
-.weather-location-section {
-    cursor: pointer;
-    transition: all 0.15s ease;
-    border-radius: 4px;
-    padding: 2px;
-}
-
-.weather-location-section:hover {
-    background-color: rgba(29, 155, 240, 0.1);
+    border-color: #999999;
 }
 
 .weather-location.error {

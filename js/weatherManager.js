@@ -61,26 +61,17 @@ const WeatherManager = {
     // 获取用户地理位置
     async getCurrentLocation() {
         try {
-            // 先检查本地存储是否有用户选择的位置
-            const savedLocation = localStorage.getItem('wenting_user_location');
-            if (savedLocation) {
-                this.userLocation = JSON.parse(savedLocation);
-                this.locationReady = true;
-                console.log('使用用户设定的位置:', this.userLocation);
-                return;
-            }
-
             if (!navigator.geolocation) {
-                console.log('❌ 浏览器不支持地理位置，使用默认位置');
-                this.useDefaultLocation();
+                console.log('❌ 浏览器不支持地理位置，天气功能不可用');
+                this.locationReady = false;
                 return;
             }
 
             // 检查是否为HTTPS或localhost
             const isSecureContext = window.isSecureContext || location.protocol === 'https:' || location.hostname === 'localhost';
             if (!isSecureContext) {
-                console.log('⚠️ 非安全上下文，地理位置API可能不可用，使用默认位置');
-                this.useDefaultLocation();
+                console.log('⚠️ 非安全上下文，地理位置API不可用');
+                this.locationReady = false;
                 return;
             }
 
@@ -101,17 +92,15 @@ const WeatherManager = {
                         this.hideLocationPermissionPrompt();
                         
                         if (error.code === error.PERMISSION_DENIED) {
-                            console.log('用户拒绝了地理位置权限，使用默认位置');
-                            this.showLocationDeniedMessage();
+                            console.log('用户拒绝了地理位置权限');
                         } else if (error.code === error.POSITION_UNAVAILABLE) {
-                            console.log('位置信息不可用，使用默认位置');
+                            console.log('位置信息不可用');
                         } else if (error.code === error.TIMEOUT) {
-                            console.log('获取位置超时，使用默认位置');
+                            console.log('获取位置超时');
                         }
                         
-                        // 使用默认位置而不是完全失败
-                        this.useDefaultLocation();
-                        resolve(null); // 不reject，而是resolve null
+                        // 不使用默认位置，直接失败
+                        reject(error);
                     },
                     {
                         enableHighAccuracy: false, // 降低精度要求，提高成功率
@@ -120,11 +109,6 @@ const WeatherManager = {
                     }
                 );
             });
-
-            if (!position) {
-                // 已经使用默认位置，直接返回
-                return;
-            }
 
             // 使用用户的实际位置，不做任何地区限制
             const lat = position.coords.latitude;
@@ -257,19 +241,7 @@ const WeatherManager = {
         return '12级';
     },
 
-    // 使用默认位置（深圳）
-    useDefaultLocation() {
-        console.log('🏙️ 使用默认位置：深圳');
-        this.userLocation = {
-            latitude: 22.5431,
-            longitude: 114.0579,
-            city: '深圳'
-        };
-        this.locationReady = true;
-        
-        // 获取默认位置的天气
-        this.fetchRealWeatherData();
-    },
+
 
     // 显示位置权限请求提示
     showLocationPermissionPrompt() {
@@ -289,7 +261,7 @@ const WeatherManager = {
     // 显示位置权限被拒绝的消息
     showLocationDeniedMessage() {
         // 显示一个临时提示消息
-        this.showTemporaryMessage('位置权限被拒绝，将使用默认位置（深圳）获取天气信息', 'warning');
+        this.showTemporaryMessage('位置权限被拒绝，天气功能不可用', 'warning');
     },
 
     // 显示临时消息
@@ -361,7 +333,7 @@ const WeatherManager = {
         if (locationElement) {
             locationElement.textContent = '位置未授权';
             locationElement.className = 'weather-location error';
-            locationElement.title = '请允许浏览器访问您的位置信息';
+            locationElement.title = '天气功能需要地理位置权限';
         }
     },
 
@@ -567,95 +539,7 @@ const WeatherManager = {
         return iconMap[condition] || '☀️';
     },
 
-    // 显示位置设置对话框
-    showLocationSettings() {
-        const modalHtml = `
-            <div class="modal-overlay" id="locationSettingsModal">
-                <div class="modal-content">
-                    <div class="modal-header">
-                        <h3>位置设置</h3>
-                        <button class="modal-close" onclick="WeatherManager.closeLocationSettings()">×</button>
-                    </div>
-                    <div class="location-settings">
-                        <div class="current-location">
-                            <h4>当前位置</h4>
-                            <p>${this.userLocation ? this.userLocation.city : '未设置'}</p>
-                            ${this.userLocation ? `<small>纬度: ${this.userLocation.latitude.toFixed(4)}°, 经度: ${this.userLocation.longitude.toFixed(4)}°</small>` : ''}
-                        </div>
-                        
-                        <div class="location-options">
-                            <button class="location-btn" onclick="WeatherManager.requestLocationPermission()">
-                                📍 获取当前位置
-                            </button>
-                            <p class="location-note">需要浏览器位置权限</p>
-                            
-                            <div class="manual-location">
-                                <h4>手动设置位置</h4>
-                                <div class="city-presets">
-                                    <button class="city-btn" onclick="WeatherManager.setManualLocation(22.5431, 114.0579, '深圳')">深圳</button>
-                                    <button class="city-btn" onclick="WeatherManager.setManualLocation(39.9042, 116.4074, '北京')">北京</button>
-                                    <button class="city-btn" onclick="WeatherManager.setManualLocation(31.2304, 121.4737, '上海')">上海</button>
-                                    <button class="city-btn" onclick="WeatherManager.setManualLocation(23.1291, 113.2644, '广州')">广州</button>
-                                </div>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="modal-actions">
-                        <button onclick="WeatherManager.closeLocationSettings()">关闭</button>
-                    </div>
-                </div>
-            </div>
-        `;
-        
-        document.body.insertAdjacentHTML('beforeend', modalHtml);
-    },
 
-    // 关闭位置设置对话框
-    closeLocationSettings() {
-        const modal = document.getElementById('locationSettingsModal');
-        if (modal) {
-            modal.remove();
-        }
-    },
-
-    // 请求位置权限
-    async requestLocationPermission() {
-        this.closeLocationSettings();
-        
-        // 清除之前的位置缓存，强制重新获取
-        localStorage.removeItem('wenting_user_location');
-        this.userLocation = null;
-        this.locationReady = false;
-        
-        // 重新获取位置
-        await this.getCurrentLocation();
-        this.updateWeatherDisplay();
-    },
-
-    // 设置手动位置
-    setManualLocation(lat, lon, city) {
-        console.log(`🏙️ 手动设置位置: ${city} (${lat}, ${lon})`);
-        
-        this.userLocation = {
-            latitude: lat,
-            longitude: lon,
-            city: city
-        };
-        this.locationReady = true;
-        
-        // 保存到本地存储
-        localStorage.setItem('wenting_user_location', JSON.stringify(this.userLocation));
-        
-        // 关闭对话框
-        this.closeLocationSettings();
-        
-        // 获取新位置的天气
-        this.fetchRealWeatherData();
-        this.updateWeatherDisplay();
-        
-        // 显示成功消息
-        this.showTemporaryMessage(`位置已设置为 ${city}`, 'success');
-    }
 };
 
 // 暴露WeatherManager到全局作用域，供其他模块使用

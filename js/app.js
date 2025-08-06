@@ -88,19 +88,13 @@ const App = {
                     return;
                 }
                 
-                // 如果点击的是位置区域，显示位置设置
-                if (e.target.closest('.weather-location-section')) {
-                    console.log('用户点击位置区域，显示位置设置');
-                    WeatherManager.showLocationSettings();
-                } else {
-                    console.log('用户点击天气栏，刷新天气数据');
-                    WeatherManager.refreshWeather();
-                }
+                console.log('用户点击天气栏，刷新天气数据');
+                WeatherManager.refreshWeather();
             });
             
             // 添加悬停提示
             weatherBar.style.cursor = 'pointer';
-            weatherBar.title = '点击刷新天气数据，点击位置可设置位置';
+            weatherBar.title = '点击刷新天气数据';
         }
 
         // 全局错误处理
