@@ -1583,3 +1583,125 @@ label[for="edit_todo_start_date"] {
     from { opacity: 0; }
     to { opacity: 1; }
 }
+/* 位置设
+置对话框样式 */
+.location-settings {
+    padding: 20px 0;
+}
+
+.current-location {
+    margin-bottom: 24px;
+    padding: 16px;
+    background: #f8f9fa;
+    border-radius: 8px;
+}
+
+.current-location h4 {
+    margin: 0 0 8px 0;
+    color: #14171a;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.current-location p {
+    margin: 0 0 4px 0;
+    color: #14171a;
+    font-size: 16px;
+    font-weight: 500;
+}
+
+.current-location small {
+    color: #657786;
+    font-size: 12px;
+}
+
+.location-options {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+}
+
+.location-btn {
+    background: #1d9bf0;
+    color: white;
+    border: none;
+    padding: 12px 20px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+}
+
+.location-btn:hover {
+    background: #1a8cd8;
+    transform: translateY(-1px);
+}
+
+.location-note {
+    margin: -12px 0 0 0;
+    color: #657786;
+    font-size: 12px;
+    text-align: center;
+}
+
+.manual-location h4 {
+    margin: 0 0 12px 0;
+    color: #14171a;
+    font-size: 14px;
+    font-weight: 600;
+}
+
+.city-presets {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 8px;
+}
+
+.city-btn {
+    background: #f7f9fa;
+    color: #14171a;
+    border: 1px solid #e1e8ed;
+    padding: 10px 16px;
+    border-radius: 6px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.city-btn:hover {
+    background: #e7f3ff;
+    border-color: #1d9bf0;
+    color: #1d9bf0;
+}
+
+/* 移动端优化 */
+@media screen and (max-width: 430px) {
+    .city-presets {
+        grid-template-columns: 1fr;
+    }
+    
+    .location-settings {
+        padding: 16px 0;
+    }
+}
+
+/* 天气消息样式 */
+.weather-message {
+    animation: slideInFromTop 0.3s ease;
+}
+
+@keyframes slideInFromTop {
+    from {
+        transform: translateX(-50%) translateY(-20px);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(-50%) translateY(0);
+        opacity: 1;
+    }
+}

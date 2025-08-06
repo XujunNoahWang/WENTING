@@ -93,11 +93,25 @@
     overflow: hidden;
     text-overflow: ellipsis;
     max-width: 70px;
-    transition: border-color 0.15s ease;
+    transition: all 0.15s ease;
+    cursor: pointer;
 }
 
 .weather-location:hover {
-    border-color: #999999;
+    border-color: #1d9bf0;
+    background-color: #f0f8ff;
+    color: #1d9bf0;
+}
+
+.weather-location-section {
+    cursor: pointer;
+    transition: all 0.15s ease;
+    border-radius: 4px;
+    padding: 2px;
+}
+
+.weather-location-section:hover {
+    background-color: rgba(29, 155, 240, 0.1);
 }
 
 .weather-location.error {
