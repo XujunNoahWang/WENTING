@@ -12,6 +12,9 @@ const usersRouter = require('./routes/users');
 const todosRouter = require('./routes/todos');
 const notesRouter = require('./routes/notes');
 
+// 导入WebSocket服务
+const websocketService = require('./services/websocketService');
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -216,6 +219,12 @@ async function startServer() {
             console.log(`📚 API文档: http://localhost:${PORT}/api`);
             console.log('✅ 服务器准备就绪');
         });
+
+        // 初始化WebSocket服务
+        console.log('🔄 正在初始化WebSocket服务...');
+        websocketService.init(server);
+        console.log(`🔌 WebSocket地址: ws://localhost:${PORT}/ws`);
+        console.log(`📱 WebSocket局域网: ws://192.168.3.5:${PORT}/ws`);
         
         // 优雅关闭
         const gracefulShutdown = (signal) => {

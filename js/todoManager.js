@@ -59,13 +59,35 @@ const TodoManager = {
         try {
             console.log('📥 从服务器加载TODO数据...');
             
+            // 尝试使用WebSocket，失败则降级到HTTP
+            let useWebSocket = true;
+            try {
+                // 确保WebSocket已连接
+                if (!WebSocketClient.isConnected) {
+                    await WebSocketClient.init();
+                }
+            } catch (error) {
+                console.warn('⚠️ WebSocket连接失败，使用HTTP模式:', error.message);
+                useWebSocket = false;
+            }
+
             // 为每个用户加载TODO数据
             for (const user of UserManager.users) {
-                const response = await ApiClient.todos.getTodayTodos(user.id);
-                if (response.success) {
-                    this.todos[user.id] = response.data.map(todo => this.convertApiTodoToLocal(todo));
-                } else {
-                    console.warn(`加载用户${user.id}的TODO失败:`, response.message);
+                try {
+                    let response;
+                    if (useWebSocket) {
+                        response = await WebSocketClient.todos.getTodayTodos(user.id);
+                        this.todos[user.id] = response.data.todos.map(todo => this.convertApiTodoToLocal(todo));
+                    } else {
+                        response = await ApiClient.todos.getTodayTodos(user.id);
+                        if (response.success) {
+                            this.todos[user.id] = response.data.map(todo => this.convertApiTodoToLocal(todo));
+                        } else {
+                            throw new Error(response.message);
+                        }
+                    }
+                } catch (error) {
+                    console.warn(`加载用户${user.id}的TODO失败:`, error.message);
                     this.todos[user.id] = [];
                 }
             }
@@ -116,13 +138,9 @@ const TodoManager = {
             const newUserId = data.userId;
             if (this.currentUser !== newUserId) {
                 this.currentUser = newUserId;
-                // 只有当前模块是todo时才渲染
-                if (GlobalUserState.getCurrentModule() === 'todo') {
-                    console.log('✅ 当前是TODO模块，渲染TODO内容');
-                    this.renderTodoPanel(newUserId);
-                } else {
-                    console.log('⏸️ 当前不是TODO模块，跳过渲染');
-                }
+                console.log('✅ 用户已切换，加载对应用户的TODO数据，新用户ID:', newUserId);
+                // 用户切换时先加载该用户当前日期的TODO数据，然后渲染
+                this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
             }
         }
     },
@@ -355,11 +373,20 @@ const TodoManager = {
         const dateStr = currentDate.toISOString().split('T')[0];
         
         try {
-            // 同步到服务器
-            if (wasCompleted) {
-                await ApiClient.todos.uncomplete(todoId, dateStr);
+            // 同步到服务器 - 优先使用WebSocket
+            if (WebSocketClient.isConnected) {
+                if (wasCompleted) {
+                    await WebSocketClient.todos.uncomplete(todoId, dateStr);
+                } else {
+                    await WebSocketClient.todos.complete(todoId, userId, dateStr);
+                }
             } else {
-                await ApiClient.todos.complete(todoId, userId, dateStr);
+                // 降级到HTTP
+                if (wasCompleted) {
+                    await ApiClient.todos.uncomplete(todoId, dateStr);
+                } else {
+                    await ApiClient.todos.complete(todoId, userId, dateStr);
+                }
             }
 
             // 切换本地状态
@@ -539,23 +566,35 @@ const TodoManager = {
         console.log('📤 发送到服务器的TODO数据:', todoData);
 
         try {
-            // 在服务器创建TODO
-            const response = await ApiClient.todos.create(todoData);
-            if (response.success) {
-                const newTodo = this.convertApiTodoToLocal(response.data);
-                console.log('✅ 在服务器创建TODO成功');
-                
-                // 关闭表单
-                this.closeAddTodoForm();
-                
-                // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
-                await this.loadTodosForDate(DateManager.selectedDate || new Date());
-                
-                // 显示成功消息
-                this.showMessage('TODO添加成功！', 'success');
+            // 在服务器创建TODO - 优先使用WebSocket
+            let response;
+            if (WebSocketClient.isConnected) {
+                response = await WebSocketClient.todos.create(todoData);
+                // WebSocket返回格式调整
+                if (response.data && response.data.todo) {
+                    const newTodo = this.convertApiTodoToLocal(response.data.todo);
+                    console.log('✅ 通过WebSocket创建TODO成功');
+                } else {
+                    throw new Error('WebSocket响应格式错误');
+                }
             } else {
-                throw new Error(response.message || '创建TODO失败');
+                response = await ApiClient.todos.create(todoData);
+                if (response.success) {
+                    const newTodo = this.convertApiTodoToLocal(response.data);
+                    console.log('✅ 通过HTTP创建TODO成功');
+                } else {
+                    throw new Error(response.message || '创建TODO失败');
+                }
             }
+            
+            // 关闭表单
+            this.closeAddTodoForm();
+            
+            // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
+            await this.loadTodosForDate(DateManager.selectedDate || new Date());
+            
+            // 显示成功消息
+            this.showMessage('TODO添加成功！', 'success');
             
         } catch (error) {
             console.error('添加TODO失败:', error);
@@ -885,15 +924,29 @@ const TodoManager = {
     // 注意：日期导航现在由DateManager统一处理
 
     // 加载指定日期的TODO
-    async loadTodosForDate(date) {
+    async loadTodosForDate(date, userId = null) {
         try {
             const dateStr = date.toISOString().split('T')[0];
             
-            // 为每个用户加载指定日期的TODO
-            for (const user of UserManager.users) {
-                const response = await ApiClient.todos.getTodosForDate(user.id, dateStr);
-                if (response.success) {
-                    this.todos[user.id] = response.data.map(todo => this.convertApiTodoToLocal(todo));
+            // 如果指定了用户ID，只加载该用户的数据；否则加载所有用户的数据
+            const usersToLoad = userId ? [UserManager.getUser(userId)].filter(Boolean) : UserManager.users;
+            
+            for (const user of usersToLoad) {
+                try {
+                    let response;
+                    if (WebSocketClient.isConnected) {
+                        response = await WebSocketClient.todos.getTodosForDate(user.id, dateStr);
+                        this.todos[user.id] = response.data.todos.map(todo => this.convertApiTodoToLocal(todo));
+                    } else {
+                        response = await ApiClient.todos.getTodosForDate(user.id, dateStr);
+                        if (response.success) {
+                            this.todos[user.id] = response.data.map(todo => this.convertApiTodoToLocal(todo));
+                        }
+                    }
+                    console.log(`✅ 已加载用户${user.id}在${dateStr}的TODO数据，数量:`, this.todos[user.id].length);
+                } catch (error) {
+                    console.warn(`加载用户${user.id}在${dateStr}的TODO失败:`, error.message);
+                    this.todos[user.id] = [];
                 }
             }
             
@@ -960,6 +1013,38 @@ const TodoManager = {
                 }
             }, 300);
         }, 3000);
+    },
+
+    // 处理WebSocket广播消息（来自其他设备的操作）
+    handleWebSocketBroadcast(type, data) {
+        console.log('🔄 处理TODO广播消息:', type, data);
+        
+        switch (type) {
+            case 'TODO_CREATE_BROADCAST':
+            case 'TODO_UPDATE_BROADCAST':
+            case 'TODO_DELETE_BROADCAST':
+                // 重新加载当前日期的TODO数据
+                this.loadTodosForDate(DateManager.selectedDate || new Date());
+                break;
+                
+            case 'TODO_COMPLETE_BROADCAST':
+            case 'TODO_UNCOMPLETE_BROADCAST':
+                // 只更新当前日期的完成状态
+                if (data.todoId) {
+                    const todo = this.todos[this.currentUser]?.find(t => t.id === data.todoId);
+                    if (todo) {
+                        todo.completed = data.completed;
+                        this.renderTodoPanel(this.currentUser);
+                    }
+                }
+                break;
+        }
+    },
+
+    // 降级到HTTP模式
+    fallbackToHTTP() {
+        console.log('📡 TODO模块降级到HTTP模式');
+        // 目前的实现已经自动处理降级，无需额外操作
     },
 
     // 绑定事件

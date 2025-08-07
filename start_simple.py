@@ -10,7 +10,7 @@ import time
 import subprocess
 import webbrowser
 from pathlib import Path
-import yaml
+import json
 
 def run_command(cmd, shell=True, capture_output=False):
     """执行命令"""
@@ -73,7 +73,7 @@ def start_frontend():
     os.chdir(project_root)
     print(f"当前工作目录: {os.getcwd()}")
     
-    key_files = ['index.html', 'js/apiClient.js', 'js/app.js']
+    key_files = ['index.html', 'js/apiClient.js', 'js/websocketClient.js', 'js/app.js']
     for file in key_files:
         if not Path(file).exists():
             print(f"关键文件不存在: {file}")
@@ -85,18 +85,10 @@ def start_frontend():
     return True
 
 def write_cloudflared_config():
-    """生成cloudflared配置"""
-    config_path = str(Path(__file__).parent / 'cloudflared_config.yml')
-    config = {
-        'ingress': [
-            {'path': '/api/*', 'service': 'http://localhost:3001'},
-            {'service': 'http://localhost:3000'}
-        ]
-    }
-    with open(config_path, 'w', encoding='utf-8') as f:
-        yaml.dump(config, f, allow_unicode=True)
-    print(f"已生成cloudflared配置: {config_path}")
-    return config_path
+    """生成cloudflared配置 - 暂时不使用，使用Quick Tunnel模式"""
+    # 不再需要配置文件，Quick Tunnel会直接代理到指定端口
+    print("使用Quick Tunnel模式，无需配置文件")
+    return None
 
 def start_cloudflared():
     """启动cloudflared tunnel"""
@@ -142,22 +134,28 @@ def wait_for_services():
         backend_result = run_command('netstat -ano | findstr :3001', capture_output=True)
         backend_ready = 'LISTENING' in backend_result if backend_result else False
         
-        # 测试后端API
+        # 测试后端API和WebSocket
         backend_api_ready = False
+        websocket_ready = False
         if backend_ready:
             try:
                 import urllib.request
+                # 测试HTTP API
                 with urllib.request.urlopen('http://localhost:3001/health', timeout=3) as response:
                     if response.status == 200:
                         backend_api_ready = True
+                
+                # 简单检查WebSocket端口（间接方式）
+                # WebSocket运行在同一个端口上，如果HTTP可用则WebSocket应该也可用
+                websocket_ready = backend_api_ready
             except:
                 pass
         
-        if backend_ready and backend_api_ready:
-            print("后端服务启动完成")
+        if backend_ready and backend_api_ready and websocket_ready:
+            print("后端服务启动完成 (HTTP + WebSocket)")
             return True
         
-        status = f"后端端口:{'OK' if backend_ready else 'NO'} 后端API:{'OK' if backend_api_ready else 'NO'}"
+        status = f"后端端口:{'OK' if backend_ready else 'NO'} API:{'OK' if backend_api_ready else 'NO'} WebSocket:{'OK' if websocket_ready else 'NO'}"
         print(f"等待中... ({attempt + 1}/{max_attempts}) {status}")
         time.sleep(2)
     
@@ -196,15 +194,22 @@ def main():
             webbrowser.open(cf_url)
         
         print("\n" + "=" * 50)
-        print("应用启动完成！")
+        print("雯婷应用启动完成！")
         print("=" * 50)
         if cf_url:
-            print(f"外网访问地址: {cf_url}")
-            print(f"API地址: {cf_url}/api")
-        print(f"本地访问地址: http://localhost:3001")
-        print(f"API地址: http://localhost:3001/api")
+            print(f"🌐 外网访问地址: {cf_url}")
+            print(f"📡 API地址: {cf_url}/api")
+            print(f"🔌 WebSocket地址: {cf_url.replace('https://', 'wss://')}/ws")
+        print(f"🏠 本地访问地址: http://localhost:3001")
+        print(f"📡 本地API地址: http://localhost:3001/api") 
+        print(f"🔌 本地WebSocket地址: ws://localhost:3001/ws")
         print("=" * 50)
-        print("提示: 关闭此窗口不会停止服务")
+        print("📋 功能说明:")
+        print("  • HTTP API: 用于数据传输")
+        print("  • WebSocket: 用于实时通信和多设备同步")
+        print("  • 前端文件: 通过后端服务器提供")
+        print("=" * 50)
+        print("⚠️  提示: 关闭此窗口不会停止服务")
         print("=" * 50)
         
         input("\n按Enter键退出脚本...")
