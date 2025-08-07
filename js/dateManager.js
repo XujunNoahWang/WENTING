@@ -51,8 +51,21 @@ const DateManager = {
     // 根据日期过滤todo项目
     filterTodosByDate() {
         // 通知TodoManager重新渲染当前用户的TODO面板
-        if (typeof TodoManager !== 'undefined' && TodoManager.currentUser) {
+        // 但是要确保用户数据已经加载完成，避免过早渲染
+        if (typeof TodoManager !== 'undefined' && 
+            TodoManager.currentUser && 
+            typeof UserManager !== 'undefined' && 
+            UserManager.users && 
+            UserManager.users.length > 0) {
+            
+            console.log('📅 DateManager触发TODO面板重新渲染，用户:', TodoManager.currentUser);
             TodoManager.renderTodoPanel(TodoManager.currentUser);
+        } else {
+            console.log('📅 DateManager跳过TODO面板渲染，条件不满足:');
+            console.log('  - TodoManager存在:', typeof TodoManager !== 'undefined');
+            console.log('  - currentUser存在:', !!TodoManager?.currentUser);
+            console.log('  - UserManager存在:', typeof UserManager !== 'undefined');
+            console.log('  - 用户数据已加载:', UserManager?.users?.length > 0);
         }
     },
 

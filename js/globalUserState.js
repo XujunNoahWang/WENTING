@@ -59,6 +59,14 @@ const GlobalUserState = {
 
     // 获取当前用户ID
     getCurrentUser() {
+        // 如果当前没有用户ID，尝试从localStorage恢复
+        if (this.currentUserId === null) {
+            const savedUserId = localStorage.getItem('wenting_current_user_id');
+            if (savedUserId && !isNaN(parseInt(savedUserId))) {
+                this.currentUserId = parseInt(savedUserId);
+                console.log('💾 从localStorage恢复用户ID:', this.currentUserId);
+            }
+        }
         return this.currentUserId;
     },
 

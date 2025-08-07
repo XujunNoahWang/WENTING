@@ -70,6 +70,119 @@ const App = {
             // 绑定全局用户选择器事件
             GlobalUserState.bindUserSelectorEvents();
         }
+        
+        // 完成加载，显示应用界面
+        if (window.LoadingManager) {
+            LoadingManager.completeLoading();
+            
+            // 监听应用容器显示事件，然后初始化用户界面
+            this.waitForAppContainerVisible();
+        } else {
+            console.log('⚠️ LoadingManager不存在，直接初始化用户界面');
+            // 延迟一下确保DOM渲染完成
+            setTimeout(() => {
+                this.initializeUserInterface();
+            }, 100);
+        }
+    },
+
+    // 等待应用容器显示
+    waitForAppContainerVisible() {
+        console.log('⏳ 等待应用容器显示...');
+        
+        const checkAppContainer = () => {
+            const appContainer = document.getElementById('appContainer');
+            const loadingScreen = document.getElementById('loadingScreen');
+            
+            console.log('🔍 检查应用容器状态:');
+            console.log('  - appContainer存在:', !!appContainer);
+            console.log('  - appContainer显示:', appContainer?.style.display !== 'none');
+            console.log('  - loadingScreen存在:', !!loadingScreen);
+            console.log('  - loadingScreen显示:', loadingScreen?.style.display !== 'none');
+            
+            if (appContainer && appContainer.style.display !== 'none' && 
+                (!loadingScreen || loadingScreen.style.display === 'none')) {
+                console.log('✅ 应用容器已显示，开始初始化用户界面');
+                this.initializeUserInterface();
+            } else {
+                console.log('⏳ 应用容器还未显示，继续等待...');
+                setTimeout(checkAppContainer, 100);
+            }
+        };
+        
+        // 开始检查
+        setTimeout(checkAppContainer, 500); // 给LoadingManager一些时间开始动画
+    },
+
+    // 初始化用户界面
+    async initializeUserInterface() {
+        console.log('🎨 开始初始化用户界面');
+        console.log('🔍 调试信息:');
+        console.log('  - TodoManager存在:', !!window.TodoManager);
+        console.log('  - TodoManager.currentUser:', window.TodoManager?.currentUser);
+        console.log('  - UserManager存在:', !!window.UserManager);
+        console.log('  - UserManager.users数量:', window.UserManager?.users?.length || 0);
+        console.log('  - GlobalUserState存在:', !!window.GlobalUserState);
+        console.log('  - GlobalUserState.currentUserId:', window.GlobalUserState?.currentUserId);
+        console.log('  - 当前模块:', window.GlobalUserState?.getCurrentModule());
+        
+        if (!window.TodoManager) {
+            console.error('❌ TodoManager未初始化');
+            return;
+        }
+
+        // 检查是否有用户数据存在
+        if (window.UserManager && window.UserManager.users && window.UserManager.users.length > 0) {
+            // 确保当前用户已设置
+            if (!TodoManager.currentUser) {
+                console.log('⚠️ 当前用户未设置，重新设置默认用户');
+                TodoManager.setDefaultUser();
+            }
+            
+            console.log('🎯 当前用户ID:', TodoManager.currentUser);
+            console.log('🎯 当前模块:', GlobalUserState ? GlobalUserState.getCurrentModule() : 'unknown');
+            
+            // 首先渲染用户标签
+            if (window.UserManager) {
+                console.log('🔄 开始渲染用户标签...');
+                window.UserManager.renderUserTabs();
+                console.log('✅ 用户标签渲染完成');
+            }
+            
+            // 然后更新用户选择器UI
+            if (window.GlobalUserState) {
+                console.log('🔄 开始更新用户选择器UI...');
+                GlobalUserState.updateUserSelectorUI();
+                console.log('✅ 用户选择器UI更新完成');
+            }
+            
+            // 最后渲染TODO内容（如果当前模块是todo）
+            if (window.GlobalUserState && GlobalUserState.getCurrentModule() === 'todo') {
+                console.log('🔄 开始加载并渲染TODO内容');
+                console.log('🔍 TODO数据调试:');
+                console.log('  - TodoManager.todos:', TodoManager.todos);
+                console.log('  - 当前用户的TODO数据:', TodoManager.todos[TodoManager.currentUser]);
+                
+                // 通过触发用户切换事件来加载TODO，确保与用户点击切换的行为一致
+                if (TodoManager.currentUser) {
+                    console.log('🎯 通过全局状态触发用户切换事件来初始化TODO显示');
+                    
+                    // 临时设置为null，确保setCurrentUser会触发事件
+                    const targetUserId = TodoManager.currentUser;
+                    GlobalUserState.currentUserId = null;
+                    GlobalUserState.setCurrentUser(targetUserId);
+                    
+                    console.log('✅ 强制触发用户切换事件完成');
+                } else {
+                    console.warn('⚠️ 当前用户未设置，无法加载TODO');
+                }
+            } else {
+                console.log('⚠️ 当前模块不是todo，跳过TODO渲染');
+            }
+        } else {
+            console.log('🎨 没有用户，显示空用户状态');
+            TodoManager.showEmptyUserState();
+        }
     },
 
     // 绑定全局事件

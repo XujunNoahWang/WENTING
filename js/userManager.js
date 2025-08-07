@@ -252,7 +252,13 @@ const UserManager = {
                 // 切换到新创建的用户
                 if (window.TodoManager) {
                     window.TodoManager.currentUser = newUser.id;
-                    console.log('🎯 已切换到新用户:', newUser.id, newUser.username);
+                    console.log('🎯 已切换TodoManager到新用户:', newUser.id, newUser.username);
+                }
+                
+                // 同步到全局状态管理器
+                if (window.GlobalUserState) {
+                    GlobalUserState.setCurrentUser(newUser.id);
+                    console.log('🎯 已同步GlobalUserState到新用户:', newUser.id, newUser.username);
                 }
                 
                 // 重新渲染用户标签（会显示新用户为活跃状态）
@@ -268,11 +274,19 @@ const UserManager = {
                 // 加载并显示新用户的TODO列表
                 if (window.TodoManager && typeof window.TodoManager.loadTodosFromAPI === 'function') {
                     try {
+                        // 为新用户初始化空的TODO数组
+                        window.TodoManager.todos[newUser.id] = [];
+                        
+                        // 重新加载所有用户的TODO数据（包括新用户）
                         await window.TodoManager.loadTodosFromAPI();
+                        
+                        // 渲染新用户的TODO面板
                         window.TodoManager.renderTodoPanel(newUser.id);
-                        console.log('✅ 已加载新用户的TODO列表');
+                        console.log('✅ 已加载并显示新用户的TODO列表');
                     } catch (todoError) {
                         console.warn('重新加载TODO数据失败:', todoError);
+                        // 即使加载失败，也要显示新用户的空TODO面板
+                        window.TodoManager.renderTodoPanel(newUser.id);
                     }
                 }
                 
@@ -353,10 +367,12 @@ const UserManager = {
 
         // 获取当前选中的用户ID
         const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : (TodoManager.currentUser || null);
+        console.log('🎯 renderUserTabs - 当前用户ID:', currentUserId);
         
         const tabsHtml = sortedUsers.map(user => {
             const isActive = parseInt(user.id) === parseInt(currentUserId);
             const userColor = user.avatar_color || '#1d9bf0';
+            console.log(`🏷️ 用户${user.id}(${user.username}) - 是否选中:`, isActive);
             
             return `
                 <div class="sidebar-tab ${isActive ? 'active' : ''}" 
@@ -466,6 +482,9 @@ const UserManager = {
         });
     }
 };
+
+// 导出到全局
+window.UserManager = UserManager;
 
 // 全局函数（保持向后兼容）
 function addNewUser() {
