@@ -4,6 +4,9 @@ const TodoManager = {
     todos: {},
     selectedDate: new Date(),
     isOnline: false,
+    // 添加缓存机制
+    todoCache: new Map(),
+    lastLoadedDate: null,
 
     // 初始化
     async init() {
@@ -156,8 +159,12 @@ const TodoManager = {
             console.log('  - 当前用户:', this.currentUser);
             console.log('  - 新用户:', newUserId);
             
-            if (this.currentUser !== newUserId) {
-                this.currentUser = newUserId;
+            // 先更新currentUser，确保后续操作使用正确的用户ID
+            const oldUser = this.currentUser;
+            this.currentUser = newUserId;
+            
+            if (oldUser !== newUserId) {
+                console.log(`🔄 用户从 ${oldUser} 切换到 ${newUserId}`);
                 // 只有当前模块是todo时才渲染
                 if (GlobalUserState.getCurrentModule() === 'todo') {
                     console.log('✅ 当前是TODO模块，渲染TODO内容');
@@ -967,62 +974,81 @@ const TodoManager = {
 
     // 注意：日期导航现在由DateManager统一处理
 
-    // 加载指定日期的TODO
-    async loadTodosForDate(date, userId = null) {
-        console.log('🔄 开始加载指定日期的TODO数据...');
-        console.log('🔍 参数调试:');
-        console.log('  - date:', date);
-        console.log('  - userId:', userId);
-        console.log('  - this.currentUser:', this.currentUser);
+    // 加载指定日期的TODO（优化版，支持缓存）
+    async loadTodosForDate(date, userId = null, silent = false) {
+        const dateStr = date.toISOString().split('T')[0];
+        const targetUserId = userId || this.currentUser;
+        
+        if (!silent) {
+            console.log('🔄 开始加载指定日期的TODO数据...');
+            console.log('📅 目标日期:', dateStr, '用户ID:', targetUserId);
+        }
         
         try {
-            const dateStr = date.toISOString().split('T')[0];
-            console.log('📅 目标日期字符串:', dateStr);
+            // 检查缓存 - 确保使用正确的用户ID
+            const cacheKey = `${targetUserId}_${dateStr}`;
+            if (this.todoCache.has(cacheKey)) {
+                if (!silent) console.log('📦 使用缓存数据，用户:', targetUserId);
+                const cachedData = this.todoCache.get(cacheKey);
+                // 确保数据存储在正确的用户下
+                this.todos[targetUserId] = [...cachedData]; // 创建副本避免引用问题
+                this.renderTodoPanel(targetUserId);
+                this.lastLoadedDate = dateStr;
+                return;
+            }
+            
+            if (!silent) console.log('🔍 缓存未命中，从服务器加载数据，用户:', targetUserId);
             
             // 如果指定了用户ID，只加载该用户的数据；否则加载所有用户的数据
             const usersToLoad = userId ? [UserManager.getUser(userId)].filter(Boolean) : UserManager.users;
-            console.log('👥 需要加载的用户:', usersToLoad.map(u => `${u.id}(${u.username})`));
             
             for (const user of usersToLoad) {
                 try {
                     let response;
                     if (WebSocketClient.isConnected) {
-                        console.log(`🔌 使用WebSocket加载用户${user.id}的TODO数据...`);
+                        if (!silent) console.log(`🔌 使用WebSocket加载用户${user.id}的TODO数据...`);
                         response = await WebSocketClient.todos.getTodosForDate(user.id, dateStr);
                         this.todos[user.id] = response.data.todos.map(todo => this.convertApiTodoToLocal(todo));
                     } else {
-                        console.log(`🌐 使用HTTP加载用户${user.id}的TODO数据...`);
+                        if (!silent) console.log(`🌐 使用HTTP加载用户${user.id}的TODO数据...`);
                         response = await ApiClient.todos.getTodosForDate(user.id, dateStr);
                         if (response.success) {
                             this.todos[user.id] = response.data.map(todo => this.convertApiTodoToLocal(todo));
                         }
                     }
-                    console.log(`✅ 已加载用户${user.id}在${dateStr}的TODO数据，数量:`, this.todos[user.id].length);
-                    console.log(`📋 用户${user.id}的TODO详情:`, this.todos[user.id]);
+                    
+                    // 存入缓存
+                    const userCacheKey = `${user.id}_${dateStr}`;
+                    this.todoCache.set(userCacheKey, [...this.todos[user.id]]);
+                    
+                    if (!silent) {
+                        console.log(`✅ 已加载用户${user.id}在${dateStr}的TODO数据，数量:`, this.todos[user.id].length);
+                    }
                 } catch (error) {
                     console.warn(`加载用户${user.id}在${dateStr}的TODO失败:`, error.message);
                     this.todos[user.id] = [];
                 }
             }
             
-            // 重新渲染当前用户的TODO面板
-            const targetUserId = userId || this.currentUser;
-            console.log('🎨 开始渲染当前用户的TODO面板，目标用户ID:', targetUserId);
-            console.log('🔍 渲染参数调试:');
-            console.log('  - 传入的userId参数:', userId);
-            console.log('  - this.currentUser:', this.currentUser);
-            console.log('  - 最终使用的targetUserId:', targetUserId);
+            // 清理缓存（保留最近5个日期的数据）
+            if (this.todoCache.size > 50) { // 10用户 * 5天 = 50个缓存项
+                const sortedKeys = Array.from(this.todoCache.keys()).sort();
+                const keysToDelete = sortedKeys.slice(0, sortedKeys.length - 50);
+                keysToDelete.forEach(key => this.todoCache.delete(key));
+            }
             
+            // 渲染当前用户的TODO面板
             if (targetUserId) {
                 this.renderTodoPanel(targetUserId);
-                console.log('✅ TODO面板渲染完成');
+                this.lastLoadedDate = dateStr;
+                if (!silent) console.log('✅ TODO面板渲染完成');
             } else {
                 console.warn('⚠️ 无法确定要渲染哪个用户的TODO面板');
             }
             
         } catch (error) {
             console.error('加载日期TODO失败:', error);
-            this.showMessage('加载TODO失败: ' + error.message, 'error');
+            if (!silent) this.showMessage('加载TODO失败: ' + error.message, 'error');
         }
     },
 

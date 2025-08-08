@@ -316,7 +316,7 @@ const App = {
         }
     },
 
-    // 显示Notes页面
+    // 显示Notes页面（优化版，避免重复初始化）
     async showNotesPage() {
         console.log('切换到Notes页面');
         
@@ -326,7 +326,22 @@ const App = {
         }
         
         if (window.NotesManager) {
-            await NotesManager.init();
+            // 检查是否已初始化，避免重复初始化
+            if (NotesManager.isOnline === false) {
+                // 重新检查连接状态
+                NotesManager.isOnline = await ApiClient.testConnection();
+            }
+            
+            if (NotesManager.notes && Object.keys(NotesManager.notes).length > 0) {
+                // 已有数据，直接渲染
+                const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : NotesManager.currentUser;
+                console.log('Notes数据已存在，直接渲染，用户:', currentUser);
+                NotesManager.renderNotesPanel(currentUser);
+            } else {
+                // 首次加载或数据为空，需要初始化
+                console.log('首次加载Notes或数据为空，开始初始化');
+                await NotesManager.init();
+            }
         } else {
             // 如果NotesManager还未加载，显示占位内容
             const contentArea = Utils.$('#contentArea');

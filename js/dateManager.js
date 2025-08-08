@@ -2,11 +2,16 @@
 const DateManager = {
     selectedDate: new Date(),
     calendarDate: new Date(),
+    // 添加优化标记
+    isChangingDate: false,
+    currentDateElements: null,
 
     init() {
         this.updateCurrentDate();
         this.updateSelectedDate();
         this.bindEvents();
+        // 预缓存DOM元素
+        this.currentDateElements = Utils.$$('.current-date');
     },
 
     // 更新当前日期显示
@@ -26,26 +31,28 @@ const DateManager = {
         }
     },
 
-    // 更新选择的日期显示
+    // 更新选择的日期显示（优化版）
     updateSelectedDate() {
         const formatted = Utils.formatDate(this.selectedDate);
-        console.log('更新日期显示:', formatted.full, '当前选中日期:', this.selectedDate);
         
-        // 更新所有日期控制栏的显示
-        const dateElements = Utils.$$('.current-date');
-        console.log('找到日期显示元素:', dateElements?.length || 0);
+        // 使用缓存的DOM元素，避免重复查询
+        if (!this.currentDateElements) {
+            this.currentDateElements = Utils.$$('.current-date');
+        }
         
-        if (dateElements && dateElements.length > 0) {
-            dateElements.forEach(el => {
+        if (this.currentDateElements && this.currentDateElements.length > 0) {
+            this.currentDateElements.forEach(el => {
                 if (el && typeof el.textContent !== 'undefined') {
-                    console.log('更新元素:', el, '原文本:', el.textContent, '新文本:', formatted.full);
                     el.textContent = formatted.full;
                 }
             });
         }
         
-        // 更新todo项目的显示
-        this.filterTodosByDate();
+        // 如果不是通过changeDate触发的，才更新TODO显示
+        // 避免双重渲染
+        if (!this.isChangingDate) {
+            this.filterTodosByDate();
+        }
     },
 
     // 根据日期过滤todo项目
@@ -69,18 +76,39 @@ const DateManager = {
         }
     },
 
-    // 日期切换
+    // 日期切换（优化版）
     changeDate(direction) {
-        console.log('changeDate被调用，方向:', direction);
+        // 设置标记，避免双重渲染
+        this.isChangingDate = true;
+        
         this.selectedDate.setDate(this.selectedDate.getDate() + direction);
-        console.log('新的选中日期:', this.selectedDate);
+        
+        // 立即更新日期显示（不触发TODO渲染）
         this.updateSelectedDate();
         
-        // 通知TodoManager重新加载数据
+        // 检查TodoManager的缓存
+        const dateStr = this.selectedDate.toISOString().split('T')[0];
+        const currentUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
+        const cacheKey = `${currentUser}_${dateStr}`;
+        
+        if (window.TodoManager && currentUser && window.TodoManager.todoCache.has(cacheKey)) {
+            // 使用TodoManager的缓存数据快速渲染
+            const cachedData = window.TodoManager.todoCache.get(cacheKey);
+            window.TodoManager.todos[currentUser] = [...cachedData]; // 创建副本
+            window.TodoManager.renderTodoPanel(currentUser);
+            console.log('📅 DateManager使用缓存快速渲染，用户:', currentUser);
+        }
+        
+        // 异步加载最新数据（不阻塞UI）
         if (window.TodoManager && typeof window.TodoManager.loadTodosForDate === 'function') {
             window.TodoManager.selectedDate = this.selectedDate;
-            window.TodoManager.loadTodosForDate(this.selectedDate);
+            // 传递正确的用户ID，确保加载正确用户的数据
+            const targetUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
+            window.TodoManager.loadTodosForDate(this.selectedDate, targetUser, true);
         }
+        
+        // 重置标记
+        this.isChangingDate = false;
     },
 
     // 返回今天
