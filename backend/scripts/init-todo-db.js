@@ -133,6 +133,30 @@ async function initTodoDatabase() {
             )
         `);
         
+        // 创建优化性能的索引
+        console.log('🔍 创建数据库索引...');
+        
+        // 用户查询优化索引
+        await query('CREATE INDEX idx_users_username_device ON users(username, device_id)');
+        await query('CREATE INDEX idx_users_active ON users(is_active)');
+        
+        // TODO查询优化索引 - 针对日期查询优化
+        await query('CREATE INDEX idx_todos_user_date ON todos(user_id, start_date, is_active)');
+        await query('CREATE INDEX idx_todos_user_active ON todos(user_id, is_active)');
+        await query('CREATE INDEX idx_todos_date_range ON todos(start_date, end_date, is_active)');
+        await query('CREATE INDEX idx_todos_repeat ON todos(repeat_type, is_active)');
+        
+        // TODO完成记录优化索引
+        await query('CREATE INDEX idx_completions_todo_date ON todo_completions(todo_id, completion_date)');
+        await query('CREATE INDEX idx_completions_user_date ON todo_completions(user_id, completion_date)');
+        
+        // TODO删除记录优化索引  
+        await query('CREATE INDEX idx_deletions_todo_date ON todo_deletions(todo_id, deletion_date)');
+        
+        // Notes查询优化索引
+        await query('CREATE INDEX idx_notes_user ON notes(user_id)');
+        
+        console.log('✅ 数据库索引创建完成');
         console.log('📊 跳过示例数据插入，创建干净的数据库...');
         
         // 验证数据
