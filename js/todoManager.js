@@ -677,11 +677,11 @@ const TodoManager = {
             this.closeAddTodoForm();
             
             // 清除该用户的所有缓存，因为新TODO可能是长期重复任务，影响多个日期
-            this.clearAllRelatedCache(this.currentUser);
+            this.clearAllRelatedCache(userId);
             
             // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
             const currentDate = DateManager.selectedDate || new Date();
-            await this.loadTodosForDate(currentDate);
+            await this.loadTodosForDate(currentDate, userId);
             
             // 显示成功消息
             this.showMessage('TODO添加成功！', 'success');
@@ -865,7 +865,7 @@ const TodoManager = {
                 
                 // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
                 const currentDate = DateManager.selectedDate || new Date();
-                await this.loadTodosForDate(currentDate);
+                await this.loadTodosForDate(currentDate, this.currentUser);
                 
                 // 显示成功消息
                 this.showMessage('TODO更新成功！', 'success');
@@ -1002,7 +1002,7 @@ const TodoManager = {
                 
                 // 重新加载当前日期的TODO数据
                 const currentDate = DateManager.selectedDate || new Date();
-                await this.loadTodosForDate(currentDate);
+                await this.loadTodosForDate(currentDate, this.currentUser);
                 
                 // 关闭编辑表单（如果打开的话）
                 this.closeEditTodoForm();
@@ -1046,8 +1046,8 @@ const TodoManager = {
             
             if (!silent) console.log('🔍 缓存未命中，从服务器加载数据，用户:', targetUserId);
             
-            // 如果指定了用户ID，只加载该用户的数据；否则加载所有用户的数据
-            const usersToLoad = userId ? [UserManager.getUser(userId)].filter(Boolean) : UserManager.users;
+            // 如果指定了用户ID，只加载该用户的数据；否则只加载当前用户的数据
+            const usersToLoad = userId ? [UserManager.getUser(userId)].filter(Boolean) : [UserManager.getUser(targetUserId)].filter(Boolean);
             
             for (const user of usersToLoad) {
                 try {
@@ -1167,7 +1167,7 @@ const TodoManager = {
                 console.log('🧹 广播消息：清除所有缓存');
                 this.clearAllRelatedCache();
                 // 重新加载当前日期的TODO数据
-                this.loadTodosForDate(DateManager.selectedDate || new Date());
+                this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
                 break;
                 
             case 'TODO_COMPLETE_BROADCAST':
@@ -1180,7 +1180,7 @@ const TodoManager = {
                     this.clearAllRelatedCache();
                 }
                 // 重新加载当前日期的数据
-                this.loadTodosForDate(DateManager.selectedDate || new Date());
+                this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
                 break;
         }
     },
