@@ -225,3 +225,68 @@ body {
     z-index: 1000;
     box-shadow: 0 -2px 8px rgba(0, 0, 0, 0.1);
 }
+/* 
+表单样式 */
+.form-group {
+    margin-bottom: 16px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 6px;
+    font-weight: 500;
+    color: #333;
+    font-size: 14px;
+}
+
+.form-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+}
+
+.form-row input,
+.form-row select {
+    flex-shrink: 0;
+}
+
+.form-row input[type="number"] {
+    width: 80px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    text-align: center;
+}
+
+.form-row select {
+    width: 80px;
+    padding: 8px 12px;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+    font-size: 14px;
+    background: white;
+    cursor: pointer;
+}
+
+.form-row input:focus,
+.form-row select:focus {
+    outline: none;
+    border-color: #1d9bf0;
+    box-shadow: 0 0 0 2px rgba(29, 155, 240, 0.1);
+}
+
+/* 移动端优化 */
+@media (max-width: 480px) {
+    .form-row {
+        gap: 6px;
+    }
+    
+    .form-row input[type="number"],
+    .form-row select {
+        width: 70px;
+        padding: 6px 8px;
+        font-size: 13px;
+    }
+}

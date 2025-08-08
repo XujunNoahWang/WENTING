@@ -589,7 +589,7 @@ const TodoManager = {
                             <label for="cycle_duration">周期时长</label>
                             <div class="form-row">
                                 <input type="number" id="cycle_duration" name="cycle_duration" min="1" max="365" value="1" style="width: 80px;">
-                                <select id="cycle_unit" name="cycle_unit" style="width: 80px; margin-left: 8px;">
+                                <select id="cycle_unit" name="cycle_unit" style="width: 80px;">
                                     <option value="days">天</option>
                                     <option value="weeks">周</option>
                                     <option value="months">月</option>
@@ -799,7 +799,7 @@ const TodoManager = {
                             <label for="edit_cycle_duration">周期时长</label>
                             <div class="form-row">
                                 <input type="number" id="edit_cycle_duration" name="cycle_duration" min="1" max="365" value="${todo.cycleDuration || 1}" style="width: 80px;">
-                                <select id="edit_cycle_unit" name="cycle_unit" style="width: 80px; margin-left: 8px;">
+                                <select id="edit_cycle_unit" name="cycle_unit" style="width: 80px;">
                                     <option value="days" ${todo.cycleUnit === 'days' ? 'selected' : ''}>天</option>
                                     <option value="weeks" ${todo.cycleUnit === 'weeks' ? 'selected' : ''}>周</option>
                                     <option value="months" ${todo.cycleUnit === 'months' ? 'selected' : ''}>月</option>
