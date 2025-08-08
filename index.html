@@ -10,7 +10,73 @@
     <title>雯婷</title>
     <link rel="icon" href="data:,">
     <link rel="stylesheet" href="build/app.min.css">
+    <link rel="stylesheet" href="styles/main.css">
     <link rel="stylesheet" href="styles/profile.css">
+    <style>
+        /* 美化的form-row样式 - 使用table布局确保同行 */
+        div.form-group div.form-row {
+            display: table !important;
+            width: 100% !important;
+            table-layout: fixed !important;
+            border-collapse: separate !important;
+            border-spacing: 8px 0 !important;
+        }
+        
+        div.form-group div.form-row input[type="number"],
+        div.form-group div.form-row select {
+            display: table-cell !important;
+            width: 60px !important;
+            min-width: 60px !important;
+            max-width: 60px !important;
+            padding: 8px 6px !important;
+            border: 1px solid #e1e8ed !important;
+            border-radius: 6px !important;
+            font-size: 14px !important;
+            text-align: center !important;
+            background: white !important;
+            box-sizing: border-box !important;
+            margin: 0 !important;
+            vertical-align: middle !important;
+            transition: all 0.2s ease !important;
+        }
+        
+        div.form-group div.form-row input[type="number"]:focus,
+        div.form-group div.form-row select:focus {
+            outline: none !important;
+            border-color: #1d9bf0 !important;
+            box-shadow: 0 0 0 2px rgba(29, 155, 240, 0.1) !important;
+        }
+        
+        div.form-group div.form-row select {
+            cursor: pointer !important;
+            -webkit-appearance: menulist !important;
+            appearance: menulist !important;
+        }
+        
+        /* 桌面端样式 */
+        @media (min-width: 481px) {
+            div.form-group div.form-row {
+                border-spacing: 10px 0 !important;
+            }
+            
+            div.form-group div.form-row input[type="number"],
+            div.form-group div.form-row select {
+                width: 80px !important;
+                min-width: 80px !important;
+                max-width: 80px !important;
+                padding: 8px 12px !important;
+                font-size: 14px !important;
+            }
+        }
+        
+        /* 强制覆盖任何可能的冲突样式 */
+        .form-group input[type="number"]:not(.form-row input),
+        .form-group select:not(.form-row select) {
+            width: 100% !important;
+        }
+        
+        /* 美化后的form-row样式 */
+    </style>
 </head>
 
 <body>

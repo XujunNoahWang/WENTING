@@ -526,38 +526,36 @@ const TodoManager = {
                             <label for="todo_description">备注</label>
                             <textarea id="todo_description" name="description" maxlength="1000" placeholder="详细说明（可选）"></textarea>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="todo_time">提醒时间</label>
-                                <select id="todo_time" name="reminder_time">
-                                    <option value="all_day">当天</option>
-                                    <option value="06:00">06:00</option>
-                                    <option value="07:00">07:00</option>
-                                    <option value="08:00">08:00</option>
-                                    <option value="09:00">09:00</option>
-                                    <option value="10:00">10:00</option>
-                                    <option value="11:00">11:00</option>
-                                    <option value="12:00">12:00</option>
-                                    <option value="13:00">13:00</option>
-                                    <option value="14:00">14:00</option>
-                                    <option value="15:00">15:00</option>
-                                    <option value="16:00">16:00</option>
-                                    <option value="17:00">17:00</option>
-                                    <option value="18:00">18:00</option>
-                                    <option value="19:00">19:00</option>
-                                    <option value="20:00">20:00</option>
-                                    <option value="21:00">21:00</option>
-                                    <option value="22:00">22:00</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="todo_priority">优先级</label>
-                                <select id="todo_priority" name="priority">
-                                    <option value="low">低</option>
-                                    <option value="medium" selected>中</option>
-                                    <option value="high">高</option>
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label for="todo_time">提醒时间</label>
+                            <select id="todo_time" name="reminder_time">
+                                <option value="all_day">当天</option>
+                                <option value="06:00">06:00</option>
+                                <option value="07:00">07:00</option>
+                                <option value="08:00">08:00</option>
+                                <option value="09:00">09:00</option>
+                                <option value="10:00">10:00</option>
+                                <option value="11:00">11:00</option>
+                                <option value="12:00">12:00</option>
+                                <option value="13:00">13:00</option>
+                                <option value="14:00">14:00</option>
+                                <option value="15:00">15:00</option>
+                                <option value="16:00">16:00</option>
+                                <option value="17:00">17:00</option>
+                                <option value="18:00">18:00</option>
+                                <option value="19:00">19:00</option>
+                                <option value="20:00">20:00</option>
+                                <option value="21:00">21:00</option>
+                                <option value="22:00">22:00</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="todo_priority">优先级</label>
+                            <select id="todo_priority" name="priority">
+                                <option value="low">低</option>
+                                <option value="medium" selected>中</option>
+                                <option value="high">高</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="todo_repeat">重复频率</label>
@@ -587,9 +585,9 @@ const TodoManager = {
                         </div>
                         <div class="form-group" id="custom_cycle_group" style="display: none;">
                             <label for="cycle_duration">周期时长</label>
-                            <div class="form-row">
-                                <input type="number" id="cycle_duration" name="cycle_duration" min="1" max="365" value="1" style="width: 80px;">
-                                <select id="cycle_unit" name="cycle_unit" style="width: 80px;">
+                            <div class="form-row" style="display: table !important; width: 100% !important; table-layout: fixed !important; border-collapse: separate !important; border-spacing: 8px 0 !important;">
+                                <input type="number" id="cycle_duration" name="cycle_duration" min="1" max="365" value="1" style="display: table-cell !important; width: 60px !important; min-width: 60px !important; max-width: 60px !important; padding: 8px 6px !important; font-size: 14px !important; text-align: center !important; box-sizing: border-box !important; vertical-align: middle !important; border: 1px solid #e1e8ed !important; border-radius: 6px !important; background: white !important;">
+                                <select id="cycle_unit" name="cycle_unit" style="display: table-cell !important; width: 60px !important; min-width: 60px !important; max-width: 60px !important; padding: 8px 6px !important; font-size: 14px !important; box-sizing: border-box !important; vertical-align: middle !important; border: 1px solid #e1e8ed !important; border-radius: 6px !important; background: white !important; cursor: pointer !important;">
                                     <option value="days">天</option>
                                     <option value="weeks">周</option>
                                     <option value="months">月</option>
@@ -736,38 +734,36 @@ const TodoManager = {
                             <label for="edit_todo_description">备注</label>
                             <textarea id="edit_todo_description" name="description" maxlength="1000" placeholder="详细说明（可选）">${todo.note || ''}</textarea>
                         </div>
-                        <div class="form-row">
-                            <div class="form-group">
-                                <label for="edit_todo_time">提醒时间</label>
-                                <select id="edit_todo_time" name="reminder_time">
-                                    <option value="all_day" ${todo.time === '当天' ? 'selected' : ''}>当天</option>
-                                    <option value="06:00" ${todo.time === '06:00' ? 'selected' : ''}>06:00</option>
-                                    <option value="07:00" ${todo.time === '07:00' ? 'selected' : ''}>07:00</option>
-                                    <option value="08:00" ${todo.time === '08:00' ? 'selected' : ''}>08:00</option>
-                                    <option value="09:00" ${todo.time === '09:00' ? 'selected' : ''}>09:00</option>
-                                    <option value="10:00" ${todo.time === '10:00' ? 'selected' : ''}>10:00</option>
-                                    <option value="11:00" ${todo.time === '11:00' ? 'selected' : ''}>11:00</option>
-                                    <option value="12:00" ${todo.time === '12:00' ? 'selected' : ''}>12:00</option>
-                                    <option value="13:00" ${todo.time === '13:00' ? 'selected' : ''}>13:00</option>
-                                    <option value="14:00" ${todo.time === '14:00' ? 'selected' : ''}>14:00</option>
-                                    <option value="15:00" ${todo.time === '15:00' ? 'selected' : ''}>15:00</option>
-                                    <option value="16:00" ${todo.time === '16:00' ? 'selected' : ''}>16:00</option>
-                                    <option value="17:00" ${todo.time === '17:00' ? 'selected' : ''}>17:00</option>
-                                    <option value="18:00" ${todo.time === '18:00' ? 'selected' : ''}>18:00</option>
-                                    <option value="19:00" ${todo.time === '19:00' ? 'selected' : ''}>19:00</option>
-                                    <option value="20:00" ${todo.time === '20:00' ? 'selected' : ''}>20:00</option>
-                                    <option value="21:00" ${todo.time === '21:00' ? 'selected' : ''}>21:00</option>
-                                    <option value="22:00" ${todo.time === '22:00' ? 'selected' : ''}>22:00</option>
-                                </select>
-                            </div>
-                            <div class="form-group">
-                                <label for="edit_todo_priority">优先级</label>
-                                <select id="edit_todo_priority" name="priority">
-                                    <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>低</option>
-                                    <option value="medium" ${!todo.priority || todo.priority === 'medium' ? 'selected' : ''}>中</option>
-                                    <option value="high" ${todo.priority === 'high' ? 'selected' : ''}>高</option>
-                                </select>
-                            </div>
+                        <div class="form-group">
+                            <label for="edit_todo_time">提醒时间</label>
+                            <select id="edit_todo_time" name="reminder_time">
+                                <option value="all_day" ${todo.time === '当天' ? 'selected' : ''}>当天</option>
+                                <option value="06:00" ${todo.time === '06:00' ? 'selected' : ''}>06:00</option>
+                                <option value="07:00" ${todo.time === '07:00' ? 'selected' : ''}>07:00</option>
+                                <option value="08:00" ${todo.time === '08:00' ? 'selected' : ''}>08:00</option>
+                                <option value="09:00" ${todo.time === '09:00' ? 'selected' : ''}>09:00</option>
+                                <option value="10:00" ${todo.time === '10:00' ? 'selected' : ''}>10:00</option>
+                                <option value="11:00" ${todo.time === '11:00' ? 'selected' : ''}>11:00</option>
+                                <option value="12:00" ${todo.time === '12:00' ? 'selected' : ''}>12:00</option>
+                                <option value="13:00" ${todo.time === '13:00' ? 'selected' : ''}>13:00</option>
+                                <option value="14:00" ${todo.time === '14:00' ? 'selected' : ''}>14:00</option>
+                                <option value="15:00" ${todo.time === '15:00' ? 'selected' : ''}>15:00</option>
+                                <option value="16:00" ${todo.time === '16:00' ? 'selected' : ''}>16:00</option>
+                                <option value="17:00" ${todo.time === '17:00' ? 'selected' : ''}>17:00</option>
+                                <option value="18:00" ${todo.time === '18:00' ? 'selected' : ''}>18:00</option>
+                                <option value="19:00" ${todo.time === '19:00' ? 'selected' : ''}>19:00</option>
+                                <option value="20:00" ${todo.time === '20:00' ? 'selected' : ''}>20:00</option>
+                                <option value="21:00" ${todo.time === '21:00' ? 'selected' : ''}>21:00</option>
+                                <option value="22:00" ${todo.time === '22:00' ? 'selected' : ''}>22:00</option>
+                            </select>
+                        </div>
+                        <div class="form-group">
+                            <label for="edit_todo_priority">优先级</label>
+                            <select id="edit_todo_priority" name="priority">
+                                <option value="low" ${todo.priority === 'low' ? 'selected' : ''}>低</option>
+                                <option value="medium" ${!todo.priority || todo.priority === 'medium' ? 'selected' : ''}>中</option>
+                                <option value="high" ${todo.priority === 'high' ? 'selected' : ''}>高</option>
+                            </select>
                         </div>
                         <div class="form-group">
                             <label for="edit_todo_repeat">重复频率</label>
@@ -797,9 +793,9 @@ const TodoManager = {
                         </div>
                         <div class="form-group" id="edit_custom_cycle_group" style="display: ${todo.cycleType === 'custom' ? 'block' : 'none'};">
                             <label for="edit_cycle_duration">周期时长</label>
-                            <div class="form-row">
-                                <input type="number" id="edit_cycle_duration" name="cycle_duration" min="1" max="365" value="${todo.cycleDuration || 1}" style="width: 80px;">
-                                <select id="edit_cycle_unit" name="cycle_unit" style="width: 80px;">
+                            <div class="form-row" style="display: table !important; width: 100% !important; table-layout: fixed !important; border-collapse: separate !important; border-spacing: 8px 0 !important;">
+                                <input type="number" id="edit_cycle_duration" name="cycle_duration" min="1" max="365" value="${todo.cycleDuration || 1}" style="display: table-cell !important; width: 60px !important; min-width: 60px !important; max-width: 60px !important; padding: 8px 6px !important; font-size: 14px !important; text-align: center !important; box-sizing: border-box !important; vertical-align: middle !important; border: 1px solid #e1e8ed !important; border-radius: 6px !important; background: white !important;">
+                                <select id="edit_cycle_unit" name="cycle_unit" style="display: table-cell !important; width: 60px !important; min-width: 60px !important; max-width: 60px !important; padding: 8px 6px !important; font-size: 14px !important; box-sizing: border-box !important; vertical-align: middle !important; border: 1px solid #e1e8ed !important; border-radius: 6px !important; background: white !important; cursor: pointer !important;">
                                     <option value="days" ${todo.cycleUnit === 'days' ? 'selected' : ''}>天</option>
                                     <option value="weeks" ${todo.cycleUnit === 'weeks' ? 'selected' : ''}>周</option>
                                     <option value="months" ${todo.cycleUnit === 'months' ? 'selected' : ''}>月</option>
