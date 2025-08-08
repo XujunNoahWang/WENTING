@@ -324,17 +324,7 @@
     margin-left: 8px;
 }
 
-.member-tag.dad {
-    background-color: #1d9bf0;
-}
-
-.member-tag.mom {
-    background-color: #e91e63;
-}
-
-.member-tag.kid {
-    background-color: #ff9800;
-}
+/* 特定用户标签样式已移除 - 使用动态生成的颜色 */
 
 /* 过滤控制 */
 .filter-controls {

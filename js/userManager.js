@@ -42,46 +42,11 @@ const UserManager = {
         }
     },
 
-    // 创建默认用户
+    // 创建默认用户（已废弃 - 用户需要手动添加）
     async createDefaultUsers() {
-        try {
-            const defaultUsers = [
-                {
-                    username: 'Dad',
-                    display_name: 'Dad',
-                    avatar_color: '#1d9bf0'
-                },
-                {
-                    username: 'Mom',
-                    display_name: 'Mom',
-                    avatar_color: '#e91e63'
-                },
-                {
-                    username: 'Kid',
-                    display_name: 'Kid',
-                    avatar_color: '#ff9800'
-                }
-            ];
-
-            console.log('🔄 开始创建默认用户...');
-            
-            for (const userData of defaultUsers) {
-                try {
-                    const response = await ApiClient.users.create(userData);
-                    if (response.success) {
-                        this.users.push(response.data);
-                        console.log(`✅ 创建用户成功: ${userData.username}`);
-                    }
-                } catch (error) {
-                    console.error(`❌ 创建用户失败: ${userData.username}`, error);
-                }
-            }
-            
-            console.log('✅ 默认用户创建完成，总用户数:', this.users.length);
-        } catch (error) {
-            console.error('❌ 创建默认用户失败:', error);
-            throw error;
-        }
+        console.log('⚠️ createDefaultUsers方法已废弃，请手动添加用户');
+        // 不再自动创建任何默认用户
+        return;
     },
 
 
