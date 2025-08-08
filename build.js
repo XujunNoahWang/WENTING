@@ -51,10 +51,8 @@ for (const jsFile of jsFiles) {
     }
 }
 
-// 写入合并的JS文件
-const bundledJsPath = path.join(buildDir, 'app.bundle.js');
-fs.writeFileSync(bundledJsPath, jsContent);
-console.log(`📝 JS合并完成: ${jsFilesProcessed.length}个文件 → ${bundledJsPath}`);
+// 不保存未压缩的JS bundle，直接处理压缩版本
+console.log(`📝 JS合并完成: ${jsFilesProcessed.length}个文件准备压缩`);
 
 // 合并CSS文件
 console.log('🎨 合并CSS文件...');
@@ -75,10 +73,8 @@ for (const cssFile of cssFiles) {
     }
 }
 
-// 写入合并的CSS文件
-const bundledCssPath = path.join(buildDir, 'app.bundle.css');
-fs.writeFileSync(bundledCssPath, cssContent);
-console.log(`📝 CSS合并完成: ${cssFilesProcessed.length}个文件 → ${bundledCssPath}`);
+// 不保存未压缩的CSS bundle，直接处理压缩版本
+console.log(`📝 CSS合并完成: ${cssFilesProcessed.length}个文件准备压缩`);
 
 // 为了安全起见，暂时不进行JS压缩，只移除注释
 console.log('🗜️  清理JS文件（移除注释）...');
@@ -120,9 +116,7 @@ console.log('\n📊 构建结果:');
 console.log('┌─────────────────────────────────────┐');
 console.log('│              文件大小统计             │');
 console.log('├─────────────────────────────────────┤');
-console.log(`│ JS合并版本: ${getFileSize(bundledJsPath).padEnd(23)}│`);
 console.log(`│ JS压缩版本: ${getFileSize(minifiedJsPath).padEnd(23)}│`);
-console.log(`│ CSS合并版本: ${getFileSize(bundledCssPath).padEnd(22)}│`);
 console.log(`│ CSS压缩版本: ${getFileSize(minifiedCssPath).padEnd(22)}│`);
 console.log('└─────────────────────────────────────┘');
 
