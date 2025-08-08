@@ -168,7 +168,22 @@ const TodoManager = {
                 // 只有当前模块是todo时才渲染
                 if (GlobalUserState.getCurrentModule() === 'todo') {
                     console.log('✅ 当前是TODO模块，渲染TODO内容');
-                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                    
+                    // 检查缓存决定是否显示进度条
+                    const dateStr = (DateManager.selectedDate || new Date()).toISOString().split('T')[0];
+                    const cacheKey = `${newUserId}_${dateStr}`;
+                    let hasCache = this.todoCache.has(cacheKey);
+                    
+                    // 如果没有缓存，显示加载进度条
+                    if (!hasCache && window.DateManager) {
+                        window.DateManager.showLoadingProgress();
+                    }
+                    
+                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId).then(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    }).catch(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    });
                 } else {
                     console.log('⏸️ 当前不是TODO模块，跳过渲染');
                 }
@@ -177,7 +192,22 @@ const TodoManager = {
                 // 即使用户ID相同，也要重新渲染（比如初始化时）
                 if (GlobalUserState.getCurrentModule() === 'todo') {
                     console.log('✅ 当前是TODO模块，渲染TODO内容');
-                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                    
+                    // 检查缓存决定是否显示进度条  
+                    const dateStr = (DateManager.selectedDate || new Date()).toISOString().split('T')[0];
+                    const cacheKey = `${newUserId}_${dateStr}`;
+                    let hasCache = this.todoCache.has(cacheKey);
+                    
+                    // 如果没有缓存，显示加载进度条
+                    if (!hasCache && window.DateManager) {
+                        window.DateManager.showLoadingProgress();
+                    }
+                    
+                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId).then(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    }).catch(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    });
                 } else {
                     console.log('⏸️ 当前不是TODO模块，跳过渲染');
                 }

@@ -5,6 +5,21 @@ const DateManager = {
     // 添加优化标记
     isChangingDate: false,
     currentDateElements: null,
+    
+    // 进度条控制
+    showLoadingProgress() {
+        const progressEl = document.getElementById('loadingProgress');
+        if (progressEl) {
+            progressEl.style.display = 'block';
+        }
+    },
+    
+    hideLoadingProgress() {
+        const progressEl = document.getElementById('loadingProgress');
+        if (progressEl) {
+            progressEl.style.display = 'none';
+        }
+    },
 
     init() {
         this.updateCurrentDate();
@@ -91,12 +106,19 @@ const DateManager = {
         const currentUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
         const cacheKey = `${currentUser}_${dateStr}`;
         
+        let hasCache = false;
         if (window.TodoManager && currentUser && window.TodoManager.todoCache.has(cacheKey)) {
             // 使用TodoManager的缓存数据快速渲染
             const cachedData = window.TodoManager.todoCache.get(cacheKey);
             window.TodoManager.todos[currentUser] = [...cachedData]; // 创建副本
             window.TodoManager.renderTodoPanel(currentUser);
             console.log('📅 DateManager使用缓存快速渲染，用户:', currentUser);
+            hasCache = true;
+        }
+        
+        // 如果没有缓存，显示加载进度条
+        if (!hasCache) {
+            this.showLoadingProgress();
         }
         
         // 异步加载最新数据（不阻塞UI）
@@ -104,7 +126,13 @@ const DateManager = {
             window.TodoManager.selectedDate = this.selectedDate;
             // 传递正确的用户ID，确保加载正确用户的数据
             const targetUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
-            window.TodoManager.loadTodosForDate(this.selectedDate, targetUser, true);
+            window.TodoManager.loadTodosForDate(this.selectedDate, targetUser, true).then(() => {
+                // 数据加载完成后隐藏进度条
+                this.hideLoadingProgress();
+            }).catch(() => {
+                // 即使出错也要隐藏进度条
+                this.hideLoadingProgress();
+            });
         }
         
         // 重置标记
@@ -118,10 +146,26 @@ const DateManager = {
         console.log('重置为今天:', this.selectedDate);
         this.updateSelectedDate();
         
+        // 检查缓存决定是否显示进度条
+        const dateStr = this.selectedDate.toISOString().split('T')[0];
+        const currentUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
+        const cacheKey = `${currentUser}_${dateStr}`;
+        
+        let hasCache = window.TodoManager && currentUser && window.TodoManager.todoCache.has(cacheKey);
+        
+        // 如果没有缓存，显示加载进度条
+        if (!hasCache) {
+            this.showLoadingProgress();
+        }
+        
         // 通知TodoManager重新加载数据
         if (window.TodoManager && typeof window.TodoManager.loadTodosForDate === 'function') {
             window.TodoManager.selectedDate = this.selectedDate;
-            window.TodoManager.loadTodosForDate(this.selectedDate);
+            window.TodoManager.loadTodosForDate(this.selectedDate).then(() => {
+                this.hideLoadingProgress();
+            }).catch(() => {
+                this.hideLoadingProgress();
+            });
         }
     },
 
@@ -320,3 +364,6 @@ function toggleDatePicker() {
 function changeMonth(direction) {
     DateManager.changeMonth(direction);
 }
+
+// 将DateManager暴露到全局
+window.DateManager = DateManager;

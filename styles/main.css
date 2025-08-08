@@ -155,6 +155,49 @@ body {
     }
 }
 
+/* 加载进度条 */
+.loading-progress-container {
+    position: fixed;
+    top: 85px; /* 天气栏高度 + 5px */
+    left: 0;
+    right: 0;
+    height: 2px;
+    background: transparent;
+    overflow: hidden;
+    z-index: 1000;
+}
+
+.loading-progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #2d5016, #3a6b1c); /* 电子墨水屏绿色 */
+    width: 0%;
+    border-radius: 0 2px 2px 0;
+    animation: loadingProgress 1.5s ease-in-out infinite;
+    box-shadow: 0 0 3px rgba(45, 80, 22, 0.3);
+}
+
+@keyframes loadingProgress {
+    0% {
+        width: 0%;
+        transform: translateX(0);
+    }
+    50% {
+        width: 70%;
+        transform: translateX(0);
+    }
+    100% {
+        width: 100%;
+        transform: translateX(0);
+    }
+}
+
+/* 响应式调整 */
+@media screen and (max-width: 430px) and (max-height: 932px) {
+    .loading-progress-container {
+        top: 80px; /* iPhone 14 Pro Max 天气栏高度 + 5px */
+    }
+}
+
 /* 主内容区域 - 适应固定的顶部天气栏和底部导航栏 */
 .main-content {
     position: fixed;

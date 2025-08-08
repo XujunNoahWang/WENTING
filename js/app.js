@@ -199,15 +199,21 @@ const App = {
             });
         }
         
-        // 底部导航点击效果
-        Utils.$$('.nav-item').forEach(item => {
-            item.addEventListener('click', () => {
-                const label = item.querySelector('.nav-label')?.textContent;
+        // 底部导航点击效果 - 使用事件委托确保正确绑定
+        document.addEventListener('click', (e) => {
+            const navItem = e.target.closest('.nav-item');
+            if (navItem) {
+                const label = navItem.querySelector('.nav-label')?.textContent;
                 console.log('导航到：', label);
+                
+                // 显示进度条（针对Todo和Notes页面切换）
+                if ((label === 'Todo' || label === 'Notes') && window.DateManager) {
+                    window.DateManager.showLoadingProgress();
+                }
                 
                 // 这里可以添加路由逻辑
                 this.handleNavigation(label);
-            });
+            }
         });
 
         // 天气栏点击处理
@@ -311,8 +317,17 @@ const App = {
             const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : TodoManager.currentUser;
             console.log('渲染TODO页面，用户:', currentUser);
             TodoManager.renderTodoPanel(currentUser);
+            
+            // 隐藏进度条 - 延长显示时间让用户看到效果
+            setTimeout(() => {
+                if (window.DateManager) window.DateManager.hideLoadingProgress();
+            }, 600);
         } else {
             console.error('TodoManager未初始化');
+            // 即使出错也隐藏进度条
+            setTimeout(() => {
+                if (window.DateManager) window.DateManager.hideLoadingProgress();
+            }, 300);
         }
     },
 
@@ -320,41 +335,64 @@ const App = {
     async showNotesPage() {
         console.log('切换到Notes页面');
         
-        // 设置全局状态为notes模块
-        if (window.GlobalUserState) {
-            GlobalUserState.setCurrentModule('notes');
-        }
-        
-        if (window.NotesManager) {
-            // 检查是否已初始化，避免重复初始化
-            if (NotesManager.isOnline === false) {
-                // 重新检查连接状态
-                NotesManager.isOnline = await ApiClient.testConnection();
+        try {
+            // 设置全局状态为notes模块
+            if (window.GlobalUserState) {
+                GlobalUserState.setCurrentModule('notes');
             }
             
-            if (NotesManager.notes && Object.keys(NotesManager.notes).length > 0) {
-                // 已有数据，直接渲染
-                const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : NotesManager.currentUser;
-                console.log('Notes数据已存在，直接渲染，用户:', currentUser);
-                NotesManager.renderNotesPanel(currentUser);
+            if (window.NotesManager) {
+                // 检查是否已初始化，避免重复初始化
+                if (NotesManager.isOnline === false) {
+                    // 重新检查连接状态
+                    NotesManager.isOnline = await ApiClient.testConnection();
+                }
+                
+                if (NotesManager.notes && Object.keys(NotesManager.notes).length > 0) {
+                    // 已有数据，直接渲染
+                    const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : NotesManager.currentUser;
+                    console.log('Notes数据已存在，直接渲染，用户:', currentUser);
+                    NotesManager.renderNotesPanel(currentUser);
+                    
+                    // 延长显示时间让用户看到效果
+                    setTimeout(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    }, 600);
+                } else {
+                    // 首次加载或数据为空，需要初始化
+                    console.log('首次加载Notes或数据为空，开始初始化');
+                    await NotesManager.init();
+                    
+                    // 初始化完成后隐藏进度条
+                    setTimeout(() => {
+                        if (window.DateManager) window.DateManager.hideLoadingProgress();
+                    }, 600);
+                }
             } else {
-                // 首次加载或数据为空，需要初始化
-                console.log('首次加载Notes或数据为空，开始初始化');
-                await NotesManager.init();
-            }
-        } else {
-            // 如果NotesManager还未加载，显示占位内容
-            const contentArea = Utils.$('#contentArea');
-            if (contentArea) {
-                contentArea.innerHTML = `
-                    <div class="notes-content-panel">
-                        <div class="notes-placeholder">
-                            <h3>Notes 功能</h3>
-                            <p>正在加载笔记功能...</p>
+                // 如果NotesManager还未加载，显示占位内容
+                const contentArea = Utils.$('#contentArea');
+                if (contentArea) {
+                    contentArea.innerHTML = `
+                        <div class="notes-content-panel">
+                            <div class="notes-placeholder">
+                                <h3>Notes 功能</h3>
+                                <p>正在加载笔记功能...</p>
+                            </div>
                         </div>
-                    </div>
-                `;
+                    `;
+                }
+                
+                // 显示占位内容后延迟隐藏进度条
+                setTimeout(() => {
+                    if (window.DateManager) window.DateManager.hideLoadingProgress();
+                }, 600);
             }
+        } catch (error) {
+            console.error('加载Notes页面失败:', error);
+            // 即使出错也要隐藏进度条
+            setTimeout(() => {
+                if (window.DateManager) window.DateManager.hideLoadingProgress();
+            }, 300);
         }
     },
 
