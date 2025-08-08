@@ -6,6 +6,7 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 
 const { testConnection } = require('./config/database');
+const { initTodoDatabase } = require('./scripts/init-todo-db');
 
 // 导入路由
 const usersRouter = require('./routes/users');
@@ -197,6 +198,20 @@ app.use((err, req, res, next) => {
     });
 });
 
+// 检查数据库表是否存在的函数
+async function checkTablesExist() {
+    try {
+        const { query } = require('./config/database');
+        
+        // 检查 users 表是否存在
+        const result = await query("SELECT name FROM sqlite_master WHERE type='table' AND name='users'");
+        return result.length > 0;
+    } catch (error) {
+        console.error('❌ 检查数据库表时出错:', error);
+        return false;
+    }
+}
+
 // 启动服务器
 async function startServer() {
     try {
@@ -207,6 +222,23 @@ async function startServer() {
         if (!dbConnected) {
             console.error('❌ 数据库连接失败，服务器启动中止');
             process.exit(1);
+        }
+        
+        // 检查数据库表是否存在，如果不存在则自动初始化
+        console.log('🔄 正在检查数据库表...');
+        const tablesExist = await checkTablesExist();
+        
+        if (!tablesExist) {
+            console.log('⚠️  数据库表不存在，正在自动初始化数据库...');
+            try {
+                await initTodoDatabase(true); // 保留数据模式，只创建缺失的表
+                console.log('✅ 数据库自动初始化完成');
+            } catch (initError) {
+                console.error('❌ 数据库自动初始化失败:', initError);
+                process.exit(1);
+            }
+        } else {
+            console.log('✅ 数据库表检查通过');
         }
         
         // 启动HTTP服务器，监听所有网络接口

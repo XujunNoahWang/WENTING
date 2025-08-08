@@ -473,6 +473,11 @@ const TodoManager = {
             // 切换本地状态
             todo.completed = !todo.completed;
             
+            // 清除当前日期的缓存，确保状态同步
+            const cacheKey = `${userId}_${dateStr}`;
+            this.todoCache.delete(cacheKey);
+            console.log('🧹 TODO状态切换：清除缓存', cacheKey);
+            
             // 更新UI
             const todoItem = checkbox.closest('.todo-item');
             const todoContent = checkbox.nextElementSibling;
@@ -671,8 +676,12 @@ const TodoManager = {
             // 关闭表单
             this.closeAddTodoForm();
             
+            // 清除该用户的所有缓存，因为新TODO可能是长期重复任务，影响多个日期
+            this.clearAllRelatedCache(this.currentUser);
+            
             // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
-            await this.loadTodosForDate(DateManager.selectedDate || new Date());
+            const currentDate = DateManager.selectedDate || new Date();
+            await this.loadTodosForDate(currentDate);
             
             // 显示成功消息
             this.showMessage('TODO添加成功！', 'success');
@@ -851,8 +860,12 @@ const TodoManager = {
                 // 关闭表单
                 this.closeEditTodoForm();
                 
+                // 清除该用户的所有缓存，因为编辑可能改变了重复规则，影响多个日期
+                this.clearAllRelatedCache(this.currentUser);
+                
                 // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
-                await this.loadTodosForDate(DateManager.selectedDate || new Date());
+                const currentDate = DateManager.selectedDate || new Date();
+                await this.loadTodosForDate(currentDate);
                 
                 // 显示成功消息
                 this.showMessage('TODO更新成功！', 'success');
@@ -984,8 +997,12 @@ const TodoManager = {
             if (response.success) {
                 console.log('✅ 在服务器删除TODO成功');
                 
+                // 清除该用户的所有缓存，因为删除可能影响多个日期（特别是长期重复任务）
+                this.clearAllRelatedCache(this.currentUser);
+                
                 // 重新加载当前日期的TODO数据
-                await this.loadTodosForDate(DateManager.selectedDate || new Date());
+                const currentDate = DateManager.selectedDate || new Date();
+                await this.loadTodosForDate(currentDate);
                 
                 // 关闭编辑表单（如果打开的话）
                 this.closeEditTodoForm();
@@ -1146,20 +1163,24 @@ const TodoManager = {
             case 'TODO_CREATE_BROADCAST':
             case 'TODO_UPDATE_BROADCAST':
             case 'TODO_DELETE_BROADCAST':
+                // 清除所有用户的缓存，因为广播可能来自其他设备，影响所有用户
+                console.log('🧹 广播消息：清除所有缓存');
+                this.clearAllRelatedCache();
                 // 重新加载当前日期的TODO数据
                 this.loadTodosForDate(DateManager.selectedDate || new Date());
                 break;
                 
             case 'TODO_COMPLETE_BROADCAST':
             case 'TODO_UNCOMPLETE_BROADCAST':
-                // 只更新当前日期的完成状态
-                if (data.todoId) {
-                    const todo = this.todos[this.currentUser]?.find(t => t.id === data.todoId);
-                    if (todo) {
-                        todo.completed = data.completed;
-                        this.renderTodoPanel(this.currentUser);
-                    }
+                // 完成状态变化也要清除缓存，确保数据同步
+                console.log('🧹 完成状态广播：清除相关用户缓存');
+                if (data.userId) {
+                    this.clearAllRelatedCache(data.userId);
+                } else {
+                    this.clearAllRelatedCache();
                 }
+                // 重新加载当前日期的数据
+                this.loadTodosForDate(DateManager.selectedDate || new Date());
                 break;
         }
     },
@@ -1168,6 +1189,64 @@ const TodoManager = {
     fallbackToHTTP() {
         console.log('📡 TODO模块降级到HTTP模式');
         // 目前的实现已经自动处理降级，无需额外操作
+    },
+
+    // 清除所有相关缓存 - 彻底清理方法
+    clearAllRelatedCache(userId = null) {
+        console.log('🧹 开始清除所有相关缓存...', userId ? `用户${userId}` : '所有用户');
+        
+        if (userId) {
+            // 清除指定用户的所有缓存
+            const keysToDelete = [];
+            for (const key of this.todoCache.keys()) {
+                if (key.startsWith(`${userId}_`)) {
+                    keysToDelete.push(key);
+                }
+            }
+            keysToDelete.forEach(key => {
+                this.todoCache.delete(key);
+                console.log('🗑️ 删除缓存:', key);
+            });
+            console.log(`✅ 已清除用户${userId}的${keysToDelete.length}个缓存项`);
+        } else {
+            // 清除所有缓存
+            const cacheCount = this.todoCache.size;
+            this.todoCache.clear();
+            console.log(`✅ 已清除所有${cacheCount}个缓存项`);
+        }
+    },
+
+    // 清除指定用户指定日期范围的缓存
+    clearCacheForDateRange(userId, startDate = null, endDate = null) {
+        console.log('🧹 清除日期范围缓存...', {userId, startDate, endDate});
+        
+        const keysToDelete = [];
+        for (const key of this.todoCache.keys()) {
+            if (!key.startsWith(`${userId}_`)) continue;
+            
+            const dateStr = key.split('_')[1];
+            if (!startDate && !endDate) {
+                // 如果没有指定日期范围，清除该用户所有缓存
+                keysToDelete.push(key);
+            } else if (startDate && endDate) {
+                // 检查日期是否在范围内
+                if (dateStr >= startDate && dateStr <= endDate) {
+                    keysToDelete.push(key);
+                }
+            } else if (startDate) {
+                // 只有开始日期，清除该日期及以后的缓存
+                if (dateStr >= startDate) {
+                    keysToDelete.push(key);
+                }
+            }
+        }
+        
+        keysToDelete.forEach(key => {
+            this.todoCache.delete(key);
+            console.log('🗑️ 删除范围缓存:', key);
+        });
+        
+        console.log(`✅ 已清除用户${userId}的${keysToDelete.length}个日期范围缓存项`);
     },
 
     // 绑定事件
