@@ -3,11 +3,28 @@ const fs = require('fs').promises;
 const path = require('path');
 const { query, testConnection } = require('../config/sqlite');
 
-// 创建用户表
+// 创建注册用户表（应用的实际用户）
+async function createAppUsersTable() {
+    await query(`
+        CREATE TABLE app_users (
+            username VARCHAR(10) PRIMARY KEY,
+            password_hash TEXT NOT NULL,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            CONSTRAINT username_format CHECK (
+                username GLOB '[a-z0-9]*' AND
+                length(username) <= 10 AND
+                length(username) > 0
+            )
+        )
+    `);
+}
+
+// 创建被添加用户表（注册用户管理的用户）
 async function createUsersTable() {
     await query(`
         CREATE TABLE users (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
+            app_user_id VARCHAR(10) NOT NULL,
             username TEXT NOT NULL,
             display_name TEXT NOT NULL,
             email TEXT,
@@ -20,7 +37,8 @@ async function createUsersTable() {
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             is_active BOOLEAN DEFAULT 1,
-            UNIQUE(username, device_id)
+            FOREIGN KEY (app_user_id) REFERENCES app_users(username) ON DELETE CASCADE,
+            UNIQUE(username, device_id, app_user_id)
         )
     `);
 }
@@ -143,6 +161,12 @@ async function initTodoDatabase(preserveData = false) {
                 return result.length > 0;
             };
             
+            const appUsersExists = await checkTableExists('app_users');
+            if (!appUsersExists) {
+                console.log('📄 创建 app_users 表...');
+                await createAppUsersTable();
+            }
+            
             const usersExists = await checkTableExists('users');
             if (!usersExists) {
                 console.log('📄 创建 users 表...');
@@ -182,16 +206,18 @@ async function initTodoDatabase(preserveData = false) {
         } else {
             console.log('📄 删除旧表并创建新表...');
             
-            // 删除旧表（如果存在）
+            // 删除旧表（如果存在）- 注意删除顺序，先删除依赖表
             await query('DROP TABLE IF EXISTS todo_deletions');
             await query('DROP TABLE IF EXISTS todo_completions');
             await query('DROP TABLE IF EXISTS todos');
             await query('DROP TABLE IF EXISTS notes');
-            await query('DROP TABLE IF EXISTS repeat_patterns');
             await query('DROP TABLE IF EXISTS user_settings');
             await query('DROP TABLE IF EXISTS users');
+            await query('DROP TABLE IF EXISTS repeat_patterns');
+            await query('DROP TABLE IF EXISTS app_users');
             
-            // 创建所有表
+            // 创建所有表 - 注意创建顺序，先创建被引用的表
+            await createAppUsersTable();
             await createUsersTable();
             await createTodosTable();
             await createNotesTable();
@@ -203,8 +229,12 @@ async function initTodoDatabase(preserveData = false) {
         // 创建优化性能的索引
         console.log('🔍 创建数据库索引...');
         
-        // 用户查询优化索引
-        await query('CREATE INDEX idx_users_username_device ON users(username, device_id)');
+        // 注册用户索引
+        await query('CREATE INDEX idx_app_users_created ON app_users(created_at)');
+        
+        // 被添加用户查询优化索引
+        await query('CREATE INDEX idx_users_app_user ON users(app_user_id, is_active)');
+        await query('CREATE INDEX idx_users_username_device ON users(username, device_id, app_user_id)');
         await query('CREATE INDEX idx_users_active ON users(is_active)');
         
         // TODO查询优化索引 - 针对日期查询优化
@@ -227,12 +257,14 @@ async function initTodoDatabase(preserveData = false) {
         console.log('📊 跳过示例数据插入，创建干净的数据库...');
         
         // 验证数据
+        const appUsers = await query('SELECT COUNT(*) as count FROM app_users');
         const users = await query('SELECT COUNT(*) as count FROM users');
         const todos = await query('SELECT COUNT(*) as count FROM todos');
         const notes = await query('SELECT COUNT(*) as count FROM notes');
         
         console.log('📈 数据统计:');
-        console.log(`  - 用户: ${users[0].count} 条`);
+        console.log(`  - 注册用户: ${appUsers[0].count} 条`);
+        console.log(`  - 被添加用户: ${users[0].count} 条`);
         console.log(`  - TODO: ${todos[0].count} 条`);
         console.log(`  - Notes: ${notes[0].count} 条`);
         

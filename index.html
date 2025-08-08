@@ -98,6 +98,25 @@
         </div>
     </div>
 
+    <script>
+        // 检查登录状态
+        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        console.log('🔍 检查登录状态:', currentAppUser);
+        console.log('🔍 localStorage内容:', Object.keys(localStorage));
+        
+        if (!currentAppUser) {
+            console.log('❌ 未登录，跳转到登录页');
+            // 未登录，跳转到登录页
+            window.location.href = 'login.html';
+        } else {
+            console.log('✅ 已登录用户:', currentAppUser);
+            // 已登录，继续加载主应用
+            document.addEventListener('DOMContentLoaded', function() {
+                // 在页面标题中显示当前登录用户
+                document.title = `雯婷 - ${currentAppUser}`;
+            });
+        }
+    </script>
     <script src="build/app.min.js" defer></script>
 </body>
 

@@ -9,6 +9,7 @@ const { testConnection } = require('./config/database');
 const { initTodoDatabase } = require('./scripts/init-todo-db');
 
 // 导入路由
+const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const todosRouter = require('./routes/todos');
 const notesRouter = require('./routes/notes');
@@ -135,6 +136,7 @@ app.use(express.static('../', {
 }));
 
 // API路由
+app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/todos', todosRouter);
 app.use('/api/notes', notesRouter);

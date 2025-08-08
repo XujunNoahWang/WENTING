@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>调试页面</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .debug-section { margin: 20px 0; padding: 15px; border: 1px solid #ccc; border-radius: 5px; }
+        .debug-title { font-weight: bold; color: #333; margin-bottom: 10px; }
+        .debug-content { background: #f5f5f5; padding: 10px; border-radius: 3px; font-family: monospace; }
+        button { padding: 10px 15px; margin: 5px; background: #007cba; color: white; border: none; border-radius: 3px; cursor: pointer; }
+        button:hover { background: #005a87; }
+        .error { color: red; }
+        .success { color: green; }
+    </style>
+</head>
+<body>
+    <h1>雯婷应用调试页面</h1>
+    
+    <div class="debug-section">
+        <div class="debug-title">1. localStorage 状态</div>
+        <div class="debug-content" id="localStorageInfo">加载中...</div>
+        <button onclick="refreshLocalStorage()">刷新</button>
+        <button onclick="setTestUser()">设置测试用户(blackblade)</button>
+        <button onclick="clearStorage()">清空存储</button>
+    </div>
+    
+    <div class="debug-section">
+        <div class="debug-title">2. 设备信息</div>
+        <div class="debug-content" id="deviceInfo">加载中...</div>
+        <button onclick="refreshDeviceInfo()">刷新设备信息</button>
+    </div>
+    
+    <div class="debug-section">
+        <div class="debug-title">3. API连接测试</div>
+        <div class="debug-content" id="apiTest">加载中...</div>
+        <button onclick="testAPI()">测试API连接</button>
+        <button onclick="testUserAPI()">测试用户API</button>
+    </div>
+    
+    <div class="debug-section">
+        <div class="debug-title">4. 操作</div>
+        <button onclick="goToLogin()">跳转到登录页</button>
+        <button onclick="goToMain()">跳转到主页</button>
+        <button onclick="location.reload()">刷新页面</button>
+    </div>
+
+    <script>
+        // 刷新localStorage信息
+        function refreshLocalStorage() {
+            const info = document.getElementById('localStorageInfo');
+            const data = {};
+            
+            for (let i = 0; i < localStorage.length; i++) {
+                const key = localStorage.key(i);
+                data[key] = localStorage.getItem(key);
+            }
+            
+            info.innerHTML = `
+                <strong>localStorage 内容:</strong><br>
+                ${JSON.stringify(data, null, 2)}<br><br>
+                <strong>关键信息:</strong><br>
+                - 当前登录用户: ${localStorage.getItem('wenting_current_app_user') || '未设置'}<br>
+                - 设备ID: ${localStorage.getItem('wenting_device_id') || '未设置'}<br>
+                - 登录时间: ${localStorage.getItem('wenting_login_time') || '未设置'}
+            `;
+        }
+        
+        // 设置测试用户
+        function setTestUser() {
+            localStorage.setItem('wenting_current_app_user', 'blackblade');
+            localStorage.setItem('wenting_login_time', new Date().toISOString());
+            refreshLocalStorage();
+            alert('已设置测试用户: blackblade');
+        }
+        
+        // 清空存储
+        function clearStorage() {
+            if (confirm('确定要清空所有localStorage数据吗？')) {
+                localStorage.clear();
+                refreshLocalStorage();
+                alert('localStorage已清空');
+            }
+        }
+        
+        // 刷新设备信息
+        function refreshDeviceInfo() {
+            const info = document.getElementById('deviceInfo');
+            
+            // 生成设备指纹
+            const fingerprint = generateDeviceFingerprint();
+            const deviceId = hashString(fingerprint);
+            
+            info.innerHTML = `
+                <strong>设备指纹:</strong><br>
+                ${fingerprint}<br><br>
+                <strong>生成的设备ID:</strong><br>
+                ${deviceId}<br><br>
+                <strong>浏览器信息:</strong><br>
+                - User Agent: ${navigator.userAgent}<br>
+                - 屏幕分辨率: ${screen.width}x${screen.height}<br>
+                - 语言: ${navigator.language}<br>
+                - 平台: ${navigator.platform}
+            `;
+        }
+        
+        // 生成设备指纹（简化版）
+        function generateDeviceFingerprint() {
+            const components = [];
+            components.push(navigator.userAgent);
+            components.push(`${screen.width}x${screen.height}`);
+            components.push(screen.colorDepth.toString());
+            components.push(new Date().getTimezoneOffset().toString());
+            components.push(navigator.language || 'unknown');
+            components.push(navigator.platform);
+            return components.join('|');
+        }
+        
+        // 简单哈希函数
+        function hashString(str) {
+            let hash = 0;
+            if (str.length === 0) return hash.toString();
+            
+            for (let i = 0; i < str.length; i++) {
+                const char = str.charCodeAt(i);
+                hash = ((hash << 5) - hash) + char;
+                hash = hash & hash;
+            }
+            
+            return 'device_' + Math.abs(hash).toString(16);
+        }
+        
+        // 测试API连接
+        async function testAPI() {
+            const info = document.getElementById('apiTest');
+            info.innerHTML = '测试中...';
+            
+            try {
+                const response = await fetch('http://localhost:3001/health');
+                const data = await response.json();
+                
+                info.innerHTML = `
+                    <span class="success">✅ API连接成功</span><br>
+                    响应: ${JSON.stringify(data, null, 2)}
+                `;
+            } catch (error) {
+                info.innerHTML = `
+                    <span class="error">❌ API连接失败</span><br>
+                    错误: ${error.message}
+                `;
+            }
+        }
+        
+        // 测试用户API
+        async function testUserAPI() {
+            const info = document.getElementById('apiTest');
+            info.innerHTML = '测试用户API中...';
+            
+            const deviceId = localStorage.getItem('wenting_device_id') || hashString(generateDeviceFingerprint());
+            const appUserId = localStorage.getItem('wenting_current_app_user');
+            
+            if (!appUserId) {
+                info.innerHTML = `<span class="error">❌ 未设置登录用户，请先设置测试用户</span>`;
+                return;
+            }
+            
+            try {
+                const url = `http://localhost:3001/api/users?device_id=${encodeURIComponent(deviceId)}&app_user_id=${encodeURIComponent(appUserId)}`;
+                console.log('测试URL:', url);
+                
+                const response = await fetch(url);
+                const data = await response.json();
+                
+                if (response.ok) {
+                    info.innerHTML = `
+                        <span class="success">✅ 用户API测试成功</span><br>
+                        URL: ${url}<br>
+                        响应: ${JSON.stringify(data, null, 2)}
+                    `;
+                } else {
+                    info.innerHTML = `
+                        <span class="error">❌ 用户API测试失败</span><br>
+                        URL: ${url}<br>
+                        状态码: ${response.status}<br>
+                        响应: ${JSON.stringify(data, null, 2)}
+                    `;
+                }
+            } catch (error) {
+                info.innerHTML = `
+                    <span class="error">❌ 用户API测试异常</span><br>
+                    错误: ${error.message}
+                `;
+            }
+        }
+        
+        // 跳转函数
+        function goToLogin() {
+            window.location.href = 'login.html';
+        }
+        
+        function goToMain() {
+            window.location.href = 'index.html';
+        }
+        
+        // 页面加载时自动刷新信息
+        window.onload = function() {
+            refreshLocalStorage();
+            refreshDeviceInfo();
+            testAPI();
+        };
+    </script>
+</body>
+</html>

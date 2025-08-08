@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 class User {
     constructor(data) {
         this.id = data.id;
+        this.app_user_id = data.app_user_id;
         this.username = data.username;
         this.display_name = data.display_name;
         this.email = data.email;
@@ -22,6 +23,7 @@ class User {
     static async create(userData) {
         try {
             const {
+                app_user_id,
                 username,
                 display_name,
                 email,
@@ -33,31 +35,35 @@ class User {
                 device_id
             } = userData;
 
+            if (!app_user_id) {
+                throw new Error('注册用户ID不能为空');
+            }
+
             if (!device_id) {
                 throw new Error('设备ID不能为空');
             }
 
-            // 检查同一设备上用户名是否已存在
-            const existingUser = await User.findByUsernameAndDevice(username, device_id);
+            // 检查同一注册用户和设备上用户名是否已存在
+            const existingUser = await User.findByUsernameAndAppUserAndDevice(username, app_user_id, device_id);
             if (existingUser) {
-                throw new Error('该设备上用户名已存在');
+                throw new Error('该用户名已存在');
             }
 
             // 检查邮箱是否已存在（如果提供了邮箱）
             if (email) {
-                const existingEmail = await User.findByEmailAndDevice(email, device_id);
+                const existingEmail = await User.findByEmailAndAppUserAndDevice(email, app_user_id, device_id);
                 if (existingEmail) {
-                    throw new Error('该设备上邮箱已被使用');
+                    throw new Error('该邮箱已被使用');
                 }
             }
 
             const sql = `
-                INSERT INTO users (username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO users (app_user_id, username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             `;
             
             const result = await query(sql, [
-                username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id
+                app_user_id, username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id
             ]);
 
             // 获取新创建的用户
@@ -87,35 +93,56 @@ class User {
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 根据用户名和设备ID查找用户
+    // 根据用户名、注册用户ID和设备ID查找用户
+    static async findByUsernameAndAppUserAndDevice(username, appUserId, deviceId) {
+        const sql = 'SELECT * FROM users WHERE username = ? AND app_user_id = ? AND device_id = ? AND is_active = TRUE';
+        const users = await query(sql, [username, appUserId, deviceId]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 根据用户名和设备ID查找用户（兼容旧版）
     static async findByUsernameAndDevice(username, deviceId) {
         const sql = 'SELECT * FROM users WHERE username = ? AND device_id = ? AND is_active = TRUE';
         const users = await query(sql, [username, deviceId]);
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 根据邮箱查找用户（已废弃，使用findByEmailAndDevice）
-    static async findByEmail(email) {
-        const sql = 'SELECT * FROM users WHERE email = ? AND is_active = TRUE';
-        const users = await query(sql, [email]);
+    // 根据邮箱、注册用户ID和设备ID查找用户
+    static async findByEmailAndAppUserAndDevice(email, appUserId, deviceId) {
+        const sql = 'SELECT * FROM users WHERE email = ? AND app_user_id = ? AND device_id = ? AND is_active = TRUE';
+        const users = await query(sql, [email, appUserId, deviceId]);
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 根据邮箱和设备ID查找用户
+    // 根据邮箱和设备ID查找用户（兼容旧版）
     static async findByEmailAndDevice(email, deviceId) {
         const sql = 'SELECT * FROM users WHERE email = ? AND device_id = ? AND is_active = TRUE';
         const users = await query(sql, [email, deviceId]);
         return users.length > 0 ? new User(users[0]) : null;
     }
 
-    // 获取所有活跃用户（已废弃，使用findAllByDevice）
+    // 根据邮箱查找用户（已废弃）
+    static async findByEmail(email) {
+        const sql = 'SELECT * FROM users WHERE email = ? AND is_active = TRUE';
+        const users = await query(sql, [email]);
+        return users.length > 0 ? new User(users[0]) : null;
+    }
+
+    // 获取所有活跃用户（已废弃）
     static async findAll() {
         const sql = 'SELECT * FROM users WHERE is_active = TRUE ORDER BY created_at DESC';
         const users = await query(sql);
         return users.map(user => new User(user));
     }
 
-    // 根据设备ID获取所有活跃用户
+    // 根据注册用户ID和设备ID获取所有活跃用户
+    static async findAllByAppUserAndDevice(appUserId, deviceId) {
+        const sql = 'SELECT * FROM users WHERE app_user_id = ? AND device_id = ? AND is_active = TRUE ORDER BY created_at DESC';
+        const users = await query(sql, [appUserId, deviceId]);
+        return users.map(user => new User(user));
+    }
+
+    // 根据设备ID获取所有活跃用户（兼容旧版）
     static async findAllByDevice(deviceId) {
         const sql = 'SELECT * FROM users WHERE device_id = ? AND is_active = TRUE ORDER BY created_at DESC';
         const users = await query(sql, [deviceId]);
