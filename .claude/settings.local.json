@@ -38,7 +38,11 @@
       "Bash(copy index.html index.html.backup)",
       "Bash(cp:*)",
       "Bash(start \"雯婷后端服务 - 修复JS压缩\" npm run dev)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(mv:*)",
+      "Bash(where npm)",
+      "Bash(npm --version)",
+      "Bash(cmd /c \"npm.cmd run dev --help\")"
     ],
     "deny": []
   }
