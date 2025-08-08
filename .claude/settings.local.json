@@ -33,7 +33,8 @@
       "Bash(start \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-style.html\")",
       "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-style.html\")",
       "Bash(git remote set-url:*)",
-      "Bash(start \"雯婷后端服务 - WebSocket测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - WebSocket测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - Bug修复测试\" npm run dev)"
     ],
     "deny": []
   }

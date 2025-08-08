@@ -158,13 +158,22 @@ const TodoManager = {
             
             if (this.currentUser !== newUserId) {
                 this.currentUser = newUserId;
-                console.log('✅ 用户已切换，加载对应用户的TODO数据，新用户ID:', newUserId);
-                // 用户切换时先加载该用户当前日期的TODO数据，然后渲染
-                this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                // 只有当前模块是todo时才渲染
+                if (GlobalUserState.getCurrentModule() === 'todo') {
+                    console.log('✅ 当前是TODO模块，渲染TODO内容');
+                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                } else {
+                    console.log('⏸️ 当前不是TODO模块，跳过渲染');
+                }
             } else {
                 console.log('🔄 用户ID相同，但仍需重新渲染TODO面板（可能是初始化调用）');
                 // 即使用户ID相同，也要重新渲染（比如初始化时）
-                this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                if (GlobalUserState.getCurrentModule() === 'todo') {
+                    console.log('✅ 当前是TODO模块，渲染TODO内容');
+                    this.loadTodosForDate(DateManager.selectedDate || new Date(), newUserId);
+                } else {
+                    console.log('⏸️ 当前不是TODO模块，跳过渲染');
+                }
             }
         }
     },
