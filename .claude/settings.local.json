@@ -37,7 +37,8 @@
       "Bash(start \"雯婷后端服务 - Bug修复测试\" npm run dev)",
       "Bash(copy index.html index.html.backup)",
       "Bash(cp:*)",
-      "Bash(start \"雯婷后端服务 - 修复JS压缩\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - 修复JS压缩\" npm run dev)",
+      "Bash(find:*)"
     ],
     "deny": []
   }
