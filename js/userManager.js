@@ -360,6 +360,28 @@ const UserManager = {
         if (window.GlobalUserState) {
             GlobalUserState.bindUserSelectorEvents();
         }
+        
+        // 触发用户标签渲染完成事件，通知其他页面
+        const userTabsRenderedEvent = new CustomEvent('userTabsRendered', {
+            detail: {
+                users: sortedUsers,
+                currentUserId: currentUserId
+            }
+        });
+        document.dispatchEvent(userTabsRenderedEvent);
+        console.log('📢 触发userTabsRendered事件，用户数:', sortedUsers.length, '当前用户:', currentUserId);
+        
+        // 如果有当前用户，也触发userSelected事件
+        if (currentUserId) {
+            const currentUser = sortedUsers.find(user => user.id === currentUserId);
+            if (currentUser) {
+                console.log('📢 同时触发userSelected事件，用户:', currentUser.username);
+                const userSelectedEvent = new CustomEvent('userSelected', {
+                    detail: currentUser
+                });
+                document.dispatchEvent(userSelectedEvent);
+            }
+        }
     },
 
     // 获取用户信息

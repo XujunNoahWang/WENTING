@@ -299,7 +299,8 @@ const App = {
                 this.showNotesPage();
                 break;
             case 'Link':
-                alert('链接功能开发中');
+                // 显示Link页面（在SPA内切换）
+                this.showLinkPage();
                 break;
             case 'Profile':
                 // 显示Profile页面
@@ -480,6 +481,172 @@ const App = {
             setTimeout(() => {
                 if (window.DateManager) window.DateManager.hideLoadingProgress();
             }, 300);
+        }
+    },
+
+    // 显示Link页面
+    async showLinkPage() {
+        console.log('切换到Link页面');
+        
+        try {
+            // 恢复左侧边栏显示
+            if (window.ProfileManager) {
+                ProfileManager.showLeftSidebar();
+            }
+            
+            // 设置全局状态为link模块
+            if (window.GlobalUserState) {
+                GlobalUserState.setCurrentModule('link');
+            }
+            
+            // 创建Link页面的内容
+            const contentArea = document.getElementById('contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = `
+                    <div class="content-panel">
+                        <!-- Link内容区域 -->
+                        <div class="link-content-area">
+                            <!-- 用户信息显示区 -->
+                            <div class="user-info-display" id="userInfoDisplay">
+                                <div class="empty-state">
+                                    <div class="empty-icon">👤</div>
+                                    <p>请从左侧选择一个用户</p>
+                                    <p class="empty-subtitle">查看用户的详细信息</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                `;
+                
+                console.log('✅ Link页面HTML已创建');
+            }
+            
+            // 初始化Link页面的事件监听
+            this.initializeLinkPageEvents();
+            
+            // 检查是否有默认选中的用户并显示其信息
+            setTimeout(() => {
+                this.displayDefaultUserInLink();
+            }, 100);
+            
+            console.log('✅ Link页面加载完成');
+            
+        } catch (error) {
+            console.error('加载Link页面失败:', error);
+            
+            // 显示错误状态
+            const contentArea = document.getElementById('contentArea');
+            if (contentArea) {
+                contentArea.innerHTML = `
+                    <div class="content-panel">
+                        <div class="link-error">
+                            <div class="error-icon">❌</div>
+                            <h3>加载失败</h3>
+                            <p>${error.message}</p>
+                            <button class="btn btn-primary" onclick="App.showLinkPage()">重试</button>
+                        </div>
+                    </div>
+                `;
+            }
+        }
+    },
+    
+    // 初始化Link页面事件监听
+    initializeLinkPageEvents() {
+        console.log('🎨 初始化Link页面事件监听...');
+        
+        // 监听用户选择事件
+        const handleUserSelected = (event) => {
+            const selectedUser = event.detail;
+            console.log('👤 [SPA Link] 接收到用户选择事件:', selectedUser);
+            this.displayUserInfoInLink(selectedUser);
+        };
+        
+        // 移除旧的监听器（避免重复绑定）
+        document.removeEventListener('userSelected', handleUserSelected);
+        // 添加新的监听器
+        document.addEventListener('userSelected', handleUserSelected);
+        
+        console.log('✅ Link页面事件监听初始化完成');
+    },
+    
+    // 在Link页面显示用户信息
+    displayUserInfoInLink(user) {
+        console.log('🎨 [SPA Link] 显示用户信息:', user);
+        
+        const userInfoDisplay = document.getElementById('userInfoDisplay');
+        if (userInfoDisplay && user) {
+            userInfoDisplay.innerHTML = `
+                <div class="selected-user-info">
+                    <div class="user-avatar" style="background-color: ${user.avatar_color}">
+                        ${user.display_name.charAt(0)}
+                    </div>
+                    <h3>${user.display_name}</h3>
+                    <div class="user-details">
+                        <div class="link-detail-item">
+                            <span class="detail-label">用户名:</span>
+                            <span class="detail-value">${user.username}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">显示名称:</span>
+                            <span class="detail-value">${user.display_name}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">邮箱:</span>
+                            <span class="detail-value">${user.email || '未设置'}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">手机号:</span>
+                            <span class="detail-value">${user.phone || '未设置'}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">性别:</span>
+                            <span class="detail-value">${user.gender === 'male' ? '男' : user.gender === 'female' ? '女' : user.gender === 'other' ? '其他' : '未设置'}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">生日:</span>
+                            <span class="detail-value">${user.birthday ? new Date(user.birthday).toLocaleDateString() : '未设置'}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">头像颜色:</span>
+                            <span class="detail-value">
+                                <span style="display: inline-block; width: 20px; height: 20px; background-color: ${user.avatar_color}; border-radius: 50%; vertical-align: middle; margin-right: 8px;"></span>
+                                ${user.avatar_color}
+                            </span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">创建时间:</span>
+                            <span class="detail-value">${new Date(user.created_at).toLocaleString()}</span>
+                        </div>
+                        <div class="link-detail-item">
+                            <span class="detail-label">最后更新:</span>
+                            <span class="detail-value">${new Date(user.updated_at).toLocaleString()}</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            console.log('✅ [SPA Link] 用户信息已更新');
+        } else {
+            console.error('❌ [SPA Link] userInfoDisplay元素未找到或用户为空');
+        }
+    },
+    
+    // 显示默认选中用户的信息
+    displayDefaultUserInLink() {
+        console.log('🔍 [SPA Link] 检查默认选中用户...');
+        
+        const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : null;
+        if (currentUserId && window.UserManager && window.UserManager.users) {
+            const selectedUser = window.UserManager.users.find(user => user.id === currentUserId);
+            if (selectedUser) {
+                console.log('👤 [SPA Link] 找到默认用户，显示信息:', selectedUser.username);
+                this.displayUserInfoInLink(selectedUser);
+            } else {
+                console.log('⚠️ [SPA Link] 未找到默认用户对象');
+            }
+        } else {
+            console.log('ℹ️ [SPA Link] 没有默认用户或用户管理器未就绪');
         }
     },
 

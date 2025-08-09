@@ -40,6 +40,25 @@ const GlobalUserState = {
         // 无论是否相同，都更新UI（确保样式正确）
         console.log('🎨 强制更新用户选择器UI...');
         this.updateUserSelectorUI();
+        
+        // 触发用户选择事件，传递完整的用户对象
+        if (window.UserManager && window.UserManager.users) {
+            const selectedUser = window.UserManager.users.find(user => user.id === userId);
+            console.log('🔍 查找用户对象，用户ID:', userId, '找到的用户:', selectedUser);
+            
+            if (selectedUser) {
+                console.log('📢 准备触发userSelected事件');
+                const userSelectedEvent = new CustomEvent('userSelected', {
+                    detail: selectedUser
+                });
+                document.dispatchEvent(userSelectedEvent);
+                console.log('✅ userSelected事件已触发，用户:', selectedUser.username);
+            } else {
+                console.warn('⚠️ 未找到用户ID为', userId, '的用户对象');
+            }
+        } else {
+            console.warn('⚠️ UserManager或用户列表未就绪');
+        }
     },
 
     // 设置当前模块
