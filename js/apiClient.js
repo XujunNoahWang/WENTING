@@ -417,7 +417,7 @@ const ApiClient = {
         // 注册
         async register(username, password) {
             // 认证API不需要在headers中添加当前用户信息
-            return fetch(`${ApiClient.baseURL}/auth/register`, {
+            return fetch(`${ApiClient.baseURL}/api/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -428,7 +428,7 @@ const ApiClient = {
 
         // 登录
         async login(username, password) {
-            return fetch(`${ApiClient.baseURL}/auth/login`, {
+            return fetch(`${ApiClient.baseURL}/api/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -439,7 +439,7 @@ const ApiClient = {
 
         // 验证登录状态
         async verify(username) {
-            return fetch(`${ApiClient.baseURL}/auth/verify?username=${encodeURIComponent(username)}`, {
+            return fetch(`${ApiClient.baseURL}/api/auth/verify?username=${encodeURIComponent(username)}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -449,7 +449,7 @@ const ApiClient = {
 
         // 获取用户资料（用于Profile页面）
         async getProfile(username) {
-            return fetch(`${ApiClient.baseURL}/auth/profile/${encodeURIComponent(username)}`, {
+            return fetch(`${ApiClient.baseURL}/api/auth/profile/${encodeURIComponent(username)}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
