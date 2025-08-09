@@ -40,10 +40,21 @@ const NotesManager = {
 
     // 等待用户管理器初始化完成
     async waitForUserManager() {
+        // 设置最大等待时间为5秒，避免新用户无限等待
+        const maxWaitTime = 5000; // 5秒
+        const startTime = Date.now();
+        
         if (UserManager.users.length === 0) {
+            console.log('⏳ Notes: 等待用户数据加载，新用户最多等待5秒...');
             await new Promise(resolve => {
                 const checkUsers = () => {
+                    const elapsedTime = Date.now() - startTime;
+                    
                     if (UserManager.users.length > 0) {
+                        console.log('✅ Notes: 用户数据已加载');
+                        resolve();
+                    } else if (elapsedTime >= maxWaitTime) {
+                        console.log('⏰ Notes: 等待超时，可能是新用户没有被管理用户，继续初始化...');
                         resolve();
                     } else {
                         setTimeout(checkUsers, 100);
@@ -150,10 +161,21 @@ const NotesManager = {
             ? note.description.substring(0, 50) + '...' 
             : note.description;
 
+        // 获取同步状态
+        const syncStatus = this.getSyncStatus(note.user_id);
+        const syncIndicator = syncStatus.isLinked ? `
+            <div class="sync-indicator ${syncStatus.status}" title="${syncStatus.tooltip}">
+                <span class="sync-icon">${syncStatus.icon}</span>
+            </div>
+        ` : '';
+
         return `
             <div class="note-card clickable" data-note-id="${note.id}" onclick="NotesManager.showNoteDetails(${note.id})">
                 <div class="note-header">
-                    <h3 class="note-title">${Utils.escapeHtml(note.title)}</h3>
+                    <div class="note-title-container">
+                        <h3 class="note-title">${Utils.escapeHtml(note.title)}</h3>
+                        ${syncIndicator}
+                    </div>
                     <div class="note-actions" onclick="event.stopPropagation()">
                         <button class="note-action-btn" onclick="NotesManager.shareNote(${note.id})" title="分享">
                             <svg viewBox="0 0 24 24" width="16" height="16">
@@ -178,6 +200,48 @@ const NotesManager = {
                 </div>` : ''}
             </div>
         `;
+    },
+
+    // 获取同步状态
+    getSyncStatus(userId) {
+        // 检查用户是否有关联关系
+        const user = UserManager.users.find(u => u.id === userId);
+        if (!user) {
+            return { isLinked: false };
+        }
+        
+        // 检查是否已关联
+        if (user.is_linked && user.supervised_app_user) {
+            return {
+                isLinked: true,
+                status: 'synced',
+                icon: '🔗',
+                tooltip: `已与 ${user.supervised_app_user} 同步`
+            };
+        }
+        
+        return { isLinked: false };
+    },
+
+    // 显示同步状态提示
+    showSyncStatusToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `sync-toast ${type}`;
+        toast.innerHTML = `
+            <span class="sync-toast-icon">${type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️'}</span>
+            <span class="sync-toast-message">${message}</span>
+        `;
+        
+        document.body.appendChild(toast);
+        
+        // 显示动画
+        setTimeout(() => toast.classList.add('show'), 100);
+        
+        // 3秒后移除
+        setTimeout(() => {
+            toast.classList.remove('show');
+            setTimeout(() => document.body.removeChild(toast), 300);
+        }, 3000);
     },
 
     // 渲染空状态

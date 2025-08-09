@@ -34,6 +34,8 @@ async function createUsersTable() {
             avatar_color TEXT DEFAULT '#1d9bf0',
             timezone TEXT DEFAULT 'Asia/Shanghai',
             device_id TEXT NOT NULL,
+            supervised_app_user TEXT,                 -- 关联的app_user用户名
+            is_linked BOOLEAN DEFAULT FALSE,          -- 是否已关联
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             is_active BOOLEAN DEFAULT 1,
@@ -134,6 +136,46 @@ async function createUserSettingsTable() {
     `);
 }
 
+// 创建用户关联关系表
+async function createUserLinksTable() {
+    await query(`
+        CREATE TABLE user_links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            manager_app_user TEXT NOT NULL,           -- 管理员的app_user用户名
+            linked_app_user TEXT NOT NULL,            -- 被关联的app_user用户名
+            supervised_user_id INTEGER NOT NULL,      -- 被监管用户ID
+            status TEXT DEFAULT 'active' CHECK(status IN ('pending', 'active', 'rejected', 'cancelled')),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (manager_app_user) REFERENCES app_users(username) ON DELETE CASCADE,
+            FOREIGN KEY (linked_app_user) REFERENCES app_users(username) ON DELETE CASCADE,
+            FOREIGN KEY (supervised_user_id) REFERENCES users(id) ON DELETE CASCADE,
+            UNIQUE(manager_app_user, linked_app_user, supervised_user_id)
+        )
+    `);
+}
+
+// 创建关联请求表
+async function createLinkRequestsTable() {
+    await query(`
+        CREATE TABLE link_requests (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            from_app_user TEXT NOT NULL,              -- 发起请求的用户
+            to_app_user TEXT NOT NULL,                -- 接收请求的用户
+            supervised_user_id INTEGER NOT NULL,      -- 被监管用户ID
+            supervised_user_name TEXT NOT NULL,       -- 被监管用户名称（用于显示）
+            message TEXT DEFAULT '',                  -- 请求消息
+            status TEXT DEFAULT 'pending' CHECK(status IN ('pending', 'accepted', 'rejected', 'expired')),
+            expires_at DATETIME DEFAULT (datetime('now', '+7 days')), -- 7天后过期
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (from_app_user) REFERENCES app_users(username) ON DELETE CASCADE,
+            FOREIGN KEY (to_app_user) REFERENCES app_users(username) ON DELETE CASCADE,
+            FOREIGN KEY (supervised_user_id) REFERENCES users(id) ON DELETE CASCADE
+        )
+    `);
+}
+
 async function initTodoDatabase(preserveData = false) {
     try {
         console.log('🔄 开始初始化TODO数据库...');
@@ -203,10 +245,24 @@ async function initTodoDatabase(preserveData = false) {
                 await createUserSettingsTable();
             }
             
+            const userLinksExists = await checkTableExists('user_links');
+            if (!userLinksExists) {
+                console.log('📄 创建 user_links 表...');
+                await createUserLinksTable();
+            }
+            
+            const linkRequestsExists = await checkTableExists('link_requests');
+            if (!linkRequestsExists) {
+                console.log('📄 创建 link_requests 表...');
+                await createLinkRequestsTable();
+            }
+            
         } else {
             console.log('📄 删除旧表并创建新表...');
             
             // 删除旧表（如果存在）- 注意删除顺序，先删除依赖表
+            await query('DROP TABLE IF EXISTS link_requests');
+            await query('DROP TABLE IF EXISTS user_links');
             await query('DROP TABLE IF EXISTS todo_deletions');
             await query('DROP TABLE IF EXISTS todo_completions');
             await query('DROP TABLE IF EXISTS todos');
@@ -224,6 +280,8 @@ async function initTodoDatabase(preserveData = false) {
             await createTodoCompletionsTable();
             await createTodoDeletionsTable();
             await createUserSettingsTable();
+            await createUserLinksTable();
+            await createLinkRequestsTable();
         }
         
         // 创建优化性能的索引
@@ -253,6 +311,16 @@ async function initTodoDatabase(preserveData = false) {
         // Notes查询优化索引
         await query('CREATE INDEX idx_notes_user ON notes(user_id)');
         
+        // Link功能索引
+        await query('CREATE INDEX idx_user_links_manager ON user_links(manager_app_user, status)');
+        await query('CREATE INDEX idx_user_links_linked ON user_links(linked_app_user, status)');
+        await query('CREATE INDEX idx_user_links_supervised ON user_links(supervised_user_id)');
+        await query('CREATE INDEX idx_link_requests_to_user ON link_requests(to_app_user, status)');
+        await query('CREATE INDEX idx_link_requests_from_user ON link_requests(from_app_user, status)');
+        await query('CREATE INDEX idx_link_requests_expires ON link_requests(expires_at, status)');
+        await query('CREATE INDEX idx_users_supervised_app_user ON users(supervised_app_user)');
+        await query('CREATE INDEX idx_users_is_linked ON users(is_linked)');
+        
         console.log('✅ 数据库索引创建完成');
         console.log('📊 跳过示例数据插入，创建干净的数据库...');
         
@@ -261,12 +329,16 @@ async function initTodoDatabase(preserveData = false) {
         const users = await query('SELECT COUNT(*) as count FROM users');
         const todos = await query('SELECT COUNT(*) as count FROM todos');
         const notes = await query('SELECT COUNT(*) as count FROM notes');
+        const userLinks = await query('SELECT COUNT(*) as count FROM user_links');
+        const linkRequests = await query('SELECT COUNT(*) as count FROM link_requests');
         
         console.log('📈 数据统计:');
         console.log(`  - 注册用户: ${appUsers[0].count} 条`);
         console.log(`  - 被添加用户: ${users[0].count} 条`);
         console.log(`  - TODO: ${todos[0].count} 条`);
         console.log(`  - Notes: ${notes[0].count} 条`);
+        console.log(`  - 用户关联: ${userLinks[0].count} 条`);
+        console.log(`  - 关联请求: ${linkRequests[0].count} 条`);
         
         console.log('🎉 TODO数据库初始化完成！');
         

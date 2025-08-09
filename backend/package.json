@@ -8,10 +8,18 @@
     "dev": "nodemon server.js",
     "init-db": "node scripts/init-todo-db.js",
     "clear-db": "node scripts/clear-database.js",
-    "reset-db": "npm run clear-db && npm run init-db"
+    "reset-db": "npm run clear-db && npm run init-db",
+    "test": "jest",
+    "test:unit": "jest tests/linkService.test.js",
+    "test:integration": "node scripts/run-integration-tests.js",
+    "test:e2e": "jest tests/e2e.test.js",
+    "test:all": "npm run test:unit && npm run test:integration && npm run test:e2e",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage"
   },
   "dependencies": {
     "@google/generative-ai": "^0.24.1",
+    "axios": "^1.11.0",
     "bcrypt": "^6.0.0",
     "bcryptjs": "^2.4.3",
     "compression": "^1.7.4",
@@ -22,12 +30,17 @@
     "helmet": "^7.0.0",
     "joi": "^17.9.2",
     "jsonwebtoken": "^9.0.2",
+    "node-cron": "^4.2.1",
     "node-fetch": "^3.3.2",
     "sqlite3": "^5.1.7",
     "ws": "^8.18.3"
   },
   "devDependencies": {
-    "nodemon": "^3.0.1"
+    "nodemon": "^3.0.1",
+    "supertest": "^7.1.4",
+    "jest": "^29.7.0",
+    "puppeteer": "^21.5.0",
+    "@types/jest": "^29.5.8"
   },
   "keywords": [
     "todo",

@@ -127,6 +127,23 @@ class WebSocketService {
                     response = await this.handleNotesAISuggestions(data.noteId, data.userLocation, data.weatherData);
                     break;
 
+                // Link相关操作
+                case 'LINK_CREATE_REQUEST':
+                    response = await this.handleLinkCreateRequest(data);
+                    break;
+                case 'LINK_GET_PENDING_REQUESTS':
+                    response = await this.handleLinkGetPendingRequests(userId);
+                    break;
+                case 'LINK_HANDLE_REQUEST':
+                    response = await this.handleLinkHandleRequest(data);
+                    break;
+                case 'LINK_GET_USER_LINKS':
+                    response = await this.handleLinkGetUserLinks(userId);
+                    break;
+                case 'LINK_CANCEL_LINK':
+                    response = await this.handleLinkCancelLink(data);
+                    break;
+
                 // 连接管理
                 case 'PING':
                     response = { type: 'PONG', timestamp: Date.now() };
@@ -156,6 +173,7 @@ class WebSocketService {
 
         } catch (error) {
             console.error(`❌ 处理${type}操作失败:`, error);
+            console.error('错误详情:', error.stack);
             this.sendError(ws, type, error.message);
         }
     }
@@ -314,11 +332,187 @@ class WebSocketService {
         });
     }
 
+    // Link操作处理函数
+    async handleLinkCreateRequest(data) {
+        const LinkService = require('./linkService');
+        const { fromAppUser, toAppUser, supervisedUserId, message } = data;
+        
+        const request = await LinkService.createRequest(fromAppUser, toAppUser, supervisedUserId, message);
+        
+        // 向目标用户发送实时通知
+        this.sendLinkNotificationToUser(toAppUser, {
+            type: 'LINK_REQUEST_RECEIVED',
+            data: {
+                requestId: request.id,
+                fromUser: fromAppUser,
+                supervisedUserName: request.supervised_user_name,
+                message: request.message,
+                expiresAt: request.expires_at
+            }
+        });
+        
+        return { request };
+    }
+
+    async handleLinkGetPendingRequests(appUser) {
+        const LinkService = require('./linkService');
+        const requests = await LinkService.getPendingRequests(appUser);
+        return { requests };
+    }
+
+    async handleLinkHandleRequest(data) {
+        const LinkService = require('./linkService');
+        const { requestId, action, appUser } = data;
+        
+        // 获取请求详情用于通知
+        const { query } = require('../config/sqlite');
+        const requestDetails = await query('SELECT * FROM link_requests WHERE id = ?', [requestId]);
+        
+        const result = await LinkService.handleRequest(requestId, action, appUser);
+        
+        if (requestDetails.length > 0) {
+            const request = requestDetails[0];
+            
+            // 向发起请求的用户发送状态更新通知
+            this.sendLinkNotificationToUser(request.from_app_user, {
+                type: 'LINK_REQUEST_RESPONSE',
+                data: {
+                    requestId,
+                    action,
+                    supervisedUserName: request.supervised_user_name,
+                    respondedBy: appUser,
+                    result
+                }
+            });
+            
+            // 如果接受了请求，向双方发送关联建立通知
+            if (action === 'accept') {
+                this.sendLinkNotificationToUser(request.from_app_user, {
+                    type: 'LINK_ESTABLISHED',
+                    data: {
+                        linkedUser: appUser,
+                        supervisedUserName: request.supervised_user_name,
+                        role: 'manager'
+                    }
+                });
+                
+                this.sendLinkNotificationToUser(appUser, {
+                    type: 'LINK_ESTABLISHED',
+                    data: {
+                        linkedUser: request.from_app_user,
+                        supervisedUserName: request.supervised_user_name,
+                        role: 'linked'
+                    }
+                });
+            }
+        }
+        
+        return result;
+    }
+
+    async handleLinkGetUserLinks(appUser) {
+        const LinkService = require('./linkService');
+        const links = await LinkService.getUserLinks(appUser);
+        return { links };
+    }
+
+    async handleLinkCancelLink(data) {
+        const LinkService = require('./linkService');
+        const { linkId, appUser } = data;
+        
+        // 获取关联详情用于通知
+        const { query } = require('../config/sqlite');
+        const linkDetails = await query(`
+            SELECT ul.*, u.display_name as supervised_user_name
+            FROM user_links ul
+            JOIN users u ON ul.supervised_user_id = u.id
+            WHERE ul.id = ?
+        `, [linkId]);
+        
+        const result = await LinkService.cancelLink(linkId, appUser);
+        
+        if (linkDetails.length > 0) {
+            const link = linkDetails[0];
+            const otherUser = link.manager_app_user === appUser ? link.linked_app_user : link.manager_app_user;
+            
+            // 向另一方发送关联取消通知
+            this.sendLinkNotificationToUser(otherUser, {
+                type: 'LINK_CANCELLED',
+                data: {
+                    cancelledBy: appUser,
+                    supervisedUserName: link.supervised_user_name,
+                    linkId
+                }
+            });
+        }
+        
+        return result;
+    }
+
+    // 向特定用户发送Link通知
+    sendLinkNotificationToUser(appUser, notification) {
+        console.log(`📡 尝试向用户 ${appUser} 发送Link通知`);
+        
+        // 查找该用户的所有连接设备
+        if (this.userConnections.has(appUser)) {
+            const deviceIds = this.userConnections.get(appUser);
+            let sentCount = 0;
+
+            deviceIds.forEach(deviceId => {
+                const connection = this.connections.get(deviceId);
+                if (connection && connection.ws.readyState === WebSocket.OPEN) {
+                    this.sendMessage(connection.ws, {
+                        ...notification,
+                        timestamp: Date.now()
+                    });
+                    sentCount++;
+                }
+            });
+            
+            if (sentCount > 0) {
+                console.log(`📡 向用户 ${appUser} 的 ${sentCount} 个设备发送Link通知成功`);
+            } else {
+                console.log(`⚠️  用户 ${appUser} 的设备都不在线，无法发送Link通知`);
+            }
+        } else {
+            console.log(`⚠️  用户 ${appUser} 当前不在线，无法发送Link通知`);
+        }
+    }
+
+    // 向关联用户广播数据同步通知
+    broadcastDataSyncToLinkedUsers(supervisedUserId, operation, table, data) {
+        // 获取该被监管用户的所有关联关系
+        const { query } = require('../config/sqlite');
+        
+        query(`
+            SELECT manager_app_user, linked_app_user FROM user_links 
+            WHERE supervised_user_id = ? AND status = 'active'
+        `, [supervisedUserId]).then(links => {
+            links.forEach(link => {
+                // 向管理员和关联用户发送同步通知
+                [link.manager_app_user, link.linked_app_user].forEach(appUser => {
+                    this.sendLinkNotificationToUser(appUser, {
+                        type: 'DATA_SYNC_UPDATE',
+                        data: {
+                            supervisedUserId,
+                            operation,
+                            table,
+                            data
+                        }
+                    });
+                });
+            });
+        }).catch(error => {
+            console.error('❌ 广播数据同步通知失败:', error);
+        });
+    }
+
     // 判断是否是修改操作（需要广播）
     isModifyOperation(type) {
         const modifyOperations = [
             'TODO_CREATE', 'TODO_UPDATE', 'TODO_DELETE', 'TODO_COMPLETE', 'TODO_UNCOMPLETE',
-            'NOTES_CREATE', 'NOTES_UPDATE', 'NOTES_DELETE'
+            'NOTES_CREATE', 'NOTES_UPDATE', 'NOTES_DELETE',
+            'LINK_CREATE_REQUEST', 'LINK_HANDLE_REQUEST', 'LINK_CANCEL_LINK'
         ];
         return modifyOperations.includes(type);
     }

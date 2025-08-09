@@ -32,7 +32,7 @@ const App = {
     async initializeModules() {
         // 首先初始化设备管理器
         if (window.DeviceManager) {
-            DeviceManager.init();
+            await DeviceManager.init();
         }
         
         // 确保 ApiClient 已加载
@@ -284,6 +284,24 @@ const App = {
 
         window.addEventListener('offline', () => {
             console.log('网络连接断开，将使用缓存数据');
+        });
+
+        // 设备ID更新处理
+        window.addEventListener('deviceIdUpdated', (event) => {
+            console.log('🔄 设备ID已更新:', event.detail.deviceId);
+            
+            // 延迟重新加载用户数据，让设备ID生效
+            setTimeout(async () => {
+                try {
+                    if (window.UserManager && typeof UserManager.loadUsers === 'function') {
+                        console.log('🔄 重新加载用户数据...');
+                        await UserManager.loadUsers();
+                        console.log('✅ 用户数据重新加载完成');
+                    }
+                } catch (error) {
+                    console.error('❌ 重新加载用户数据失败:', error);
+                }
+            }, 1000);
         });
     },
 

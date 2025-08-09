@@ -13,6 +13,7 @@ const authRouter = require('./routes/auth');
 const usersRouter = require('./routes/users');
 const todosRouter = require('./routes/todos');
 const notesRouter = require('./routes/notes');
+const linksRouter = require('./routes/links');
 
 // 导入WebSocket服务
 const websocketService = require('./services/websocketService');
@@ -140,6 +141,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/todos', todosRouter);
 app.use('/api/notes', notesRouter);
+app.use('/api/links', linksRouter);
 
 // 根路径
 app.get('/', (req, res) => {
@@ -151,6 +153,7 @@ app.get('/', (req, res) => {
             users: '/api/users',
             todos: '/api/todos',
             notes: '/api/notes',
+            links: '/api/links',
             patterns: '/api/patterns',
             health: '/health'
         },
@@ -166,6 +169,8 @@ app.use('*', (req, res) => {
         availableEndpoints: [
             '/api/users',
             '/api/todos',
+            '/api/notes',
+            '/api/links',
             '/api/patterns',
             '/health'
         ]

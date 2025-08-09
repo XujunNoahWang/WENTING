@@ -4,7 +4,7 @@ const DeviceManager = {
     deviceInfo: null,
 
     // 初始化设备管理器
-    init() {
+    async init() {
         console.log('🔧 初始化设备管理器...');
         this.deviceId = this.getOrCreateDeviceId();
         this.deviceInfo = this.getDeviceInfo();
@@ -14,6 +14,16 @@ const DeviceManager = {
         
         // 在页面上显示设备信息（调试用）
         this.displayDeviceInfo();
+        
+        // 确保新用户的设备ID同步到数据库
+        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        if (currentAppUser && this.deviceId) {
+            console.log('🔄 为新用户同步设备ID到数据库...');
+            // 异步同步，不阻塞初始化
+            setTimeout(() => {
+                this.syncDeviceIdToDatabase();
+            }, 1000);
+        }
         
         return this.deviceId;
     },
@@ -26,6 +36,18 @@ const DeviceManager = {
         if (deviceId) {
             console.log('📱 找到已存在的设备ID:', deviceId);
             return deviceId;
+        }
+        
+        // 检查是否有当前登录用户，如果有，尝试从数据库获取该用户的设备ID
+        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        if (currentAppUser) {
+            console.log('🔍 检测到已登录用户:', currentAppUser, '尝试获取其设备ID...');
+            const existingDeviceId = this.tryGetExistingDeviceId(currentAppUser);
+            if (existingDeviceId) {
+                console.log('✅ 找到现有设备ID:', existingDeviceId);
+                localStorage.setItem('wenting_device_id', existingDeviceId);
+                return existingDeviceId;
+            }
         }
         
         // 如果没有，则生成新的设备ID
@@ -201,6 +223,93 @@ const DeviceManager = {
     // 检查是否为新设备
     isNewDevice() {
         return !localStorage.getItem('wenting_device_id');
+    },
+
+    // 尝试从后端获取现有用户的设备ID
+    tryGetExistingDeviceId(appUserId) {
+        try {
+            // 这是一个同步方法，我们需要用异步方式处理
+            // 先返回null，然后通过事件系统处理
+            setTimeout(() => {
+                this.fetchExistingDeviceIdAsync(appUserId);
+            }, 100);
+            return null;
+        } catch (error) {
+            console.error('获取现有设备ID失败:', error);
+            return null;
+        }
+    },
+
+    // 异步获取现有设备ID
+    async fetchExistingDeviceIdAsync(appUserId) {
+        try {
+            // 使用ApiClient的动态URL构建逻辑
+            if (!window.ApiClient) {
+                console.error('❌ ApiClient未初始化');
+                return;
+            }
+            
+            // 调用后端API获取该用户的设备ID
+            const data = await window.ApiClient.get(`/auth/device-info/${encodeURIComponent(appUserId)}`);
+            if (data.success && data.data && data.data.device_id) {
+                const existingDeviceId = data.data.device_id;
+                console.log('🔄 从服务器获取到设备ID:', existingDeviceId);
+                
+                // 更新localStorage中的设备ID
+                localStorage.setItem('wenting_device_id', existingDeviceId);
+                this.deviceId = existingDeviceId;
+                
+                // 触发设备ID更新事件
+                window.dispatchEvent(new CustomEvent('deviceIdUpdated', {
+                    detail: { deviceId: existingDeviceId }
+                }));
+                
+                console.log('✅ 设备ID已同步，请刷新页面或重新加载用户数据');
+            }
+        } catch (error) {
+            console.error('异步获取设备ID失败:', error);
+        }
+    },
+
+    // 手动设置设备ID（调试用）
+    setDeviceId(newDeviceId) {
+        console.log('🔧 手动设置设备ID:', newDeviceId);
+        localStorage.setItem('wenting_device_id', newDeviceId);
+        this.deviceId = newDeviceId;
+        
+        // 触发设备ID更新事件
+        window.dispatchEvent(new CustomEvent('deviceIdUpdated', {
+            detail: { deviceId: newDeviceId }
+        }));
+        
+        return newDeviceId;
+    },
+
+    // 同步设备ID到数据库中的用户记录
+    async syncDeviceIdToDatabase() {
+        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        if (!currentAppUser || !this.deviceId) {
+            return;
+        }
+        
+        try {
+            console.log('🔄 尝试将设备ID同步到数据库用户记录...');
+            
+            // 使用ApiClient的动态URL构建逻辑
+            if (!window.ApiClient) {
+                console.error('❌ ApiClient未初始化');
+                return;
+            }
+            
+            const data = await window.ApiClient.post('/auth/update-device-id', {
+                app_user_id: currentAppUser,
+                device_id: this.deviceId
+            });
+            
+            console.log('✅ 设备ID同步成功:', data);
+        } catch (error) {
+            console.error('设备ID同步失败:', error);
+        }
     }
 };
 
@@ -218,4 +327,15 @@ window.debugShowDeviceInfo = function() {
     console.log('📱 当前设备信息:');
     console.log('  设备ID:', DeviceManager.getCurrentDeviceId());
     console.log('  设备信息:', DeviceManager.getDeviceInformation());
+};
+
+window.debugSetDeviceId = function(deviceId) {
+    console.log('🔧 调试：手动设置设备ID');
+    DeviceManager.setDeviceId(deviceId);
+    console.log('✅ 设备ID已设置，请刷新页面');
+};
+
+window.debugSyncDeviceId = function() {
+    console.log('🔄 调试：同步设备ID到数据库');
+    DeviceManager.syncDeviceIdToDatabase();
 };

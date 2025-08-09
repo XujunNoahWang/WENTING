@@ -122,16 +122,21 @@ const ApiClient = {
             console.log('  - appUserId:', appUserId);
             console.log('  - localStorage keys:', Object.keys(localStorage));
             
-            if (!deviceId) {
-                console.error('❌ 设备ID未初始化');
-                throw new Error('设备ID未初始化，请刷新页面重试');
-            }
-            
             if (!appUserId) {
                 console.error('❌ 用户未登录，跳转到登录页');
                 // 自动跳转到登录页
                 window.location.href = 'login.html';
                 throw new Error('用户未登录，正在跳转到登录页...');
+            }
+            
+            if (!deviceId) {
+                console.log('⚠️ 设备ID未初始化，可能是新用户，返回空用户列表');
+                // 对于新用户，返回空列表而不是抛出错误
+                return {
+                    success: true,
+                    data: [],
+                    message: '新用户，暂无被管理用户'
+                };
             }
             
             const url = `/users?device_id=${encodeURIComponent(deviceId)}&app_user_id=${encodeURIComponent(appUserId)}`;
@@ -417,7 +422,7 @@ const ApiClient = {
         // 注册
         async register(username, password) {
             // 认证API不需要在headers中添加当前用户信息
-            return fetch(`${ApiClient.baseURL}/api/auth/register`, {
+            return fetch(`${ApiClient.baseURL}/auth/register`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -428,7 +433,7 @@ const ApiClient = {
 
         // 登录
         async login(username, password) {
-            return fetch(`${ApiClient.baseURL}/api/auth/login`, {
+            return fetch(`${ApiClient.baseURL}/auth/login`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
@@ -439,7 +444,7 @@ const ApiClient = {
 
         // 验证登录状态
         async verify(username) {
-            return fetch(`${ApiClient.baseURL}/api/auth/verify?username=${encodeURIComponent(username)}`, {
+            return fetch(`${ApiClient.baseURL}/auth/verify?username=${encodeURIComponent(username)}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'
@@ -449,7 +454,7 @@ const ApiClient = {
 
         // 获取用户资料（用于Profile页面）
         async getProfile(username) {
-            return fetch(`${ApiClient.baseURL}/api/auth/profile/${encodeURIComponent(username)}`, {
+            return fetch(`${ApiClient.baseURL}/auth/profile/${encodeURIComponent(username)}`, {
                 method: 'GET',
                 headers: {
                     'Content-Type': 'application/json'

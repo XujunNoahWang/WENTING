@@ -1,0 +1,27 @@
+{
+  "timestamp": "2025-08-09T07:17:57.164Z",
+  "summary": {
+    "total": 2,
+    "passed": 0,
+    "failed": 2,
+    "skipped": 0,
+    "duration": 890
+  },
+  "failedTests": [
+    {
+      "suite": "单元测试",
+      "error": "测试进程退出码: 1\nC:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\tests\\linkService.test.js:5\r\ndescribe('LinkService', () => {\r\n^\r\n\r\nReferenceError: describe is not defined\r\n    at Object.<anonymous> (C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\tests\\linkService.test.js:5:1)\r\n    at Module._compile (node:internal/modules/cjs/loader:1730:14)\r\n    at Object..js (node:internal/modules/cjs/loader:1895:10)\r\n    at Module.load (node:internal/modules/cjs/loader:1465:32)\r\n    at Function._load (node:internal/modules/cjs/loader:1282:12)\r\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)\r\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)\r\n    at node:internal/main/run_main_module:36:49\r\n\r\nNode.js v22.15.1\r\n",
+      "duration": 388
+    },
+    {
+      "suite": "集成测试",
+      "error": "测试进程退出码: 1\nC:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\tests\\integration.test.js:9\r\ndescribe('用户关联功能集成测试', () => {\r\n^\r\n\r\nReferenceError: describe is not defined\r\n    at Object.<anonymous> (C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\tests\\integration.test.js:9:1)\r\n    at Module._compile (node:internal/modules/cjs/loader:1730:14)\r\n    at Object..js (node:internal/modules/cjs/loader:1895:10)\r\n    at Module.load (node:internal/modules/cjs/loader:1465:32)\r\n    at Function._load (node:internal/modules/cjs/loader:1282:12)\r\n    at TracingChannel.traceSync (node:diagnostics_channel:322:14)\r\n    at wrapModuleLoad (node:internal/modules/cjs/loader:235:24)\r\n    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:170:5)\r\n    at node:internal/main/run_main_module:36:49\r\n\r\nNode.js v22.15.1\r\n",
+      "duration": 390
+    }
+  ],
+  "environment": {
+    "node": "v22.15.1",
+    "platform": "win32",
+    "arch": "x64"
+  }
+}

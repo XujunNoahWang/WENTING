@@ -302,4 +302,85 @@ router.get('/profile/:username', async (req, res) => {
     }
 });
 
+// 获取用户的设备信息（用于设备ID同步）
+router.get('/device-info/:username', async (req, res) => {
+    try {
+        const { username } = req.params;
+        
+        if (!username) {
+            return res.status(400).json({
+                success: false,
+                message: '用户名不能为空'
+            });
+        }
+        
+        // 从users表中获取该注册用户的设备ID（取任意一个被管理用户的设备ID）
+        const users = await query(
+            'SELECT device_id FROM users WHERE app_user_id = ? AND is_active = TRUE LIMIT 1',
+            [username.toLowerCase().trim()]
+        );
+        
+        if (users.length > 0) {
+            res.json({
+                success: true,
+                data: {
+                    device_id: users[0].device_id
+                }
+            });
+        } else {
+            // 如果没有被管理用户，返回null
+            res.json({
+                success: true,
+                data: {
+                    device_id: null
+                }
+            });
+        }
+        
+    } catch (error) {
+        console.error('❌ 获取用户设备信息失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '服务器内部错误'
+        });
+    }
+});
+
+// 更新用户的设备ID（用于设备ID同步）
+router.post('/update-device-id', async (req, res) => {
+    try {
+        const { app_user_id, device_id } = req.body;
+        
+        if (!app_user_id || !device_id) {
+            return res.status(400).json({
+                success: false,
+                message: '注册用户ID和设备ID不能为空'
+            });
+        }
+        
+        // 更新该注册用户下所有被管理用户的设备ID
+        const result = await query(
+            'UPDATE users SET device_id = ? WHERE app_user_id = ?',
+            [device_id, app_user_id.toLowerCase().trim()]
+        );
+        
+        console.log(`✅ 已更新用户 ${app_user_id} 的设备ID为 ${device_id}，影响 ${result.affectedRows} 条记录`);
+        
+        res.json({
+            success: true,
+            message: '设备ID更新成功',
+            data: {
+                affected_rows: result.affectedRows
+            }
+        });
+        
+    } catch (error) {
+        console.error('❌ 更新设备ID失败:', error);
+        res.status(500).json({
+            success: false,
+            message: '服务器内部错误'
+        });
+    }
+});
+
 module.exports = router;

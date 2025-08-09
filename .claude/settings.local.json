@@ -44,7 +44,19 @@
       "Bash(npm --version)",
       "Bash(cmd /c \"npm.cmd run dev --help\")",
       "Bash(npm run clear-db:*)",
-      "Bash(start \"雯婷后端服务 - 缓存修复测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - 缓存修复测试\" npm run dev)",
+      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\temp-check-data.js\")",
+      "Bash(grep:*)",
+      "Bash(start \"雯婷后端服务 - 用户显示修复测试\" npm run dev)",
+      "Bash(echo:*)",
+      "Bash(npm run build:*)",
+      "Bash(sed:*)",
+      "Bash(start \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\test-device-id.html\")",
+      "Bash(start \"雯婷后端服务 - 设备ID修复测试\" npm run dev)",
+      "Bash(timeout:*)",
+      "Bash(start \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\index.html\")",
+      "Bash(start \"雯婷后端服务 - Profile修复测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - 无限等待修复测试\" npm run dev)"
     ],
     "deny": []
   }
