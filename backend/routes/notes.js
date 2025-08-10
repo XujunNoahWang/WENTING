@@ -59,6 +59,14 @@ router.post('/', async (req, res) => {
         const noteData = req.body;
         const note = await Note.create(noteData);
         
+        // 同步到关联用户
+        try {
+            const DataSyncService = require('../services/dataSyncService');
+            await DataSyncService.syncNotesOperation('create', note, note.user_id);
+        } catch (syncError) {
+            console.error('⚠️ Note同步失败，但创建成功:', syncError);
+        }
+        
         res.status(201).json({
             success: true,
             data: note,
@@ -96,6 +104,14 @@ router.put('/:id', async (req, res) => {
                 message: 'Note不存在'
             });
         }
+        
+        // 同步到关联用户
+        try {
+            const DataSyncService = require('../services/dataSyncService');
+            await DataSyncService.syncNotesOperation('update', note, note.user_id);
+        } catch (syncError) {
+            console.error('⚠️ Note更新同步失败:', syncError);
+        }
 
         res.json({
             success: true,
@@ -125,6 +141,9 @@ router.delete('/:id', async (req, res) => {
     try {
         const { id } = req.params;
         
+        // 获取Note信息用于同步
+        const note = await Note.findById(id);
+        
         const success = await Note.deleteById(id);
         
         if (!success) {
@@ -132,6 +151,16 @@ router.delete('/:id', async (req, res) => {
                 success: false,
                 message: 'Note不存在'
             });
+        }
+        
+        // 同步到关联用户
+        if (note) {
+            try {
+                const DataSyncService = require('../services/dataSyncService');
+                await DataSyncService.syncNotesOperation('delete', note, note.user_id);
+            } catch (syncError) {
+                console.error('⚠️ Note删除同步失败:', syncError);
+            }
         }
 
         res.json({

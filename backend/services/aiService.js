@@ -8,15 +8,21 @@ const API_KEY = process.env.GEMINI_API_KEY;
 const MODEL_NAME = process.env.GEMINI_MODEL;
 
 if (!API_KEY || !MODEL_NAME) {
-    console.error('❌ Gemini API配置缺失，请检查.env文件中的GEMINI_API_KEY和GEMINI_MODEL');
-    throw new Error('Gemini API配置缺失');
+    console.warn('⚠️ Gemini API配置缺失，AI功能将被禁用');
+    console.log('💡 如需启用AI功能，请在.env文件中配置GEMINI_API_KEY和GEMINI_MODEL');
 }
 
 class AIService {
     constructor() {
-        this.genAI = new GoogleGenerativeAI(API_KEY);
-        this.model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
-        console.log(`🤖 AI服务初始化完成，使用模型: ${MODEL_NAME}`);
+        this.isEnabled = !!(API_KEY && MODEL_NAME);
+        
+        if (this.isEnabled) {
+            this.genAI = new GoogleGenerativeAI(API_KEY);
+            this.model = this.genAI.getGenerativeModel({ model: MODEL_NAME });
+            console.log(`🤖 AI服务初始化完成，使用模型: ${MODEL_NAME}`);
+        } else {
+            console.log('🤖 AI服务已禁用（缺少API配置）');
+        }
     }
 
     /**
@@ -27,6 +33,11 @@ class AIService {
      * @returns {Promise<string>} AI建议内容
      */
     async generateHealthSuggestions(noteData, weatherData = null, userLocation = null) {
+        if (!this.isEnabled) {
+            console.log('⚠️ AI服务未启用，返回默认建议');
+            return this.getDefaultHealthSuggestions(noteData, weatherData);
+        }
+
         try {
             const { title, description, precautions } = noteData;
 
@@ -52,18 +63,74 @@ class AIService {
 
         } catch (error) {
             console.error('❌ 生成AI建议失败:', error);
+            
+            // 降级到默认建议
+            console.log('🔄 降级到默认健康建议');
+            return this.getDefaultHealthSuggestions(noteData, weatherData);
+        }
+    }
 
-            // 根据错误类型返回不同的错误信息
-            if (error.message.includes('API_KEY')) {
-                throw new Error('AI服务配置错误，请检查API密钥');
-            } else if (error.message.includes('quota')) {
-                throw new Error('AI服务配额不足，请稍后再试');
-            } else if (error.message.includes('network') || error.message.includes('fetch')) {
-                throw new Error('网络连接错误，请检查网络连接');
-            } else {
-                throw new Error('AI服务暂时不可用，请稍后再试');
+    /**
+     * 获取默认健康建议（当AI服务不可用时）
+     * @param {Object} noteData - 笔记数据
+     * @param {Object} weatherData - 天气数据
+     * @returns {string} 默认建议
+     */
+    getDefaultHealthSuggestions(noteData, weatherData = null) {
+        const { title, description, precautions } = noteData;
+        const now = new Date();
+        const season = this.getSeason(now.getMonth() + 1);
+        const timeOfDay = this.getTimeOfDay(now.getHours());
+        
+        let suggestions = `📋 基于您的健康状况"${title}"的一般性建议：\n\n`;
+        
+        // 基于时间的建议
+        suggestions += `🕐 **${timeOfDay}时段建议**\n`;
+        if (timeOfDay === '早晨') {
+            suggestions += `- 适量饮水，补充夜间流失的水分\n- 进行轻度活动，促进血液循环\n`;
+        } else if (timeOfDay === '晚上') {
+            suggestions += `- 避免剧烈运动，保持心情平静\n- 注意保暖，避免受凉\n`;
+        } else {
+            suggestions += `- 保持适当的活动量\n- 注意休息，避免过度疲劳\n`;
+        }
+        
+        // 基于季节的建议
+        suggestions += `\n🌸 **${season}季节注意事项**\n`;
+        if (season === '春季') {
+            suggestions += `- 注意防过敏，避免接触过敏原\n- 适当增减衣物，预防感冒\n`;
+        } else if (season === '夏季') {
+            suggestions += `- 注意防暑降温，多饮水\n- 避免长时间暴露在高温环境中\n`;
+        } else if (season === '秋季') {
+            suggestions += `- 注意保暖，预防感冒\n- 保持室内湿度适宜\n`;
+        } else {
+            suggestions += `- 加强保暖措施\n- 注意室内通风，预防呼吸道疾病\n`;
+        }
+        
+        // 基于天气的建议
+        if (weatherData && !weatherData.isError) {
+            suggestions += `\n🌤️ **当前天气应对**\n`;
+            suggestions += `- 当前天气：${weatherData.condition}\n`;
+            suggestions += `- 温度：${weatherData.temperature}，请适当调整衣物\n`;
+            if (weatherData.humidity) {
+                suggestions += `- 湿度：${weatherData.humidity.value}，注意保持舒适的环境湿度\n`;
             }
         }
+        
+        // 通用健康建议
+        suggestions += `\n💡 **通用健康建议**\n`;
+        suggestions += `- 保持规律的作息时间\n`;
+        suggestions += `- 均衡饮食，适量运动\n`;
+        suggestions += `- 定期监测相关健康指标\n`;
+        suggestions += `- 如有不适，及时就医咨询\n`;
+        
+        if (precautions) {
+            suggestions += `\n⚠️ **特别注意**\n`;
+            suggestions += `- ${precautions}\n`;
+        }
+        
+        suggestions += `\n💡 *提示：这是基于一般健康原则的建议。如需更个性化的建议，请启用AI功能或咨询专业医生。*`;
+        
+        return suggestions;
     }
 
     /**
@@ -439,6 +506,11 @@ class AIService {
      * @returns {Promise<boolean>} 连接是否成功
      */
     async testConnection() {
+        if (!this.isEnabled) {
+            console.log('🧪 AI服务未启用，跳过连接测试');
+            return false;
+        }
+
         try {
             const result = await this.model.generateContent('测试连接，请回复"连接成功"');
             const response = await result.response;

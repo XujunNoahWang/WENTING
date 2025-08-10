@@ -162,8 +162,8 @@ class ErrorHandler {
             <div class="error-content">
                 <div class="error-icon">${this.getErrorIcon(type)}</div>
                 <div class="error-details">
-                    <div class="error-message">${Utils.escapeHtml(message)}</div>
-                    <div class="error-operation">操作: ${Utils.escapeHtml(operation)}</div>
+                    <div class="error-message">${this.escapeHtml(message)}</div>
+                    <div class="error-operation">操作: ${this.escapeHtml(operation)}</div>
                 </div>
                 <div class="error-actions">
                     ${canRetry ? '<button class="retry-btn">重试</button>' : ''}
@@ -412,7 +412,7 @@ class ErrorHandler {
         notification.innerHTML = `
             <div class="retry-content">
                 <div class="retry-spinner"></div>
-                <span>正在重试 ${Utils.escapeHtml(operation)}...</span>
+                <span>正在重试 ${this.escapeHtml(operation)}...</span>
             </div>
         `;
         
@@ -444,7 +444,7 @@ class ErrorHandler {
         notification.className = 'success-notification';
         notification.innerHTML = `
             <div class="success-content">
-                <span>✅ ${Utils.escapeHtml(message)}</span>
+                <span>✅ ${this.escapeHtml(message)}</span>
             </div>
         `;
         
@@ -477,7 +477,7 @@ class ErrorHandler {
             <div class="critical-error-modal">
                 <div class="critical-error-icon">⚠️</div>
                 <h3>系统错误</h3>
-                <p>${Utils.escapeHtml(message)}</p>
+                <p>${this.escapeHtml(message)}</p>
                 <div class="critical-error-actions">
                     <button onclick="location.reload()">刷新页面</button>
                     <button onclick="this.parentElement.parentElement.parentElement.remove()">关闭</button>
@@ -570,6 +570,14 @@ class ErrorHandler {
         } catch (error) {
             console.error('❌ 导出错误日志失败:', error);
         }
+    }
+
+    // HTML转义函数，防止XSS攻击
+    escapeHtml(text) {
+        if (!text) return '';
+        const div = document.createElement('div');
+        div.textContent = text;
+        return div.innerHTML;
     }
 }
 

@@ -7,62 +7,21 @@ class DataSyncService {
     // 同步TODO操作
     static async syncTodoOperation(operation, todoData, originalUserId) {
         const ErrorHandlingService = require('./errorHandlingService');
+        const LinkService = require('./linkService');
         
         try {
-            console.log(`🔄 同步TODO操作: ${operation}, 用户: ${originalUserId}`);
+            console.log(`🔄 [DataSync] TODO操作: ${operation}, 用户: ${originalUserId}`);
             
-            // 获取该用户的所有关联关系
-            const links = await query(`
-                SELECT manager_app_user, linked_app_user, supervised_user_id
-                FROM user_links 
-                WHERE (
-                    (manager_app_user IN (
-                        SELECT app_user_id FROM users WHERE id = ?
-                    )) OR 
-                    (linked_app_user IN (
-                        SELECT app_user_id FROM users WHERE id = ?
-                    ))
-                ) AND status = 'active'
-            `, [originalUserId, originalUserId]);
+            // 调用LinkService执行实时数据同步
+            await LinkService.syncDataChange(operation.toUpperCase(), 'todos', todoData, originalUserId);
             
-            if (links.length === 0) {
-                console.log('ℹ️  该用户没有关联关系，跳过同步');
-                return;
-            }
+            // 发送WebSocket实时通知给关联用户
+            await this.broadcastTodoSyncNotification(operation, todoData, originalUserId);
             
-            // 为每个关联关系执行同步
-            const syncPromises = links.map(async (link) => {
-                try {
-                    await this.performTodoSync(operation, todoData, link, originalUserId);
-                } catch (syncError) {
-                    console.error(`❌ 单个关联同步失败:`, syncError);
-                    
-                    // 将失败的同步操作加入队列
-                    await this.addToSyncQueue('todo_sync', {
-                        operation,
-                        todoData,
-                        link,
-                        originalUserId
-                    }, syncError.message);
-                    
-                    // 使用错误处理服务
-                    await ErrorHandlingService.handleError(syncError, {
-                        operation: 'syncTodoOperation',
-                        userId: originalUserId,
-                        linkId: `${link.manager_app_user}-${link.linked_app_user}`,
-                        todoId: todoData.id
-                    });
-                }
-            });
-            
-            // 等待所有同步完成（允许部分失败）
-            await Promise.allSettled(syncPromises);
-            
-            // 发送WebSocket通知
-            this.broadcastDataSyncNotification('todos', operation, todoData, links);
+            console.log(`✅ [DataSync] TODO同步完成: ${operation}`);
             
         } catch (error) {
-            console.error('❌ 同步TODO操作失败:', error);
+            console.error('❌ [DataSync] TODO同步失败:', error);
             
             // 使用错误处理服务
             const errorResult = await ErrorHandlingService.handleError(error, {
@@ -75,6 +34,135 @@ class DataSyncService {
             if (!errorResult.success) {
                 throw error;
             }
+        }
+    }
+    
+    // 广播TODO同步通知
+    static async broadcastTodoSyncNotification(operation, todoData, originalUserId) {
+        try {
+            // 获取关联关系
+            const links = await query(`
+                SELECT manager_app_user, linked_app_user
+                FROM user_links ul
+                JOIN users u ON ul.supervised_user_id = u.id
+                WHERE u.id = ? AND ul.status = 'active'
+            `, [originalUserId]);
+            
+            if (links.length === 0) {
+                return;
+            }
+            
+            // 获取操作用户的app_user_id
+            const operatingUser = await query('SELECT app_user_id FROM users WHERE id = ?', [originalUserId]);
+            if (operatingUser.length === 0) return;
+            
+            const operatingAppUser = operatingUser[0].app_user_id;
+            
+            // 向所有关联用户发送实时通知
+            for (const link of links) {
+                const targetAppUser = operatingAppUser === link.manager_app_user ? 
+                                    link.linked_app_user : link.manager_app_user;
+                
+                // 发送WebSocket通知
+                if (websocketService) {
+                    websocketService.broadcastToAppUser(targetAppUser, {
+                        type: 'TODO_SYNC_UPDATE',
+                        operation: operation.toUpperCase(),
+                        data: todoData,
+                        sync: {
+                            fromUser: operatingAppUser,
+                            userId: originalUserId,
+                            timestamp: Date.now()
+                        }
+                    });
+                    
+                    console.log(`🔔 [WebSocket] 已通知关联用户 ${targetAppUser}: TODO ${operation}`);
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ 广播TODO同步通知失败:', error);
+        }
+    }
+    
+    // 同步Notes操作  
+    static async syncNotesOperation(operation, noteData, originalUserId) {
+        const ErrorHandlingService = require('./errorHandlingService');
+        const LinkService = require('./linkService');
+        
+        try {
+            console.log(`🔄 [DataSync] Notes操作: ${operation}, 用户: ${originalUserId}`);
+            
+            // 调用LinkService执行实时数据同步
+            await LinkService.syncDataChange(operation.toUpperCase(), 'notes', noteData, originalUserId);
+            
+            // 发送WebSocket实时通知给关联用户
+            await this.broadcastNotesSyncNotification(operation, noteData, originalUserId);
+            
+            console.log(`✅ [DataSync] Notes同步完成: ${operation}`);
+            
+        } catch (error) {
+            console.error('❌ [DataSync] Notes同步失败:', error);
+            
+            // 使用错误处理服务
+            const errorResult = await ErrorHandlingService.handleError(error, {
+                operation: 'syncNotesOperation',
+                userId: originalUserId,
+                notesOperation: operation,
+                noteId: noteData.id
+            });
+            
+            if (!errorResult.success) {
+                throw error;
+            }
+        }
+    }
+    
+    // 广播Notes同步通知
+    static async broadcastNotesSyncNotification(operation, noteData, originalUserId) {
+        try {
+            // 获取关联关系
+            const links = await query(`
+                SELECT manager_app_user, linked_app_user
+                FROM user_links ul
+                JOIN users u ON ul.supervised_user_id = u.id
+                WHERE u.id = ? AND ul.status = 'active'
+            `, [originalUserId]);
+            
+            if (links.length === 0) {
+                return;
+            }
+            
+            // 获取操作用户的app_user_id
+            const operatingUser = await query('SELECT app_user_id FROM users WHERE id = ?', [originalUserId]);
+            if (operatingUser.length === 0) return;
+            
+            const operatingAppUser = operatingUser[0].app_user_id;
+            
+            // 向所有关联用户发送实时通知
+            for (const link of links) {
+                const targetAppUser = operatingAppUser === link.manager_app_user ? 
+                                    link.linked_app_user : link.manager_app_user;
+                
+                // 发送WebSocket通知
+                if (websocketService) {
+                    websocketService.broadcastToAppUser(targetAppUser, {
+                        type: 'NOTES_SYNC_UPDATE',
+                        operation: operation.toUpperCase(),
+                        data: noteData,
+                        sync: {
+                            fromUser: operatingAppUser,
+                            userId: originalUserId,
+                            timestamp: Date.now()
+                        }
+                    });
+                    
+                    console.log(`🔔 [WebSocket] 已通知关联用户 ${targetAppUser}: Notes ${operation}`);
+                }
+            }
+            
+        } catch (error) {
+            console.error('❌ 广播Notes同步通知失败:', error);
         }
     }
     

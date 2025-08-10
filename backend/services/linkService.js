@@ -303,56 +303,67 @@ class LinkService {
         try {
             console.log(`🔄 开始同步数据: 被监管用户${supervisedUserId}, ${fromAppUser} -> ${toAppUser}`);
             
-            // 获取目标用户的设备ID（假设使用第一个设备）
-            const toUserDevices = await query(`
-                SELECT DISTINCT device_id FROM users WHERE app_user_id = ? LIMIT 1
-            `, [toAppUser]);
-            
-            if (toUserDevices.length === 0) {
-                // 如果目标用户没有设备记录，创建一个默认的被监管用户记录
-                const supervisedUserData = await query('SELECT * FROM users WHERE id = ?', [supervisedUserId]);
-                if (supervisedUserData.length > 0) {
-                    const userData = supervisedUserData[0];
-                    
-                    // 获取目标用户的实际设备ID
-                    let targetDeviceId = 'default_device'; // 默认值
-                    
-                    // 尝试从现有用户记录中获取设备ID
-                    const existingUserDevices = await query(`
-                        SELECT DISTINCT device_id FROM users WHERE app_user_id = ? AND device_id IS NOT NULL LIMIT 1
-                    `, [toAppUser]);
-                    
-                    if (existingUserDevices.length > 0) {
-                        targetDeviceId = existingUserDevices[0].device_id;
-                        console.log(`📱 使用目标用户的现有设备ID: ${targetDeviceId}`);
-                    } else {
-                        console.log(`📱 目标用户没有现有设备ID，使用默认值: ${targetDeviceId}`);
-                    }
-                    
-                    // 为目标用户创建相同的被监管用户记录
-                    const newUserResult = await query(`
-                        INSERT INTO users (app_user_id, username, display_name, email, phone, gender, birthday, 
-                                         avatar_color, timezone, device_id, supervised_app_user, is_linked)
-                        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                    `, [
-                        toAppUser, userData.username, userData.display_name, userData.email, userData.phone,
-                        userData.gender, userData.birthday, userData.avatar_color, userData.timezone,
-                        targetDeviceId, toAppUser, true
-                    ]);
-                    
-                    const newUserId = newUserResult.insertId;
-                    console.log(`✅ 为目标用户创建被监管用户记录，ID: ${newUserId}`);
-                    
-                    // 同步TODO数据
-                    await this.syncTodos(supervisedUserId, newUserId);
-                    
-                    // 同步Notes数据
-                    await this.syncNotes(supervisedUserId, newUserId);
-                }
-            } else {
-                // 如果目标用户已有设备记录，需要更复杂的同步逻辑
-                console.log('⚠️  目标用户已有设备记录，需要实现更复杂的同步逻辑');
+            // 获取原始被监管用户的数据
+            const supervisedUserData = await query('SELECT * FROM users WHERE id = ?', [supervisedUserId]);
+            if (supervisedUserData.length === 0) {
+                throw new Error('被监管用户不存在');
             }
+            
+            const originalUser = supervisedUserData[0];
+            
+            // 检查目标用户是否已经有相同username的被监管用户
+            let targetUserId = null;
+            const existingTargetUser = await query(`
+                SELECT id FROM users 
+                WHERE app_user_id = ? AND username = ? AND is_active = 1
+            `, [toAppUser, originalUser.username]);
+            
+            if (existingTargetUser.length > 0) {
+                // 如果已存在，使用现有的用户ID
+                targetUserId = existingTargetUser[0].id;
+                console.log(`✅ 发现目标用户已有相同被监管用户: ${targetUserId}`);
+            } else {
+                // 如果不存在，创建新的被监管用户记录
+                console.log(`📝 为目标用户创建新的被监管用户记录`);
+                
+                // 获取目标用户的实际设备ID
+                let targetDeviceId = 'default_device'; // 默认值
+                
+                // 尝试从现有用户记录中获取设备ID
+                const existingUserDevices = await query(`
+                    SELECT DISTINCT device_id FROM users WHERE app_user_id = ? AND device_id IS NOT NULL LIMIT 1
+                `, [toAppUser]);
+                
+                if (existingUserDevices.length > 0) {
+                    targetDeviceId = existingUserDevices[0].device_id;
+                    console.log(`📱 使用目标用户的现有设备ID: ${targetDeviceId}`);
+                } else {
+                    console.log(`📱 目标用户没有现有设备ID，使用默认值: ${targetDeviceId}`);
+                }
+                
+                // 为目标用户创建相同的被监管用户记录
+                const newUserResult = await query(`
+                    INSERT INTO users (app_user_id, username, display_name, email, phone, gender, birthday, 
+                                     avatar_color, timezone, device_id, supervised_app_user, is_linked)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                `, [
+                    toAppUser, originalUser.username, originalUser.display_name, originalUser.email, originalUser.phone,
+                    originalUser.gender, originalUser.birthday, originalUser.avatar_color, originalUser.timezone,
+                    targetDeviceId, toAppUser, true
+                ]);
+                
+                targetUserId = newUserResult.insertId;
+                console.log(`✅ 为目标用户创建被监管用户记录，ID: ${targetUserId}`);
+            }
+            
+            // 无论是新创建还是已存在，都需要同步数据
+            console.log(`🔄 开始同步Todo和Notes数据...`);
+            
+            // 同步TODO数据
+            await this.syncTodos(supervisedUserId, targetUserId);
+            
+            // 同步Notes数据
+            await this.syncNotes(supervisedUserId, targetUserId);
             
             console.log(`✅ 数据同步完成`);
             
@@ -365,18 +376,22 @@ class LinkService {
     // 同步TODO数据
     static async syncTodos(fromUserId, toUserId) {
         try {
+            // 清除目标用户的现有TODO（避免重复）
+            await query('DELETE FROM todos WHERE user_id = ?', [toUserId]);
+            
             const todos = await query('SELECT * FROM todos WHERE user_id = ? AND is_active = 1', [fromUserId]);
             
             for (const todo of todos) {
                 await query(`
                     INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, 
                                      repeat_interval, start_date, end_date, cycle_type, cycle_duration, 
-                                     cycle_unit, sort_order)
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                                     cycle_unit, sort_order, is_completed_today, is_active, created_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 `, [
                     toUserId, todo.title, todo.description, todo.reminder_time, todo.priority,
                     todo.repeat_type, todo.repeat_interval, todo.start_date, todo.end_date,
-                    todo.cycle_type, todo.cycle_duration, todo.cycle_unit, todo.sort_order
+                    todo.cycle_type, todo.cycle_duration, todo.cycle_unit, todo.sort_order,
+                    todo.is_completed_today, todo.is_active, todo.created_at
                 ]);
             }
             
@@ -390,13 +405,16 @@ class LinkService {
     // 同步Notes数据
     static async syncNotes(fromUserId, toUserId) {
         try {
+            // 清除目标用户的现有Notes（避免重复）
+            await query('DELETE FROM notes WHERE user_id = ?', [toUserId]);
+            
             const notes = await query('SELECT * FROM notes WHERE user_id = ?', [fromUserId]);
             
             for (const note of notes) {
                 await query(`
-                    INSERT INTO notes (user_id, title, description, precautions, ai_suggestions)
-                    VALUES (?, ?, ?, ?, ?)
-                `, [toUserId, note.title, note.description, note.precautions, note.ai_suggestions]);
+                    INSERT INTO notes (user_id, title, description, precautions, ai_suggestions, created_at, updated_at)
+                    VALUES (?, ?, ?, ?, ?, ?, ?)
+                `, [toUserId, note.title, note.description, note.precautions, note.ai_suggestions, note.created_at, note.updated_at]);
             }
             
             console.log(`✅ 同步了 ${notes.length} 个Notes项目`);
@@ -580,15 +598,161 @@ class LinkService {
     // 执行具体的数据同步
     static async performDataSync(operation, table, data, managerUser, linkedUser, supervisedUserId) {
         try {
-            // 根据操作类型和表类型执行相应的同步逻辑
-            // 这里需要根据具体的业务逻辑来实现
             console.log(`🔄 执行数据同步: ${operation} ${table} between ${managerUser} and ${linkedUser}`);
             
-            // TODO: 实现具体的同步逻辑
-            // 这将在后续的任务中详细实现
+            // 获取关联的目标用户ID们
+            const targetUserIds = await this.getLinkedUserIds(supervisedUserId, managerUser, linkedUser);
+            
+            if (targetUserIds.length === 0) {
+                console.log('ℹ️ 没有找到需要同步的目标用户');
+                return;
+            }
+            
+            // 根据表类型和操作类型执行同步
+            if (table === 'todos') {
+                await this.syncTodoOperation(operation, data, targetUserIds);
+            } else if (table === 'notes') {
+                await this.syncNoteOperation(operation, data, targetUserIds);
+            }
+            
+            console.log(`✅ 数据同步完成: ${operation} ${table}`);
             
         } catch (error) {
             console.error('❌ 执行数据同步失败:', error);
+            throw error;
+        }
+    }
+    
+    // 获取需要同步的目标用户ID列表
+    static async getLinkedUserIds(supervisedUserId, managerUser, linkedUser) {
+        try {
+            // 获取原始被监管用户信息
+            const originalUser = await query('SELECT username FROM users WHERE id = ?', [supervisedUserId]);
+            if (originalUser.length === 0) {
+                return [];
+            }
+            
+            const username = originalUser[0].username;
+            
+            // 获取所有关联用户中相同username的被监管用户ID
+            const targetUsers = await query(`
+                SELECT DISTINCT u.id, u.app_user_id
+                FROM users u
+                JOIN user_links ul ON (
+                    (ul.manager_app_user = u.app_user_id OR ul.linked_app_user = u.app_user_id) 
+                    AND ul.supervised_user_id = ?
+                    AND ul.status = 'active'
+                )
+                WHERE u.username = ? AND u.id != ? AND u.is_active = 1
+            `, [supervisedUserId, username, supervisedUserId]);
+            
+            return targetUsers.map(user => user.id);
+            
+        } catch (error) {
+            console.error('❌ 获取关联用户ID失败:', error);
+            return [];
+        }
+    }
+    
+    // 同步Todo操作
+    static async syncTodoOperation(operation, data, targetUserIds) {
+        try {
+            for (const targetUserId of targetUserIds) {
+                switch (operation) {
+                    case 'CREATE':
+                        await query(`
+                            INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, 
+                                             repeat_interval, start_date, end_date, cycle_type, cycle_duration, 
+                                             cycle_unit, sort_order, is_completed_today, is_active, created_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            targetUserId, data.title, data.description, data.reminder_time, data.priority,
+                            data.repeat_type, data.repeat_interval, data.start_date, data.end_date,
+                            data.cycle_type, data.cycle_duration, data.cycle_unit, data.sort_order,
+                            data.is_completed_today || false, data.is_active || true, data.created_at || new Date()
+                        ]);
+                        break;
+                        
+                    case 'UPDATE':
+                        // 根据title和description匹配（因为没有共享的唯一标识符）
+                        await query(`
+                            UPDATE todos 
+                            SET title = ?, description = ?, reminder_time = ?, priority = ?, 
+                                is_completed_today = ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = ? AND title = ? AND description = ?
+                        `, [
+                            data.title, data.description, data.reminder_time, data.priority,
+                            data.is_completed_today, targetUserId, data.original_title || data.title, 
+                            data.original_description || data.description
+                        ]);
+                        break;
+                        
+                    case 'DELETE':
+                        await query(`
+                            UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = ? AND id = ?
+                        `, [targetUserId, data.id]);
+                        break;
+                        
+                    case 'COMPLETE':
+                        await query(`
+                            UPDATE todos 
+                            SET is_completed_today = 1, updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = ? AND title = ? AND description = ?
+                        `, [targetUserId, data.title, data.description]);
+                        break;
+                        
+                    case 'UNCOMPLETE':
+                        await query(`
+                            UPDATE todos 
+                            SET is_completed_today = 0, updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = ? AND title = ? AND description = ?
+                        `, [targetUserId, data.title, data.description]);
+                        break;
+                }
+            }
+        } catch (error) {
+            console.error('❌ 同步Todo操作失败:', error);
+            throw error;
+        }
+    }
+    
+    // 同步Note操作
+    static async syncNoteOperation(operation, data, targetUserIds) {
+        try {
+            for (const targetUserId of targetUserIds) {
+                switch (operation) {
+                    case 'CREATE':
+                        await query(`
+                            INSERT INTO notes (user_id, title, description, precautions, ai_suggestions, created_at, updated_at)
+                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                        `, [
+                            targetUserId, data.title, data.description, data.precautions, 
+                            data.ai_suggestions, data.created_at || new Date(), data.updated_at || new Date()
+                        ]);
+                        break;
+                        
+                    case 'UPDATE':
+                        await query(`
+                            UPDATE notes 
+                            SET title = ?, description = ?, precautions = ?, ai_suggestions = ?, updated_at = CURRENT_TIMESTAMP
+                            WHERE user_id = ? AND title = ?
+                        `, [
+                            data.title, data.description, data.precautions, data.ai_suggestions,
+                            targetUserId, data.original_title || data.title
+                        ]);
+                        break;
+                        
+                    case 'DELETE':
+                        await query(`
+                            DELETE FROM notes 
+                            WHERE user_id = ? AND title = ?
+                        `, [targetUserId, data.title]);
+                        break;
+                }
+            }
+        } catch (error) {
+            console.error('❌ 同步Note操作失败:', error);
             throw error;
         }
     }

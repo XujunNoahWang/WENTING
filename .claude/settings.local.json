@@ -67,7 +67,9 @@
       "Bash(start \"雯婷后端服务 - Link邀请实时通知完成测试\" npm run dev)",
       "Bash(start \"雯婷后端服务 - WebSocket用户注册修复测试\" npm run dev)",
       "Bash(tasklist)",
-      "Bash(start \"雯婷后端服务 - WebSocket注册测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - WebSocket注册测试\" npm run dev)",
+      "Bash(cmd /c taskkill:*)",
+      "Bash(start \"雯婷后端服务 - Link修复测试\" npm run dev)"
     ],
     "deny": []
   }

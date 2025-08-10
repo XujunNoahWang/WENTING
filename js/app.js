@@ -1372,32 +1372,57 @@ const App = {
         try {
             console.log('🔄 [数据同步] 处理同步更新:', syncData);
             
-            const { supervisedUserId, operation, table, data } = syncData;
-            
-            // 检查当前是否在显示该用户的数据
-            const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : null;
-            if (currentUserId !== supervisedUserId) {
-                console.log('🔄 [数据同步] 同步数据不是当前用户，暂存通知');
-                // 可以在这里存储通知，当切换到该用户时再显示
-                return;
-            }
+            // 正确解构嵌套的数据结构
+            const { table, operation, data } = syncData.data || syncData;
             
             // 显示同步通知
-            this.showDataSyncNotification(operation, table);
+            this.showDataSyncNotification(operation, table, data);
             
             // 根据数据类型刷新相应的界面
             if (table === 'todos' && window.TodoManager) {
                 console.log('🔄 [数据同步] 刷新TODO数据');
-                // 延迟一下再刷新，确保服务器数据已同步
-                setTimeout(() => {
-                    TodoManager.loadTodosByUser(currentUserId);
-                }, 1000);
+                
+                // 获取当前用户和日期
+                const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : null;
+                const currentDate = window.DateManager ? DateManager.selectedDate : new Date();
+                
+                if (currentUserId) {
+                    // 清除缓存并重新加载数据
+                    const dateStr = currentDate.toISOString().split('T')[0];
+                    const cacheKey = `${currentUserId}_${dateStr}`;
+                    if (TodoManager.todoCache) {
+                        TodoManager.todoCache.delete(cacheKey);
+                        console.log('🧹 [数据同步] 清除TODO缓存:', cacheKey);
+                    }
+                    
+                    // 延迟一下再刷新，确保服务器数据已同步
+                    setTimeout(async () => {
+                        try {
+                            await TodoManager.loadTodosForDate(currentDate, currentUserId);
+                            console.log('✅ [数据同步] TODO数据刷新完成');
+                        } catch (error) {
+                            console.error('❌ [数据同步] TODO数据刷新失败:', error);
+                        }
+                    }, 500);
+                }
                 
             } else if (table === 'notes' && window.NotesManager) {
                 console.log('🔄 [数据同步] 刷新Notes数据');
-                setTimeout(() => {
-                    NotesManager.loadNotesByUser(currentUserId);
-                }, 1000);
+                
+                const currentUserId = window.GlobalUserState ? GlobalUserState.getCurrentUser() : null;
+                if (currentUserId) {
+                    setTimeout(async () => {
+                        try {
+                            await NotesManager.loadNotesFromAPI();
+                            if (GlobalUserState.getCurrentModule() === 'notes') {
+                                NotesManager.renderNotesPanel(currentUserId);
+                            }
+                            console.log('✅ [数据同步] Notes数据刷新完成');
+                        } catch (error) {
+                            console.error('❌ [数据同步] Notes数据刷新失败:', error);
+                        }
+                    }, 500);
+                }
             }
             
         } catch (error) {
@@ -1406,25 +1431,23 @@ const App = {
     },
     
     // 显示数据同步通知
-    showDataSyncNotification(operation, table) {
+    showDataSyncNotification(operation, table, data = {}) {
         const tableNames = {
             'todos': 'TODO',
             'notes': 'Notes'
         };
         
         const operationNames = {
-            'TODO_CREATE': '新增',
-            'TODO_UPDATE': '更新',
-            'TODO_DELETE': '删除',
-            'TODO_COMPLETE': '完成',
-            'TODO_UNCOMPLETE': '取消完成',
-            'NOTES_CREATE': '新增',
-            'NOTES_UPDATE': '更新',
-            'NOTES_DELETE': '删除'
+            'create': '新增',
+            'update': '更新', 
+            'delete': '删除',
+            'complete': '完成',
+            'uncomplete': '取消完成'
         };
         
         const tableName = tableNames[table] || table;
         const operationName = operationNames[operation] || operation;
+        const itemTitle = data.title ? `"${data.title}"` : '';
         
         // 创建同步通知
         const notification = document.createElement('div');
@@ -1433,7 +1456,7 @@ const App = {
             <div class="data-sync-content">
                 <div class="data-sync-icon">🔄</div>
                 <div class="data-sync-message">
-                    关联用户${operationName}了${tableName}数据，正在同步...
+                    关联用户${operationName}了${tableName}${itemTitle}，正在同步...
                 </div>
             </div>
         `;
@@ -1441,11 +1464,17 @@ const App = {
         // 添加到页面
         document.body.appendChild(notification);
         
+        // 显示动画
+        setTimeout(() => notification.classList.add('show'), 100);
+        
         // 自动消失
         setTimeout(() => {
-            if (notification.parentElement) {
-                notification.remove();
-            }
+            notification.classList.remove('show');
+            setTimeout(() => {
+                if (notification.parentElement) {
+                    document.body.removeChild(notification);
+                }
+            }, 300);
         }, 3000);
     },
     

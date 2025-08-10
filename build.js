@@ -6,7 +6,7 @@ console.log('🚀 开始构建优化版本...');
 // JS文件的正确依赖顺序（基于index.html中的加载顺序）
 const jsFiles = [
     'js/config.js',
-    'js/utils.js', 
+    'js/utils.js',
     'js/deviceManager.js',
     'js/apiClient.js',
     'js/websocketClient.js',
@@ -15,6 +15,7 @@ const jsFiles = [
     'js/todoManager.js',
     'js/notesManager.js',
     'js/userManager.js',
+    'js/profileManager.js',
     'js/weatherManager.js',
     'js/app.js'
 ];
@@ -23,7 +24,8 @@ const jsFiles = [
 const cssFiles = [
     'styles/main.css',
     'styles/mobile.css',
-    'styles/components.css'
+    'styles/components.css',
+    'styles/profile.css'
 ];
 
 // 创建构建目录

@@ -657,4 +657,99 @@ body {
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}/* 数据同步通知样
+式 */
+.data-sync-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    padding: 16px 20px;
+    border-radius: 12px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    z-index: 10000;
+    transform: translateX(400px);
+    opacity: 0;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: 350px;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.data-sync-notification.show {
+    transform: translateX(0);
+    opacity: 1;
+}
+
+.data-sync-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.data-sync-icon {
+    font-size: 20px;
+    animation: rotate 2s linear infinite;
+}
+
+@keyframes rotate {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+.data-sync-message {
+    font-size: 14px;
+    font-weight: 500;
+    line-height: 1.4;
+}
+
+/* 同步状态指示器 */
+.sync-indicator {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    border-radius: 50%;
+    font-size: 12px;
+    margin-left: 8px;
+}
+
+.sync-indicator.synced {
+    background-color: #1da1f2;
+    color: white;
+}
+
+.sync-indicator.pending {
+    background-color: #ffad1f;
+    color: white;
+    animation: pulse 2s infinite;
+}
+
+.sync-indicator.error {
+    background-color: #e0245e;
+    color: white;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.5; }
+}
+
+/* TODO项目同步状态样式 */
+.todo-item .sync-indicator {
+    margin-left: auto;
+}
+
+.todo-item.synced {
+    border-left: 3px solid #1da1f2;
+}
+
+.todo-item.sync-pending {
+    border-left: 3px solid #ffad1f;
+}
+
+.todo-item.sync-error {
+    border-left: 3px solid #e0245e;
 }

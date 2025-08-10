@@ -103,3 +103,6 @@ const Utils = {
         return div.innerHTML;
     }
 };
+
+// 导出到全局
+window.Utils = Utils;
