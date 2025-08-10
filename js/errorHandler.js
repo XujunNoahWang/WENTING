@@ -23,9 +23,19 @@ class ErrorHandler {
     // 错误计数器
     static errorCounts = new Map();
     
+    // 防止无限循环的标记
+    static isHandlingError = false;
+    
     // 处理错误
     static async handleError(error, context = {}) {
+        // 防止错误处理器自身错误造成无限循环
+        if (ErrorHandler.isHandlingError) {
+            console.error('❌ 错误处理器循环检测:', error.message || error);
+            return { success: false, error: 'Error handler loop detected' };
+        }
+        
         try {
+            ErrorHandler.isHandlingError = true;
             const errorInfo = this.analyzeError(error, context);
             
             // 记录错误
@@ -36,9 +46,12 @@ class ErrorHandler {
             
             // 尝试自动恢复
             if (errorInfo.canAutoRecover && this.shouldAttemptRecovery(errorInfo)) {
-                return await this.attemptRecovery(errorInfo);
+                const result = await this.attemptRecovery(errorInfo);
+                ErrorHandler.isHandlingError = false;
+                return result;
             }
             
+            ErrorHandler.isHandlingError = false;
             return {
                 success: false,
                 error: errorInfo,
@@ -47,8 +60,14 @@ class ErrorHandler {
             };
             
         } catch (handlingError) {
+            ErrorHandler.isHandlingError = false;
             console.error('❌ 错误处理器失败:', handlingError);
-            this.showCriticalError('系统错误处理失败，请刷新页面重试');
+            // 简单地显示错误消息，不调用其他可能出错的方法
+            try {
+                alert('系统错误处理失败，请刷新页面重试: ' + handlingError.message);
+            } catch (e) {
+                console.error('无法显示错误消息:', e);
+            }
             return { success: false, canRetry: false };
         }
     }
@@ -160,10 +179,10 @@ class ErrorHandler {
         notification.className = `error-notification error-${type}`;
         notification.innerHTML = `
             <div class="error-content">
-                <div class="error-icon">${this.getErrorIcon(type)}</div>
+                <div class="error-icon">${ErrorHandler.getErrorIcon(type)}</div>
                 <div class="error-details">
-                    <div class="error-message">${this.escapeHtml(message)}</div>
-                    <div class="error-operation">操作: ${this.escapeHtml(operation)}</div>
+                    <div class="error-message">${ErrorHandler.escapeHtml(message)}</div>
+                    <div class="error-operation">操作: ${ErrorHandler.escapeHtml(operation)}</div>
                 </div>
                 <div class="error-actions">
                     ${canRetry ? '<button class="retry-btn">重试</button>' : ''}
@@ -217,13 +236,13 @@ class ErrorHandler {
     // 获取错误图标
     static getErrorIcon(type) {
         const icons = {
-            [this.ERROR_TYPES.NETWORK]: '🌐',
-            [this.ERROR_TYPES.VALIDATION]: '⚠️',
-            [this.ERROR_TYPES.SYNC]: '🔄',
-            [this.ERROR_TYPES.PERMISSION]: '🔒',
-            [this.ERROR_TYPES.WEBSOCKET]: '📡',
-            [this.ERROR_TYPES.TIMEOUT]: '⏱️',
-            [this.ERROR_TYPES.UNKNOWN]: '❌'
+            [ErrorHandler.ERROR_TYPES.NETWORK]: '🌐',
+            [ErrorHandler.ERROR_TYPES.VALIDATION]: '⚠️',
+            [ErrorHandler.ERROR_TYPES.SYNC]: '🔄',
+            [ErrorHandler.ERROR_TYPES.PERMISSION]: '🔒',
+            [ErrorHandler.ERROR_TYPES.WEBSOCKET]: '📡',
+            [ErrorHandler.ERROR_TYPES.TIMEOUT]: '⏱️',
+            [ErrorHandler.ERROR_TYPES.UNKNOWN]: '❌'
         };
         return icons[type] || '❌';
     }
@@ -412,7 +431,7 @@ class ErrorHandler {
         notification.innerHTML = `
             <div class="retry-content">
                 <div class="retry-spinner"></div>
-                <span>正在重试 ${this.escapeHtml(operation)}...</span>
+                <span>正在重试 ${ErrorHandler.escapeHtml(operation)}...</span>
             </div>
         `;
         
@@ -444,7 +463,7 @@ class ErrorHandler {
         notification.className = 'success-notification';
         notification.innerHTML = `
             <div class="success-content">
-                <span>✅ ${this.escapeHtml(message)}</span>
+                <span>✅ ${ErrorHandler.escapeHtml(message)}</span>
             </div>
         `;
         
@@ -477,7 +496,7 @@ class ErrorHandler {
             <div class="critical-error-modal">
                 <div class="critical-error-icon">⚠️</div>
                 <h3>系统错误</h3>
-                <p>${this.escapeHtml(message)}</p>
+                <p>${ErrorHandler.escapeHtml(message)}</p>
                 <div class="critical-error-actions">
                     <button onclick="location.reload()">刷新页面</button>
                     <button onclick="this.parentElement.parentElement.parentElement.remove()">关闭</button>
@@ -573,7 +592,7 @@ class ErrorHandler {
     }
 
     // HTML转义函数，防止XSS攻击
-    escapeHtml(text) {
+    static escapeHtml(text) {
         if (!text) return '';
         const div = document.createElement('div');
         div.textContent = text;

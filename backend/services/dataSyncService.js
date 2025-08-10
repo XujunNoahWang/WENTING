@@ -12,10 +12,10 @@ class DataSyncService {
         try {
             console.log(`🔄 [DataSync] TODO操作: ${operation}, 用户: ${originalUserId}`);
             
-            // 调用LinkService执行实时数据同步
+            // 执行实时数据同步到关联用户的数据库
             await LinkService.syncDataChange(operation.toUpperCase(), 'todos', todoData, originalUserId);
             
-            // 发送WebSocket实时通知给关联用户
+            // 发送TODO_SYNC_UPDATE消息给关联用户，通知UI更新
             await this.broadcastTodoSyncNotification(operation, todoData, originalUserId);
             
             console.log(`✅ [DataSync] TODO同步完成: ${operation}`);

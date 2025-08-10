@@ -89,6 +89,11 @@ const GlobalUserState = {
         return this.currentUserId;
     },
 
+    // 获取当前App用户ID
+    getAppUserId() {
+        return localStorage.getItem('wenting_current_app_user');
+    },
+
     // 获取当前模块
     getCurrentModule() {
         return this.currentModule;

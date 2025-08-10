@@ -695,19 +695,45 @@ class LinkService {
                         break;
                         
                     case 'COMPLETE':
-                        await query(`
-                            UPDATE todos 
-                            SET is_completed_today = 1, updated_at = CURRENT_TIMESTAMP
-                            WHERE user_id = ? AND title = ? AND description = ?
-                        `, [targetUserId, data.title, data.description]);
+                        // 找到目标todo
+                        const targetTodos = await query(`
+                            SELECT id FROM todos 
+                            WHERE user_id = ? AND title = ? AND is_active = 1
+                            ORDER BY created_at DESC LIMIT 1
+                        `, [targetUserId, data.title]);
+                        
+                        if (targetTodos.length > 0) {
+                            const targetTodoId = targetTodos[0].id;
+                            
+                            // 插入完成记录到todo_completions表
+                            await query(`
+                                INSERT OR REPLACE INTO todo_completions (todo_id, user_id, completion_date, notes, completion_time)
+                                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                            `, [targetTodoId, targetUserId, data.date || new Date().toISOString().split('T')[0], data.notes || '']);
+                            
+                            console.log(`✅ 已同步TODO完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
+                        }
                         break;
                         
                     case 'UNCOMPLETE':
-                        await query(`
-                            UPDATE todos 
-                            SET is_completed_today = 0, updated_at = CURRENT_TIMESTAMP
-                            WHERE user_id = ? AND title = ? AND description = ?
-                        `, [targetUserId, data.title, data.description]);
+                        // 找到目标todo
+                        const targetTodosUncomplete = await query(`
+                            SELECT id FROM todos 
+                            WHERE user_id = ? AND title = ? AND is_active = 1
+                            ORDER BY created_at DESC LIMIT 1
+                        `, [targetUserId, data.title]);
+                        
+                        if (targetTodosUncomplete.length > 0) {
+                            const targetTodoId = targetTodosUncomplete[0].id;
+                            
+                            // 删除完成记录
+                            await query(`
+                                DELETE FROM todo_completions 
+                                WHERE todo_id = ? AND completion_date = ?
+                            `, [targetTodoId, data.date || new Date().toISOString().split('T')[0]]);
+                            
+                            console.log(`✅ 已同步TODO取消完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
+                        }
                         break;
                 }
             }

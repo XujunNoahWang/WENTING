@@ -111,7 +111,7 @@ class WebSocketService {
                     response = await this.handleTodoComplete(data.todoId, data.userId, data.date);
                     break;
                 case 'TODO_UNCOMPLETE':
-                    response = await this.handleTodoUncomplete(data.todoId, data.date);
+                    response = await this.handleTodoUncomplete(data.todoId, data.date, data.userId);
                     break;
 
                 // Notes相关操作
@@ -176,7 +176,7 @@ class WebSocketService {
                     response = await this.handleUserRegistration(deviceId, userId, appUserId);
                     break;
                 case 'PING':
-                    response = { type: 'PONG', timestamp: Date.now() };
+                    response = await this.handlePing(userId, appUserId);
                     break;
 
                 default:
@@ -255,13 +255,55 @@ class WebSocketService {
     }
 
     async handleTodoComplete(todoId, userId, date) {
+        // 先获取todo信息用于同步
+        const { query } = require('../config/sqlite');
+        const todo = await query('SELECT title FROM todos WHERE id = ?', [todoId]);
+        
         await Todo.markCompleted(todoId, userId, date);
+        
+        // 同步到关联用户
+        if (todo.length > 0) {
+            try {
+                const DataSyncService = require('./dataSyncService');
+                await DataSyncService.syncTodoOperation('complete', {
+                    originalTodoId: todoId,
+                    date: date,
+                    notes: '',
+                    title: todo[0].title
+                }, userId);
+                console.log(`✅ [WebSocket] TODO完成同步已触发: ${todo[0].title}`);
+            } catch (syncError) {
+                console.error('⚠️ [WebSocket] TODO完成同步失败:', syncError);
+            }
+        }
+        
         return { todoId, completed: true, date };
     }
 
-    async handleTodoUncomplete(todoId, date) {
+    async handleTodoUncomplete(todoId, date, userId) {
+        // 先获取todo信息用于同步
+        const { query } = require('../config/sqlite');
+        const todo = await query('SELECT title FROM todos WHERE id = ?', [todoId]);
+        
         const success = await Todo.markUncompleted(todoId, date);
-        return { todoId, completed: false, date, success };
+        
+        // 同步到关联用户
+        if (todo.length > 0) {
+            try {
+                const DataSyncService = require('./dataSyncService');
+                await DataSyncService.syncTodoOperation('uncomplete', {
+                    originalTodoId: todoId,
+                    date: date,
+                    notes: '',
+                    title: todo[0].title
+                }, userId);
+                console.log(`✅ [WebSocket] TODO取消完成同步已触发: ${todo[0].title}`);
+            } catch (syncError) {
+                console.error('⚠️ [WebSocket] TODO取消完成同步失败:', syncError);
+            }
+        }
+        
+        return { todoId, completed: false, date, success, userId };
     }
 
     // Notes操作处理函数
@@ -583,13 +625,18 @@ class WebSocketService {
             links.forEach(link => {
                 // 向管理员和关联用户发送同步通知
                 [link.manager_app_user, link.linked_app_user].forEach(appUser => {
+                    // 根据表类型发送对应的同步更新消息
+                    const messageType = table === 'todos' ? 'TODO_SYNC_UPDATE' : 
+                                       table === 'notes' ? 'NOTES_SYNC_UPDATE' : 'DATA_SYNC_UPDATE';
+                    
                     this.sendLinkNotificationToUser(appUser, {
-                        type: 'DATA_SYNC_UPDATE',
-                        data: {
-                            supervisedUserId,
-                            operation,
-                            table,
-                            data
+                        type: messageType,
+                        operation: operation,
+                        data: data,
+                        sync: {
+                            supervisedUserId: supervisedUserId,
+                            fromTable: table,
+                            timestamp: Date.now()
                         }
                     });
                 });
@@ -943,6 +990,80 @@ class WebSocketService {
             appUserId,
             timestamp: Date.now()
         };
+    }
+
+    // 处理心跳请求并检查数据更新
+    async handlePing(userId, appUserId) {
+        try {
+            const { query } = require('../config/sqlite');
+            
+            let lastTodoUpdate = null;
+            let lastNoteUpdate = null;
+            let hasLinkedData = false;
+            
+            if (userId) {
+                // 检查该用户的todos最后更新时间
+                const todoUpdate = await query(`
+                    SELECT MAX(updated_at) as last_update 
+                    FROM todos 
+                    WHERE user_id = ? AND is_active = 1
+                `, [userId]);
+                
+                if (todoUpdate.length > 0 && todoUpdate[0].last_update) {
+                    lastTodoUpdate = todoUpdate[0].last_update;
+                }
+                
+                // 检查该用户的todo完成记录最后更新时间
+                const completionUpdate = await query(`
+                    SELECT MAX(created_at) as last_completion
+                    FROM todo_completions tc
+                    JOIN todos t ON tc.todo_id = t.id
+                    WHERE t.user_id = ?
+                `, [userId]);
+                
+                if (completionUpdate.length > 0 && completionUpdate[0].last_completion) {
+                    const completionTime = completionUpdate[0].last_completion;
+                    if (!lastTodoUpdate || completionTime > lastTodoUpdate) {
+                        lastTodoUpdate = completionTime;
+                    }
+                }
+                
+                // 检查该用户的notes最后更新时间
+                const noteUpdate = await query(`
+                    SELECT MAX(updated_at) as last_update 
+                    FROM notes 
+                    WHERE user_id = ?
+                `, [userId]);
+                
+                if (noteUpdate.length > 0 && noteUpdate[0].last_update) {
+                    lastNoteUpdate = noteUpdate[0].last_update;
+                }
+                
+                // 检查是否有关联关系
+                const linkCheck = await query(`
+                    SELECT COUNT(*) as count 
+                    FROM user_links ul
+                    JOIN users u ON ul.supervised_user_id = u.id
+                    WHERE u.id = ? AND ul.status = 'active'
+                `, [userId]);
+                
+                hasLinkedData = linkCheck.length > 0 && linkCheck[0].count > 0;
+            }
+            
+            return {
+                type: 'PONG',
+                timestamp: Date.now(),
+                dataStatus: {
+                    lastTodoUpdate: lastTodoUpdate,
+                    lastNoteUpdate: lastNoteUpdate,
+                    hasLinkedData: hasLinkedData,
+                    userId: userId
+                }
+            };
+        } catch (error) {
+            console.error('❌ 处理心跳请求失败:', error);
+            return { type: 'PONG', timestamp: Date.now() };
+        }
     }
 
     // 获取连接统计

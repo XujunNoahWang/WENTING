@@ -7,6 +7,11 @@ const WebSocketClient = {
     reconnectInterval: 2000,
     heartbeatInterval: null,
     messageHandlers: new Map(),
+    lastDataStatus: {
+        lastTodoUpdate: null,
+        lastNoteUpdate: null,
+        hasLinkedData: false
+    },
     
     // 获取WebSocket URL
     getWebSocketURL() {
@@ -95,7 +100,7 @@ const WebSocketClient = {
 
         const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
         const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
-        const appUserId = localStorage.getItem('wenting_current_app_user') || null;
+        const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
 
         const message = {
             type,
@@ -166,9 +171,39 @@ const WebSocketClient = {
             return;
         }
 
-        // 处理心跳
-        if (type === 'PONG') {
+        // 处理心跳响应并检查数据变化
+        if (type === 'PONG' || type === 'PING_RESPONSE') {
             console.log('💗 收到心跳响应');
+            this.handleHeartbeatResponse(message);
+            return;
+        }
+
+        // 处理所有同步相关消息 - 根据类型精准重新加载
+        if (type === 'DATA_SYNC_UPDATE' || type === 'TODO_SYNC_UPDATE' || type === 'NOTES_SYNC_UPDATE') {
+            console.log(`🔄 收到同步消息: ${type}，触发对应数据重新加载`);
+            
+            // 根据消息类型决定重新加载的数据类型
+            let dataType = 'all';
+            if (type === 'TODO_SYNC_UPDATE') {
+                dataType = 'todos';
+            } else if (type === 'NOTES_SYNC_UPDATE') {
+                dataType = 'notes';
+            }
+            
+            this.reloadApplicationData(dataType);
+            
+            // 显示同步提示（如果有同步信息）
+            if (message.sync && message.sync.fromUser) {
+                const operationText = {
+                    'COMPLETE': '完成',
+                    'UNCOMPLETE': '取消完成',
+                    'CREATE': '创建',
+                    'UPDATE': '更新',
+                    'DELETE': '删除'
+                }[message.operation] || message.operation;
+                
+                this.showSyncNotification(`${message.sync.fromUser} ${operationText}了${type.includes('TODO') ? '待办事项' : '笔记'}`, 'info');
+            }
             return;
         }
 
@@ -260,13 +295,33 @@ const WebSocketClient = {
         }
     },
 
+    // 处理数据同步更新消息
+    handleDataSyncUpdate(message) {
+        const { data } = message;
+        console.log('🔄 [WebSocket] 处理数据同步更新:', data);
+        
+        if (window.App && window.App.handleDataSyncUpdate) {
+            window.App.handleDataSyncUpdate(data);
+        } else {
+            console.error('❌ App.handleDataSyncUpdate 方法不存在');
+        }
+    },
+
     // 心跳检测
     startHeartbeat() {
         this.heartbeatInterval = setInterval(() => {
             if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
+                // 获取当前用户信息
+                const deviceId = window.DeviceManager ? window.DeviceManager.deviceId : null;
+                const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
+                
                 this.ws.send(JSON.stringify({
                     type: 'PING',
-                    timestamp: Date.now()
+                    timestamp: Date.now(),
+                    deviceId: deviceId,
+                    userId: currentUser ? currentUser.id : null,
+                    appUserId: appUserId
                 }));
             }
         }, 30000); // 30秒发送一次心跳
@@ -357,9 +412,9 @@ const WebSocketClient = {
             });
         },
 
-        async uncomplete(todoId, date) {
+        async uncomplete(todoId, date, userId) {
             return await WebSocketClient.sendMessage('TODO_UNCOMPLETE', { 
-                todoId, date 
+                todoId, date, userId 
             });
         }
     },
@@ -418,7 +473,7 @@ const WebSocketClient = {
     sendRegistrationMessage() {
         const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
         const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
-        const appUserId = localStorage.getItem('wenting_current_app_user') || null;
+        const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
 
         if (!deviceId || !appUserId) {
             console.log('⚠️ 无法发送注册消息：缺少设备ID或用户ID');
@@ -441,12 +496,111 @@ const WebSocketClient = {
         }
     },
 
+    // 处理心跳响应并检查数据变化
+    handleHeartbeatResponse(message) {
+        try {
+            // 如果消息包含数据状态信息
+            if (message.dataStatus) {
+                const newDataStatus = message.dataStatus;
+                let reloadTypes = [];
+                
+                // 检查TODO数据是否有变化
+                if (newDataStatus.lastTodoUpdate !== this.lastDataStatus.lastTodoUpdate) {
+                    console.log('📅 检测到TODO数据变化，准备重新加载');
+                    reloadTypes.push('todos');
+                }
+                
+                // 检查Notes数据是否有变化
+                if (newDataStatus.lastNoteUpdate !== this.lastDataStatus.lastNoteUpdate) {
+                    console.log('📝 检测到Notes数据变化，准备重新加载');
+                    reloadTypes.push('notes');
+                }
+                
+                // 检查关联状态是否有变化
+                if (newDataStatus.hasLinkedData !== this.lastDataStatus.hasLinkedData) {
+                    console.log('🔗 检测到Link状态变化，准备重新加载所有数据');
+                    reloadTypes = ['all']; // Link状态变化可能影响所有数据
+                }
+                
+                // 更新缓存的数据状态
+                this.lastDataStatus = {
+                    lastTodoUpdate: newDataStatus.lastTodoUpdate,
+                    lastNoteUpdate: newDataStatus.lastNoteUpdate,
+                    hasLinkedData: newDataStatus.hasLinkedData
+                };
+                
+                // 如果检测到数据变化，根据变化类型精准重新加载
+                if (reloadTypes.length > 0) {
+                    console.log('🔄 数据变化检测：触发数据重新加载', reloadTypes);
+                    for (const dataType of reloadTypes) {
+                        this.reloadApplicationData(dataType);
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('❌ 处理心跳响应失败:', error);
+        }
+    },
+    
+    // 重新加载应用数据
+    reloadApplicationData(dataType = 'all') {
+        try {
+            // 如果指定了数据类型或者全部重新加载，才处理TODO
+            if (dataType === 'all' || dataType === 'todos') {
+                if (window.TodoManager) {
+                    console.log('🔄 重新加载TODO数据');
+                    window.TodoManager.clearAllRelatedCache();
+                    
+                    const currentDate = window.DateManager ? window.DateManager.selectedDate : new Date();
+                    const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                    
+                    if (currentUser) {
+                        window.TodoManager.loadTodosForDate(currentDate, currentUser);
+                    }
+                }
+            }
+            
+            // 如果指定了数据类型或者全部重新加载，才处理Notes
+            if (dataType === 'all' || dataType === 'notes') {
+                if (window.NotesManager && typeof window.NotesManager.loadNotesFromAPI === 'function') {
+                    console.log('🔄 重新加载Notes数据');
+                    window.NotesManager.loadNotesFromAPI();
+                } else if (window.NotesManager) {
+                    console.log('⚠️ NotesManager存在但loadNotesFromAPI方法不可用');
+                }
+            }
+            
+            console.log('✅ 应用数据重新加载完成');
+        } catch (error) {
+            console.error('❌ 重新加载应用数据失败:', error);
+        }
+    },
+    
+    // 显示同步通知
+    showSyncNotification(message, type = 'info') {
+        try {
+            // 尝试使用TodoManager的通知方法
+            if (window.TodoManager && typeof window.TodoManager.showSyncStatusToast === 'function') {
+                window.TodoManager.showSyncStatusToast(message, type);
+                return;
+            }
+            
+            // 如果没有专门的通知方法，使用简单的控制台输出
+            console.log(`🔔 同步通知: ${message}`);
+            
+            // 可以在这里添加其他通知方式，比如显示临时消息等
+        } catch (error) {
+            console.error('❌ 显示同步通知失败:', error);
+        }
+    },
+
     // 获取连接状态
     getConnectionStatus() {
         return {
             isConnected: this.isConnected,
             reconnectAttempts: this.reconnectAttempts,
-            wsState: this.ws ? this.ws.readyState : null
+            wsState: this.ws ? this.ws.readyState : null,
+            lastDataStatus: this.lastDataStatus
         };
     }
 };
