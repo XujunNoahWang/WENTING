@@ -532,3 +532,129 @@ body {
     font-size: 14px;
     opacity: 0.8;
 }
+/
+* Link状态显示样式 */
+.link-status-area {
+    padding: 20px;
+    border-bottom: 1px solid #e1e8ed;
+    background-color: #f7f9fa;
+}
+
+.link-status-loading,
+.link-status-connected,
+.link-status-empty,
+.link-status-error {
+    text-align: center;
+    padding: 20px;
+    border-radius: 12px;
+    background-color: #fff;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+}
+
+.link-status-connected {
+    border: 2px solid #1d9bf0;
+    background-color: #f0f8ff;
+}
+
+.link-status-empty {
+    border: 2px solid #657786;
+    background-color: #f8f9fa;
+}
+
+.link-status-error {
+    border: 2px solid #e0245e;
+    background-color: #fff5f5;
+}
+
+.status-icon {
+    font-size: 2.5rem;
+    margin-bottom: 10px;
+}
+
+.link-status-connected h3 {
+    color: #1d9bf0;
+    margin-bottom: 15px;
+}
+
+.link-status-empty h3 {
+    color: #657786;
+    margin-bottom: 15px;
+}
+
+.link-status-error h3 {
+    color: #e0245e;
+    margin-bottom: 15px;
+}
+
+.link-connections {
+    margin: 15px 0;
+}
+
+.link-connection-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 15px;
+    margin: 8px 0;
+    background-color: #fff;
+    border-radius: 8px;
+    border: 1px solid #e1e8ed;
+}
+
+.connection-info {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+}
+
+.connection-partner {
+    font-weight: bold;
+    color: #1d9bf0;
+    font-size: 1.1rem;
+}
+
+.connection-user {
+    color: #657786;
+    font-size: 0.9rem;
+    margin-top: 2px;
+}
+
+.status-badge {
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 0.8rem;
+    font-weight: bold;
+}
+
+.status-badge.active {
+    background-color: #1d9bf0;
+    color: white;
+}
+
+.link-description {
+    color: #657786;
+    font-size: 0.9rem;
+    margin-top: 10px;
+}
+
+.link-hint {
+    color: #657786;
+    font-size: 0.9rem;
+    font-style: italic;
+    margin-top: 5px;
+}
+
+.loading-spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #e1e8ed;
+    border-top: 3px solid #1d9bf0;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    margin: 0 auto 10px;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
+}

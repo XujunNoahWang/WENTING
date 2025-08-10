@@ -112,7 +112,7 @@ const ApiClient = {
 
     // 用户相关API
     users: {
-        // 获取所有用户（按设备和注册用户过滤）
+        // 获取所有用户（支持跨设备访问）
         async getAll() {
             const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
             const appUserId = localStorage.getItem('wenting_current_app_user');
@@ -129,18 +129,15 @@ const ApiClient = {
                 throw new Error('用户未登录，正在跳转到登录页...');
             }
             
-            if (!deviceId) {
-                console.log('⚠️ 设备ID未初始化，可能是新用户，返回空用户列表');
-                // 对于新用户，返回空列表而不是抛出错误
-                return {
-                    success: true,
-                    data: [],
-                    message: '新用户，暂无被管理用户'
-                };
+            // 使用跨设备查询模式（推荐）
+            let url = `/users?app_user_id=${encodeURIComponent(appUserId)}`;
+            
+            // 如果有设备ID，也传递给后端（用于审计和兼容性）
+            if (deviceId) {
+                url += `&device_id=${encodeURIComponent(deviceId)}`;
             }
             
-            const url = `/users?device_id=${encodeURIComponent(deviceId)}&app_user_id=${encodeURIComponent(appUserId)}`;
-            console.log('📡 发送用户列表请求:', url);
+            console.log('📡 发送用户列表请求（跨设备模式）:', url);
             
             return ApiClient.get(url);
         },

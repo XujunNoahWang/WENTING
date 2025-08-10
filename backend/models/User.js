@@ -39,8 +39,10 @@ class User {
                 throw new Error('注册用户ID不能为空');
             }
 
+            // 设备ID现在是可选的，如果没有提供则使用默认值
             if (!device_id) {
-                throw new Error('设备ID不能为空');
+                device_id = 'default_device';
+                console.log('⚠️ 设备ID未提供，使用默认值:', device_id);
             }
 
             // 检查同一注册用户和设备上用户名是否已存在
@@ -135,10 +137,24 @@ class User {
         return users.map(user => new User(user));
     }
 
-    // 根据注册用户ID和设备ID获取所有活跃用户
+    // 根据注册用户ID获取所有活跃用户（推荐方法 - 跨设备访问）
+    static async findAllByAppUser(appUserId) {
+        const sql = 'SELECT * FROM users WHERE app_user_id = ? AND is_active = TRUE ORDER BY created_at DESC';
+        const users = await query(sql, [appUserId]);
+        return users.map(user => new User(user));
+    }
+
+    // 根据注册用户ID和设备ID获取所有活跃用户（兼容旧版，不推荐）
     static async findAllByAppUserAndDevice(appUserId, deviceId) {
         const sql = 'SELECT * FROM users WHERE app_user_id = ? AND device_id = ? AND is_active = TRUE ORDER BY created_at DESC';
         const users = await query(sql, [appUserId, deviceId]);
+        return users.map(user => new User(user));
+    }
+
+    // 根据注册用户ID获取所有活跃用户（设备ID容错）
+    static async findAllByAppUser(appUserId) {
+        const sql = 'SELECT * FROM users WHERE app_user_id = ? AND is_active = TRUE ORDER BY created_at DESC';
+        const users = await query(sql, [appUserId]);
         return users.map(user => new User(user));
     }
 

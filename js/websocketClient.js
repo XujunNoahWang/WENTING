@@ -47,6 +47,10 @@ const WebSocketClient = {
                     this.isConnected = true;
                     this.reconnectAttempts = 0;
                     this.startHeartbeat();
+                    
+                    // 连接建立后立即发送注册消息
+                    this.sendRegistrationMessage();
+                    
                     resolve(true);
                 };
 
@@ -91,11 +95,13 @@ const WebSocketClient = {
 
         const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
         const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+        const appUserId = localStorage.getItem('wenting_current_app_user') || null;
 
         const message = {
             type,
             deviceId,
             userId,
+            appUserId,
             data,
             timestamp: Date.now()
         };
@@ -110,7 +116,7 @@ const WebSocketClient = {
                     this.messageHandlers.delete(responseType);
                     this.messageHandlers.delete(errorType);
                     reject(new Error('请求超时'));
-                }, 10000); // 10秒超时
+                }, 60000); // 60秒超时
 
                 this.messageHandlers.set(responseType, (response) => {
                     clearTimeout(timeout);
@@ -154,6 +160,12 @@ const WebSocketClient = {
             return;
         }
 
+        // 处理Link相关通知消息
+        if (type.startsWith('LINK_')) {
+            this.handleLinkNotification(message);
+            return;
+        }
+
         // 处理心跳
         if (type === 'PONG') {
             console.log('💗 收到心跳响应');
@@ -189,6 +201,62 @@ const WebSocketClient = {
                     window.NotesManager.handleWebSocketBroadcast(type, data);
                 }
                 break;
+                
+        }
+    },
+
+    // 处理Link相关通知消息
+    handleLinkNotification(message) {
+        const { type, data } = message;
+        console.log('🔗 [WebSocket] 处理Link通知:', type, data);
+
+        // 根据消息类型处理Link相关通知
+        switch (type) {
+            case 'LINK_REQUEST_RECEIVED':
+                // 收到关联邀请
+                console.log('📨 [WebSocket] 收到关联邀请:', data);
+                if (window.App && window.App.showLinkInvitationDialog) {
+                    window.App.showLinkInvitationDialog(data);
+                } else {
+                    console.error('❌ App.showLinkInvitationDialog 方法不存在');
+                }
+                break;
+                
+            case 'LINK_INVITATION_ACCEPTED':
+            case 'LINK_INVITATION_REJECTED':
+            case 'LINK_CANCELLED':
+                // 其他Link状态通知
+                console.log(`🔗 [WebSocket] Link状态变更:`, type, data);
+                if (window.App && window.App.handleLinkStatusChange) {
+                    window.App.handleLinkStatusChange(type, data);
+                } else {
+                    console.error('❌ App.handleLinkStatusChange 方法不存在');
+                }
+                break;
+                
+            case 'LINK_ESTABLISHED':
+                // Link建立成功通知 - 触发应用数据刷新
+                console.log(`🔗 [WebSocket] Link建立成功:`, data);
+                if (window.App && window.App.refreshApplicationAfterLink) {
+                    console.log('🔄 [WebSocket] 触发应用数据刷新...');
+                    window.App.refreshApplicationAfterLink();
+                } else {
+                    console.error('❌ App.refreshApplicationAfterLink 方法不存在');
+                }
+                break;
+
+            case 'DATA_SYNC_UPDATE':
+                // 数据同步更新通知
+                console.log('🔄 [WebSocket] 数据同步更新:', data);
+                if (window.App && window.App.handleDataSyncUpdate) {
+                    window.App.handleDataSyncUpdate(data);
+                } else {
+                    console.error('❌ App.handleDataSyncUpdate 方法不存在');
+                }
+                break;
+
+            default:
+                console.log('⚠️ [WebSocket] 未处理的Link通知类型:', type);
         }
     },
 
@@ -318,6 +386,58 @@ const WebSocketClient = {
             return await WebSocketClient.sendMessage('NOTES_AI_SUGGESTIONS', { 
                 noteId, userLocation, weatherData 
             });
+        }
+    },
+
+    // Link功能相关API方法
+    links: {
+        async checkLinkStatus(appUser) {
+            return await WebSocketClient.sendMessage('LINK_CHECK_STATUS', { appUser });
+        },
+
+        async sendInvitation(toUser, supervisedUserId, message) {
+            return await WebSocketClient.sendMessage('LINK_SEND_INVITATION', { 
+                toUser, supervisedUserId, message 
+            });
+        },
+
+        async acceptInvitation(requestId) {
+            return await WebSocketClient.sendMessage('LINK_ACCEPT_INVITATION', { requestId });
+        },
+
+        async rejectInvitation(requestId) {
+            return await WebSocketClient.sendMessage('LINK_REJECT_INVITATION', { requestId });
+        },
+
+        async cancelLink(linkId) {
+            return await WebSocketClient.sendMessage('LINK_CANCEL', { linkId });
+        }
+    },
+
+    // 发送注册消息
+    sendRegistrationMessage() {
+        const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
+        const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+        const appUserId = localStorage.getItem('wenting_current_app_user') || null;
+
+        if (!deviceId || !appUserId) {
+            console.log('⚠️ 无法发送注册消息：缺少设备ID或用户ID');
+            return;
+        }
+
+        const registrationMessage = {
+            type: 'USER_REGISTRATION',
+            deviceId,
+            userId,
+            appUserId,
+            timestamp: Date.now()
+        };
+
+        try {
+            this.ws.send(JSON.stringify(registrationMessage));
+            console.log('📝 用户注册消息已发送:', { deviceId, userId, appUserId });
+        } catch (error) {
+            console.error('❌ 发送注册消息失败:', error);
         }
     },
 

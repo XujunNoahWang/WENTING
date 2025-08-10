@@ -9,6 +9,40 @@ const SecurityAudit = require('../middleware/securityAudit');
 router.use(SecurityAudit.logPermissionDenied);
 router.use(SecurityAudit.logRateLimitExceeded);
 
+// 检查用户的关联状态
+router.get('/user/:appUser/status', async (req, res) => {
+    try {
+        const { appUser } = req.params;
+        
+        if (!appUser) {
+            return res.status(400).json({
+                success: false,
+                message: '用户名不能为空'
+            });
+        }
+        
+        const links = await LinkService.getUserLinks(appUser);
+        
+        res.json({
+            success: true,
+            data: {
+                appUser,
+                links,
+                hasLinks: links && (links.asManager?.length > 0 || links.asLinked?.length > 0),
+                timestamp: Date.now()
+            },
+            message: '获取关联状态成功'
+        });
+        
+    } catch (error) {
+        console.error('❌ 获取关联状态失败:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+});
+
 // 创建关联请求
 router.post('/requests', 
     LinkSecurity.ipRateLimit,

@@ -21,11 +21,23 @@ router.get('/', async (req, res) => {
             });
         }
 
-        const users = await User.findAllByAppUserAndDevice(app_user_id, device_id);
+        // 首先尝试精确匹配设备ID
+        let users = await User.findAllByAppUserAndDevice(app_user_id, device_id);
+        
+        // 如果没有找到匹配的用户，尝试获取该app_user的所有用户（设备ID容错）
+        if (users.length === 0) {
+            console.log(`⚠️ 设备ID ${device_id} 没有找到用户，尝试获取 ${app_user_id} 的所有用户`);
+            users = await User.findAllByAppUser(app_user_id);
+            
+            if (users.length > 0) {
+                console.log(`✅ 找到 ${users.length} 个用户（设备ID容错模式）`);
+            }
+        }
+        
         res.json({
             success: true,
             data: users,
-            message: '获取用户列表成功'
+            message: users.length > 0 ? '获取用户列表成功' : '没有找到用户数据'
         });
     } catch (error) {
         console.error('获取用户列表失败:', error);

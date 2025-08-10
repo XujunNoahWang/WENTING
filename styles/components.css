@@ -1662,3 +1662,646 @@ label[for="edit_todo_start_date"] {
         font-size: 13px;
     }
 }
+
+/* Link功能样式 */
+.link-function-area {
+    margin-top: 24px;
+    padding-top: 20px;
+    border-top: 1px solid #e1e8ed;
+}
+
+.link-section-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #14171a;
+    margin-bottom: 16px;
+    display: flex;
+    align-items: center;
+}
+
+.link-section-title::before {
+    content: '🔗';
+    margin-right: 8px;
+}
+
+.loading-link {
+    text-align: center;
+    color: #657786;
+    font-size: 14px;
+    padding: 20px;
+}
+
+.link-error {
+    text-align: center;
+    color: #e0245e;
+    font-size: 14px;
+    padding: 20px;
+}
+
+.link-input-area {
+    background: #f7f9fa;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #e1e8ed;
+}
+
+.link-description {
+    color: #14171a;
+    font-size: 14px;
+    line-height: 1.5;
+    margin-bottom: 16px;
+    text-align: center;
+}
+
+.link-input-group {
+    display: flex;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+
+.link-user-input {
+    flex: 1;
+    padding: 12px 16px;
+    border: 1px solid #e1e8ed;
+    border-radius: 8px;
+    font-size: 14px;
+    background: white;
+    transition: all 0.2s ease;
+}
+
+.link-user-input:focus {
+    outline: none;
+    border-color: #1d9bf0;
+    box-shadow: 0 0 0 3px rgba(29, 155, 240, 0.1);
+}
+
+.link-user-input::placeholder {
+    color: #8899a6;
+    font-size: 13px;
+}
+
+.link-user-btn {
+    padding: 12px 20px;
+    background: #1d9bf0;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    white-space: nowrap;
+}
+
+.link-user-btn:hover {
+    background: #1a8cd8;
+    transform: translateY(-1px);
+}
+
+.link-user-btn:disabled {
+    background: #8899a6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.link-tips {
+    color: #657786;
+    font-size: 13px;
+    line-height: 1.4;
+    text-align: center;
+}
+
+/* Link通知样式 */
+.link-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 10000;
+    max-width: 400px;
+    animation: slideInRight 0.3s ease;
+}
+
+.link-notification-content {
+    background: white;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
+    border: 1px solid #e1e8ed;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.link-notification-icon {
+    font-size: 18px;
+    flex-shrink: 0;
+}
+
+.link-notification-message {
+    color: #14171a;
+    font-size: 14px;
+    line-height: 1.4;
+    flex: 1;
+}
+
+.link-notification-close {
+    background: none;
+    border: none;
+    font-size: 18px;
+    color: #657786;
+    cursor: pointer;
+    padding: 0;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 50%;
+    transition: all 0.2s ease;
+    flex-shrink: 0;
+}
+
+.link-notification-close:hover {
+    background: #f7f9fa;
+    color: #14171a;
+}
+
+.link-notification-success .link-notification-content {
+    border-left: 4px solid #1d9bf0;
+}
+
+.link-notification-error .link-notification-content {
+    border-left: 4px solid #e0245e;
+}
+
+.link-notification-info .link-notification-content {
+    border-left: 4px solid #1d9bf0;
+}
+
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+/* 已关联状态显示 */
+.link-linked-area {
+    background: #e8f5e8;
+    border-radius: 12px;
+    padding: 20px;
+    border: 1px solid #4caf50;
+}
+
+.link-linked-info {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 16px;
+}
+
+.link-linked-status {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    color: #2e7d32;
+    font-weight: 500;
+}
+
+.link-linked-status::before {
+    content: '✅';
+}
+
+.link-linked-with {
+    color: #2e7d32;
+    font-size: 14px;
+    margin-bottom: 12px;
+    text-align: center;
+}
+
+.link-unlink-btn {
+    width: 100%;
+    padding: 12px 20px;
+    background: #f44336;
+    color: white;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.link-unlink-btn:hover {
+    background: #d32f2f;
+    transform: translateY(-1px);
+}
+
+.link-unlink-btn:disabled {
+    background: #8899a6;
+    cursor: not-allowed;
+    transform: none;
+}
+
+/* Link邀请对话框样式 */
+.link-invitation-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.link-invitation-dialog {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 480px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+    border: 1px solid #e1e8ed;
+}
+
+.link-invitation-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+.link-invitation-icon {
+    font-size: 32px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #f7f9fa;
+    border-radius: 50%;
+}
+
+.link-invitation-header h3 {
+    margin: 0;
+    color: #14171a;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.link-invitation-body {
+    margin-bottom: 24px;
+}
+
+.link-invitation-from,
+.link-invitation-target {
+    margin-bottom: 12px;
+    color: #14171a;
+    font-size: 16px;
+}
+
+.link-invitation-from strong,
+.link-invitation-target strong {
+    color: #1d9bf0;
+    font-weight: 600;
+}
+
+.link-invitation-message {
+    background: #f7f9fa;
+    padding: 16px;
+    border-radius: 12px;
+    color: #5b7083;
+    font-size: 15px;
+    line-height: 1.5;
+    margin: 16px 0;
+    border-left: 4px solid #1d9bf0;
+}
+
+.link-invitation-time {
+    color: #8b98a5;
+    font-size: 13px;
+    text-align: right;
+}
+
+.link-invitation-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+    margin-bottom: 16px;
+}
+
+.link-invitation-actions .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.link-invitation-actions .btn-success {
+    background: #1d9bf0;
+    color: white;
+}
+
+.link-invitation-actions .btn-success:hover {
+    background: #1a8cd8;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(29, 155, 240, 0.3);
+}
+
+.link-invitation-actions .btn-secondary {
+    background: #f7f9fa;
+    color: #5b7083;
+    border: 1px solid #e1e8ed;
+}
+
+.link-invitation-actions .btn-secondary:hover {
+    background: #e1e8ed;
+    transform: translateY(-1px);
+}
+
+.link-invitation-expire {
+    color: #8b98a5;
+    font-size: 12px;
+    text-align: center;
+    font-style: italic;
+}
+
+/* 动画效果 */
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+@keyframes slideUp {
+    from {
+        opacity: 0;
+        transform: translateY(30px) scale(0.95);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
+
+/* 移动端优化 */
+@media screen and (max-width: 430px) {
+    .link-input-group {
+        flex-direction: column;
+    }
+    
+    .link-user-btn {
+        width: 100%;
+    }
+    
+    .link-notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+        max-width: none;
+    }
+    
+    .link-notification-content {
+        padding: 14px 16px;
+    }
+    
+    .link-notification-message {
+        font-size: 13px;
+    }
+    
+    .link-invitation-dialog {
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .link-invitation-actions {
+        flex-direction: column;
+    }
+    
+    .link-invitation-actions .btn {
+        width: 100%;
+    }
+}
+
+/* 数据同步通知样式 */
+.data-sync-notification {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    z-index: 9999;
+    animation: slideInRight 0.3s ease-out;
+}
+
+.data-sync-content {
+    background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+    border: 2px solid #1d9bf0;
+    border-radius: 12px;
+    padding: 16px 20px;
+    box-shadow: 0 6px 20px rgba(29, 155, 240, 0.2);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 280px;
+    backdrop-filter: blur(8px);
+}
+
+.data-sync-icon {
+    font-size: 20px;
+    animation: spin 2s linear infinite;
+}
+
+.data-sync-message {
+    color: #0d47a1;
+    font-size: 14px;
+    font-weight: 500;
+}
+
+@keyframes slideInRight {
+    from {
+        opacity: 0;
+        transform: translateX(100%);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(0);
+    }
+}
+
+@keyframes spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+}
+
+@media screen and (max-width: 430px) {
+    .data-sync-notification {
+        top: 10px;
+        right: 10px;
+        left: 10px;
+    }
+    
+    .data-sync-content {
+        min-width: auto;
+        padding: 12px 16px;
+    }
+    
+    .data-sync-message {
+        font-size: 13px;
+    }
+}
+
+/* 取消关联确认对话框样式 */
+.link-unlink-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.75);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 10000;
+    animation: fadeIn 0.3s ease-out;
+}
+
+.link-unlink-dialog {
+    background: #ffffff;
+    border-radius: 16px;
+    width: 90%;
+    max-width: 480px;
+    padding: 24px;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+    animation: slideUp 0.3s ease-out;
+    border: 1px solid #e1e8ed;
+}
+
+.link-unlink-header {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 20px;
+    padding-bottom: 16px;
+    border-bottom: 1px solid #e1e8ed;
+}
+
+.link-unlink-icon {
+    font-size: 32px;
+    width: 48px;
+    height: 48px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: #fff3e0;
+    border-radius: 50%;
+}
+
+.link-unlink-header h3 {
+    margin: 0;
+    color: #14171a;
+    font-size: 20px;
+    font-weight: 600;
+}
+
+.link-unlink-body {
+    margin-bottom: 24px;
+}
+
+.link-unlink-body p {
+    color: #14171a;
+    font-size: 16px;
+    margin-bottom: 16px;
+}
+
+.link-unlink-warning {
+    background: #fff3e0;
+    border-left: 4px solid #ff9800;
+    padding: 16px;
+    border-radius: 8px;
+    color: #e65100;
+    font-size: 14px;
+}
+
+.link-unlink-warning ul {
+    margin: 8px 0 0 0;
+    padding-left: 20px;
+}
+
+.link-unlink-warning li {
+    margin: 4px 0;
+}
+
+.link-unlink-actions {
+    display: flex;
+    gap: 12px;
+    justify-content: flex-end;
+}
+
+.link-unlink-actions .btn {
+    padding: 12px 24px;
+    border: none;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.link-unlink-actions .btn-danger {
+    background: #f44336;
+    color: white;
+}
+
+.link-unlink-actions .btn-danger:hover {
+    background: #d32f2f;
+    transform: translateY(-1px);
+    box-shadow: 0 4px 12px rgba(244, 67, 54, 0.3);
+}
+
+.link-unlink-actions .btn-secondary {
+    background: #f7f9fa;
+    color: #5b7083;
+    border: 1px solid #e1e8ed;
+}
+
+.link-unlink-actions .btn-secondary:hover {
+    background: #e1e8ed;
+    transform: translateY(-1px);
+}
+
+/* 角色标识样式 */
+.role-badge {
+    background: #1d9bf0;
+    color: white;
+    padding: 4px 8px;
+    border-radius: 12px;
+    font-size: 12px;
+    font-weight: 600;
+}
+
+@media screen and (max-width: 430px) {
+    .link-unlink-dialog {
+        width: 95%;
+        padding: 20px;
+    }
+    
+    .link-unlink-actions {
+        flex-direction: column;
+    }
+    
+    .link-unlink-actions .btn {
+        width: 100%;
+    }
+}

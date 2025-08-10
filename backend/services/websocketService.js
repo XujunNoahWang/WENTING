@@ -7,8 +7,9 @@ const User = require('../models/User');
 class WebSocketService {
     constructor() {
         this.wss = null;
-        this.connections = new Map(); // deviceId -> { ws, userId, lastActive }
+        this.connections = new Map(); // deviceId -> { ws, userId, appUserId, lastActive }
         this.userConnections = new Map(); // userId -> Set of deviceIds
+        this.appUserConnections = new Map(); // appUserId -> Set of deviceIds
     }
 
     // 初始化WebSocket服务器
@@ -74,13 +75,16 @@ class WebSocketService {
 
     // 处理WebSocket消息
     async handleMessage(ws, message) {
-        const { type, deviceId, userId, data, timestamp } = message;
+        const { type, deviceId, userId, appUserId, data, timestamp } = message;
         
-        console.log('📨 收到WebSocket消息:', { type, deviceId, userId });
+        console.log('📨 收到WebSocket消息:', { type, deviceId, userId, appUserId });
 
         // 注册连接
-        if (deviceId && userId) {
-            this.registerConnection(ws, deviceId, userId);
+        if (deviceId && (userId || appUserId)) {
+            console.log(`📝 [WebSocket] 注册连接: deviceId=${deviceId}, userId=${userId}, appUserId=${appUserId}`);
+            this.registerConnection(ws, deviceId, userId, appUserId);
+        } else {
+            console.log(`⚠️ [WebSocket] 连接信息不完整: deviceId=${deviceId}, userId=${userId}, appUserId=${appUserId}`);
         }
 
         try {
@@ -128,6 +132,9 @@ class WebSocketService {
                     break;
 
                 // Link相关操作
+                case 'LINK_CHECK_STATUS':
+                    response = await this.handleLinkCheckStatus(data.appUser);
+                    break;
                 case 'LINK_CREATE_REQUEST':
                     response = await this.handleLinkCreateRequest(data);
                     break;
@@ -140,11 +147,34 @@ class WebSocketService {
                 case 'LINK_GET_USER_LINKS':
                     response = await this.handleLinkGetUserLinks(userId);
                     break;
-                case 'LINK_CANCEL_LINK':
-                    response = await this.handleLinkCancelLink(data);
+                case 'LINK_SEND_INVITATION':
+                    response = await this.handleLinkSendInvitation(data, deviceId);
+                    break;
+                case 'LINK_ACCEPT_INVITATION':
+                    response = await this.handleLinkAcceptInvitation(data, deviceId);
+                    break;
+                case 'LINK_REJECT_INVITATION':
+                    response = await this.handleLinkRejectInvitation(data, deviceId);
+                    break;
+                case 'LINK_CANCEL':
+                    response = await this.handleLinkCancel(data, deviceId);
+                    break;
+                    
+                // 在线状态检测和关联邀请
+                case 'LINK_CHECK_USER_ONLINE':
+                    response = await this.handleCheckUserOnline(data.appUserId);
+                    break;
+                case 'LINK_SEND_INVITATION':
+                    response = await this.handleSendLinkInvitation(data);
+                    break;
+                case 'LINK_INVITATION_RESPONSE':
+                    response = await this.handleLinkInvitationResponse(data);
                     break;
 
                 // 连接管理
+                case 'USER_REGISTRATION':
+                    response = await this.handleUserRegistration(deviceId, userId, appUserId);
+                    break;
                 case 'PING':
                     response = { type: 'PONG', timestamp: Date.now() };
                     break;
@@ -169,6 +199,25 @@ class WebSocketService {
                     data: response,
                     timestamp: Date.now()
                 });
+                
+                // 如果是TODO或Notes修改操作，也要广播给关联用户
+                if (this.isDataModifyOperation(type) && userId) {
+                    const tableMap = {
+                        'TODO_CREATE': 'todos',
+                        'TODO_UPDATE': 'todos', 
+                        'TODO_DELETE': 'todos',
+                        'TODO_COMPLETE': 'todos',
+                        'TODO_UNCOMPLETE': 'todos',
+                        'NOTES_CREATE': 'notes',
+                        'NOTES_UPDATE': 'notes',
+                        'NOTES_DELETE': 'notes'
+                    };
+                    
+                    const table = tableMap[type];
+                    if (table) {
+                        this.broadcastDataSyncToLinkedUsers(userId, type, table, response);
+                    }
+                }
             }
 
         } catch (error) {
@@ -245,7 +294,7 @@ class WebSocketService {
     }
 
     // 连接管理
-    registerConnection(ws, deviceId, userId) {
+    registerConnection(ws, deviceId, userId, appUserId) {
         // 如果该设备已有连接，先关闭旧连接
         if (this.connections.has(deviceId)) {
             const oldConnection = this.connections.get(deviceId);
@@ -258,20 +307,32 @@ class WebSocketService {
         this.connections.set(deviceId, {
             ws,
             userId,
+            appUserId,
             lastActive: Date.now()
         });
 
-        // 维护用户连接映射
-        if (!this.userConnections.has(userId)) {
-            this.userConnections.set(userId, new Set());
+        // 维护被监管用户连接映射
+        if (userId) {
+            if (!this.userConnections.has(userId)) {
+                this.userConnections.set(userId, new Set());
+            }
+            this.userConnections.get(userId).add(deviceId);
         }
-        this.userConnections.get(userId).add(deviceId);
+
+        // 维护注册用户连接映射
+        if (appUserId) {
+            if (!this.appUserConnections.has(appUserId)) {
+                this.appUserConnections.set(appUserId, new Set());
+            }
+            this.appUserConnections.get(appUserId).add(deviceId);
+        }
 
         // 在WebSocket对象上保存信息，便于清理时使用
         ws.deviceId = deviceId;
         ws.userId = userId;
+        ws.appUserId = appUserId;
 
-        console.log(`✅ 设备 ${deviceId} (用户 ${userId}) 连接已注册`);
+        console.log(`✅ 设备 ${deviceId} (用户 ${userId}, app用户 ${appUserId}) 连接已注册`);
         console.log(`📊 当前活跃连接数: ${this.connections.size}`);
     }
 
@@ -279,12 +340,21 @@ class WebSocketService {
         if (ws.deviceId) {
             this.connections.delete(ws.deviceId);
             
-            // 从用户连接映射中移除
+            // 从被监管用户连接映射中移除
             if (ws.userId && this.userConnections.has(ws.userId)) {
                 this.userConnections.get(ws.userId).delete(ws.deviceId);
                 // 如果用户没有任何设备连接，清理映射
                 if (this.userConnections.get(ws.userId).size === 0) {
                     this.userConnections.delete(ws.userId);
+                }
+            }
+            
+            // 从注册用户连接映射中移除
+            if (ws.appUserId && this.appUserConnections.has(ws.appUserId)) {
+                this.appUserConnections.get(ws.appUserId).delete(ws.deviceId);
+                // 如果app用户没有任何设备连接，清理映射
+                if (this.appUserConnections.get(ws.appUserId).size === 0) {
+                    this.appUserConnections.delete(ws.appUserId);
                 }
             }
             
@@ -312,6 +382,28 @@ class WebSocketService {
             if (broadcastCount > 0) {
                 console.log(`📡 已向用户 ${userId} 的 ${broadcastCount} 个其他设备广播消息`);
             }
+        }
+    }
+
+    // 广播给指定app用户的所有设备
+    broadcastToAppUser(appUserId, message) {
+        if (this.appUserConnections.has(appUserId)) {
+            const deviceIds = this.appUserConnections.get(appUserId);
+            let broadcastCount = 0;
+
+            deviceIds.forEach(deviceId => {
+                const connection = this.connections.get(deviceId);
+                if (connection && connection.ws.readyState === WebSocket.OPEN) {
+                    this.sendMessage(connection.ws, message);
+                    broadcastCount++;
+                }
+            });
+
+            if (broadcastCount > 0) {
+                console.log(`📡 已向app用户 ${appUserId} 的 ${broadcastCount} 个设备广播消息`);
+            }
+        } else {
+            console.log(`⚠️ app用户 ${appUserId} 当前没有活跃连接`);
         }
     }
 
@@ -453,9 +545,9 @@ class WebSocketService {
     sendLinkNotificationToUser(appUser, notification) {
         console.log(`📡 尝试向用户 ${appUser} 发送Link通知`);
         
-        // 查找该用户的所有连接设备
-        if (this.userConnections.has(appUser)) {
-            const deviceIds = this.userConnections.get(appUser);
+        // 查找该注册用户的所有连接设备（使用appUserConnections）
+        if (this.appUserConnections.has(appUser)) {
+            const deviceIds = this.appUserConnections.get(appUser);
             let sentCount = 0;
 
             deviceIds.forEach(deviceId => {
@@ -517,14 +609,356 @@ class WebSocketService {
         return modifyOperations.includes(type);
     }
 
+    // 判断是否是数据修改操作（需要同步给关联用户）
+    isDataModifyOperation(type) {
+        const dataModifyOperations = [
+            'TODO_CREATE', 'TODO_UPDATE', 'TODO_DELETE', 'TODO_COMPLETE', 'TODO_UNCOMPLETE',
+            'NOTES_CREATE', 'NOTES_UPDATE', 'NOTES_DELETE'
+        ];
+        return dataModifyOperations.includes(type);
+    }
+
+    // 检查用户在线状态
+    async handleCheckUserOnline(appUserId) {
+        console.log(`🔍 检查用户 ${appUserId} 在线状态`);
+        
+        const isOnline = this.appUserConnections.has(appUserId);
+        const deviceCount = isOnline ? this.appUserConnections.get(appUserId).size : 0;
+        
+        console.log(`👤 用户 ${appUserId} 在线状态: ${isOnline}, 设备数: ${deviceCount}`);
+        
+        return {
+            appUserId,
+            isOnline,
+            deviceCount,
+            timestamp: Date.now()
+        };
+    }
+
+    // 发送关联邀请
+    async handleSendLinkInvitation(data) {
+        console.log('📨 发送关联邀请:', data);
+        
+        const { targetAppUser, fromAppUser, supervisedUserId, supervisedUserName, message } = data;
+        
+        // 检查目标用户是否在线
+        if (!this.appUserConnections.has(targetAppUser)) {
+            throw new Error(`用户 ${targetAppUser} 当前不在线`);
+        }
+        
+        // 构造邀请消息
+        const invitationData = {
+            type: 'LINK_INVITATION_RECEIVED',
+            data: {
+                fromUser: fromAppUser,
+                supervisedUserId,
+                supervisedUserName,
+                message: message || `${fromAppUser} 想要与您关联 ${supervisedUserName} 的健康数据`,
+                timestamp: Date.now(),
+                expiresIn: 300000 // 5分钟过期
+            }
+        };
+        
+        // 向目标用户的所有设备发送邀请
+        this.sendLinkNotificationToUser(targetAppUser, invitationData);
+        
+        return {
+            success: true,
+            targetUser: targetAppUser,
+            message: '邀请已发送'
+        };
+    }
+
+    // 处理关联邀请响应
+    async handleLinkInvitationResponse(data) {
+        console.log('📝 处理关联邀请响应:', data);
+        
+        const { action, fromAppUser, toAppUser, supervisedUserId, supervisedUserName } = data;
+        
+        if (action === 'accept') {
+            // 接受邀请，创建关联关系
+            try {
+                const LinkService = require('./linkService');
+                const result = await LinkService.createLinkDirectly(
+                    fromAppUser, 
+                    toAppUser, 
+                    supervisedUserId
+                );
+                
+                // 通知发起用户邀请被接受
+                this.sendLinkNotificationToUser(fromAppUser, {
+                    type: 'LINK_INVITATION_ACCEPTED',
+                    data: {
+                        acceptedBy: toAppUser,
+                        supervisedUserName,
+                        linkId: result.linkId
+                    }
+                });
+                
+                // 通知双方关联建立成功
+                this.sendLinkNotificationToUser(fromAppUser, {
+                    type: 'LINK_ESTABLISHED',
+                    data: {
+                        linkedUser: toAppUser,
+                        supervisedUserName,
+                        role: 'manager'
+                    }
+                });
+                
+                this.sendLinkNotificationToUser(toAppUser, {
+                    type: 'LINK_ESTABLISHED',
+                    data: {
+                        linkedUser: fromAppUser,
+                        supervisedUserName,
+                        role: 'linked'
+                    }
+                });
+                
+                return { success: true, message: '关联建立成功', linkId: result.linkId };
+                
+            } catch (error) {
+                console.error('❌ 创建关联失败:', error);
+                throw new Error('创建关联失败: ' + error.message);
+            }
+        } else if (action === 'reject') {
+            // 拒绝邀请
+            this.sendLinkNotificationToUser(fromAppUser, {
+                type: 'LINK_INVITATION_REJECTED',
+                data: {
+                    rejectedBy: toAppUser,
+                    supervisedUserName
+                }
+            });
+            
+            return { success: true, message: '邀请已拒绝' };
+        } else {
+            throw new Error('无效的响应操作');
+        }
+    }
+
+    // 检查Link状态
+    async handleLinkCheckStatus(appUser) {
+        const LinkService = require('./linkService');
+        try {
+            // 获取用户的关联状态
+            const links = await LinkService.getUserLinks(appUser);
+            console.log(`🔍 [WebSocket] ${appUser} 的关联状态:`, links);
+            
+            return {
+                appUser,
+                links,
+                hasLinks: links && links.length > 0,
+                timestamp: Date.now()
+            };
+        } catch (error) {
+            console.error('❌ 检查关联状态失败:', error);
+            throw error;
+        }
+    }
+
+    // 发送关联邀请 (新版本)
+    async handleLinkSendInvitation(data, deviceId) {
+        const LinkService = require('./linkService');
+        try {
+            const { toUser, supervisedUserId, message } = data;
+            const fromUser = this.getAppUserFromConnection(deviceId);
+            
+            console.log(`🔍 [WebSocket] 查找发送用户: deviceId=${deviceId}, fromUser=${fromUser}`);
+            
+            if (!fromUser) {
+                throw new Error('无法确定发送用户');
+            }
+            
+            // 1. 首先检查目标用户是否在线
+            const targetOnlineStatus = await this.handleCheckUserOnline(toUser);
+            console.log(`👤 [WebSocket] 目标用户 ${toUser} 在线状态:`, targetOnlineStatus);
+            
+            if (!targetOnlineStatus.isOnline) {
+                // 如果目标用户不在线，不创建邀请记录，直接提示用户
+                return {
+                    success: false,
+                    error: 'TARGET_USER_OFFLINE',
+                    message: `用户 ${toUser} 当前不在线，请稍后再试或通过其他方式联系对方`,
+                    targetUser: toUser,
+                    isOnline: false
+                };
+            }
+            
+            // 2. 目标用户在线，检查是否存在待处理的邀请
+            const result = await LinkService.createRequestWithOverride(fromUser, toUser, supervisedUserId, message);
+            
+            console.log(`📨 [WebSocket] 关联邀请发送成功:`, result);
+            
+            // 3. 实时推送邀请通知给目标用户
+            this.sendLinkNotificationToUser(toUser, {
+                type: 'LINK_REQUEST_RECEIVED',
+                data: {
+                    requestId: result.id,
+                    fromUser: fromUser,
+                    supervisedUserId: supervisedUserId,
+                    supervisedUserName: result.supervised_user_name,
+                    message: message,
+                    isUpdate: result.isOverride || false,
+                    timestamp: Date.now(),
+                    expiresIn: 7 * 24 * 60 * 60 * 1000 // 7天过期
+                }
+            });
+            
+            console.log(`📡 [WebSocket] 邀请通知已推送给 ${toUser}`);
+            
+            return {
+                success: true,
+                requestId: result.id,
+                message: result.isOverride ? '邀请已更新并重新发送' : '邀请已发送',
+                isOverride: result.isOverride || false
+            };
+        } catch (error) {
+            console.error('❌ 发送关联邀请失败:', error);
+            throw error;
+        }
+    }
+
+    // 接受关联邀请
+    async handleLinkAcceptInvitation(data, deviceId) {
+        const LinkService = require('./linkService');
+        try {
+            const { requestId } = data;
+            const appUser = this.getAppUserFromConnection(deviceId);
+            
+            console.log(`🔍 [WebSocket] 接受邀请: deviceId=${deviceId}, appUser=${appUser}, requestId=${requestId}`);
+            
+            if (!appUser) {
+                throw new Error('无法确定用户身份');
+            }
+            
+            // 调用LinkService处理请求（接受）
+            const result = await LinkService.handleRequest(requestId, 'accept', appUser);
+            
+            console.log(`✅ [WebSocket] 关联邀请接受成功:`, result);
+            
+            // 发送Link建立成功的广播通知给接受邀请的用户
+            this.broadcastToAppUser(appUser, {
+                type: 'LINK_ESTABLISHED',
+                success: true,
+                data: {
+                    status: result.status,
+                    synced: result.synced,
+                    message: '关联建立成功，数据已同步'
+                },
+                timestamp: Date.now()
+            });
+            
+            return {
+                success: true,
+                status: result.status,
+                synced: result.synced,
+                message: '关联建立成功'
+            };
+        } catch (error) {
+            console.error('❌ 接受关联邀请失败:', error);
+            throw error;
+        }
+    }
+
+    // 拒绝关联邀请
+    async handleLinkRejectInvitation(data, deviceId) {
+        const LinkService = require('./linkService');
+        try {
+            const { requestId } = data;
+            const appUser = this.getAppUserFromConnection(deviceId);
+            
+            console.log(`🔍 [WebSocket] 拒绝邀请: deviceId=${deviceId}, appUser=${appUser}, requestId=${requestId}`);
+            
+            if (!appUser) {
+                throw new Error('无法确定用户身份');
+            }
+            
+            // 调用LinkService处理请求（拒绝）
+            const result = await LinkService.handleRequest(requestId, 'reject', appUser);
+            
+            console.log(`❌ [WebSocket] 关联邀请拒绝成功:`, result);
+            
+            return {
+                success: true,
+                status: result.status,
+                message: '邀请已拒绝'
+            };
+        } catch (error) {
+            console.error('❌ 拒绝关联邀请失败:', error);
+            throw error;
+        }
+    }
+
+    // 取消关联
+    async handleLinkCancel(data, deviceId) {
+        const LinkService = require('./linkService');
+        try {
+            const { linkId } = data;
+            const appUser = this.getAppUserFromConnection(deviceId);
+            
+            console.log(`🔍 [WebSocket] 取消关联: deviceId=${deviceId}, appUser=${appUser}`);
+            
+            if (!appUser) {
+                throw new Error('无法确定用户身份');
+            }
+            
+            // 调用LinkService取消关联
+            const result = await LinkService.cancelLink(linkId, appUser);
+            
+            console.log(`🔗 [WebSocket] 取消关联成功:`, result);
+            
+            return {
+                success: true,
+                message: '关联已取消'
+            };
+        } catch (error) {
+            console.error('❌ 取消关联失败:', error);
+            throw error;
+        }
+    }
+
+    // 从连接中获取app_user
+    getAppUserFromConnection(deviceId) {
+        const connection = this.connections.get(deviceId);
+        return connection ? connection.appUserId : null;
+    }
+
+    // 处理用户注册
+    async handleUserRegistration(deviceId, userId, appUserId) {
+        console.log(`👤 [WebSocket] 处理用户注册: deviceId=${deviceId}, userId=${userId}, appUserId=${appUserId}`);
+        
+        if (!deviceId || !appUserId) {
+            throw new Error('用户注册信息不完整');
+        }
+        
+        // 这里不需要再次调用registerConnection，因为在handleMessage中已经调用了
+        // 只是返回注册成功的确认
+        console.log(`✅ [WebSocket] 用户 ${appUserId} 注册成功`);
+        
+        return {
+            success: true,
+            message: '用户注册成功',
+            deviceId,
+            userId,
+            appUserId,
+            timestamp: Date.now()
+        };
+    }
+
     // 获取连接统计
     getStats() {
         return {
             totalConnections: this.connections.size,
             totalUsers: this.userConnections.size,
+            totalAppUsers: this.appUserConnections.size,
             userDevices: Object.fromEntries(
                 Array.from(this.userConnections.entries()).map(([userId, devices]) => 
                     [userId, devices.size]
+                )
+            ),
+            appUserDevices: Object.fromEntries(
+                Array.from(this.appUserConnections.entries()).map(([appUserId, devices]) => 
+                    [appUserId, devices.size]
                 )
             )
         };

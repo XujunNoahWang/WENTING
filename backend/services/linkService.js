@@ -97,6 +97,117 @@ class LinkService {
             return errorResult.result;
         }
     }
+
+    // 创建关联请求（允许覆盖现有待处理请求）
+    static async createRequestWithOverride(fromAppUser, toAppUser, supervisedUserId, message = '') {
+        const ErrorHandlingService = require('./errorHandlingService');
+        
+        try {
+            console.log(`📤 创建关联请求（允许覆盖）: ${fromAppUser} -> ${toAppUser} (被监管用户: ${supervisedUserId})`);
+            
+            // 验证发起用户存在
+            const fromUserExists = await query('SELECT username FROM app_users WHERE username = ?', [fromAppUser]);
+            if (fromUserExists.length === 0) {
+                const error = new Error('发起用户不存在');
+                error.code = 'USER_NOT_FOUND';
+                throw error;
+            }
+            
+            // 验证目标用户存在
+            const toUserExists = await query('SELECT username FROM app_users WHERE username = ?', [toAppUser]);
+            if (toUserExists.length === 0) {
+                const error = new Error('目标用户不存在');
+                error.code = 'TARGET_USER_NOT_FOUND';
+                throw error;
+            }
+            
+            // 验证被监管用户存在且属于发起用户
+            const supervisedUser = await query(`
+                SELECT id, username, display_name, app_user_id 
+                FROM users 
+                WHERE id = ? AND app_user_id = ? AND is_active = 1
+            `, [supervisedUserId, fromAppUser]);
+            
+            if (supervisedUser.length === 0) {
+                const error = new Error('被监管用户不存在或不属于当前用户');
+                error.code = 'SUPERVISED_USER_NOT_FOUND';
+                throw error;
+            }
+            
+            // 检查是否已存在活跃的关联关系
+            const existingLink = await query(`
+                SELECT id FROM user_links 
+                WHERE manager_app_user = ? AND linked_app_user = ? AND supervised_user_id = ? AND status = 'active'
+            `, [fromAppUser, toAppUser, supervisedUserId]);
+            
+            if (existingLink.length > 0) {
+                const error = new Error('该用户已经与此被监管用户建立了关联');
+                error.code = 'LINK_ALREADY_EXISTS';
+                throw error;
+            }
+            
+            // 检查是否已存在待处理的请求
+            const existingRequest = await query(`
+                SELECT id FROM link_requests 
+                WHERE from_app_user = ? AND to_app_user = ? AND supervised_user_id = ? 
+                AND status = 'pending' AND expires_at > datetime('now')
+            `, [fromAppUser, toAppUser, supervisedUserId]);
+            
+            let result;
+            let isOverride = false;
+            
+            if (existingRequest.length > 0) {
+                // 更新现有请求
+                console.log(`🔄 更新现有邀请请求: ID ${existingRequest[0].id}`);
+                await query(`
+                    UPDATE link_requests 
+                    SET message = ?, updated_at = CURRENT_TIMESTAMP, expires_at = datetime('now', '+7 days')
+                    WHERE id = ?
+                `, [message, existingRequest[0].id]);
+                
+                result = { id: existingRequest[0].id };
+                isOverride = true;
+            } else {
+                // 创建新的关联请求
+                console.log(`➕ 创建新的邀请请求`);
+                const insertResult = await query(`
+                    INSERT INTO link_requests (from_app_user, to_app_user, supervised_user_id, supervised_user_name, message)
+                    VALUES (?, ?, ?, ?, ?)
+                `, [fromAppUser, toAppUser, supervisedUserId, supervisedUser[0].display_name, message]);
+                
+                result = { id: insertResult.insertId };
+                isOverride = false;
+            }
+            
+            // 获取完整的请求信息
+            const request = await query('SELECT * FROM link_requests WHERE id = ?', [result.id]);
+            
+            console.log(`✅ 关联请求${isOverride ? '更新' : '创建'}成功，ID: ${result.id}`);
+            
+            return {
+                ...request[0],
+                isOverride
+            };
+            
+        } catch (error) {
+            console.error('❌ 创建/更新关联请求失败:', error);
+            
+            // 使用错误处理服务
+            const errorResult = await ErrorHandlingService.handleError(error, {
+                operation: 'createRequestWithOverride',
+                userId: fromAppUser,
+                targetUser: toAppUser,
+                supervisedUserId
+            });
+            
+            // 如果错误处理服务无法恢复，重新抛出错误
+            if (!errorResult.success) {
+                throw error;
+            }
+            
+            return errorResult.result;
+        }
+    }
     
     // 获取用户的待处理请求
     static async getPendingRequests(appUser) {
@@ -203,6 +314,21 @@ class LinkService {
                 if (supervisedUserData.length > 0) {
                     const userData = supervisedUserData[0];
                     
+                    // 获取目标用户的实际设备ID
+                    let targetDeviceId = 'default_device'; // 默认值
+                    
+                    // 尝试从现有用户记录中获取设备ID
+                    const existingUserDevices = await query(`
+                        SELECT DISTINCT device_id FROM users WHERE app_user_id = ? AND device_id IS NOT NULL LIMIT 1
+                    `, [toAppUser]);
+                    
+                    if (existingUserDevices.length > 0) {
+                        targetDeviceId = existingUserDevices[0].device_id;
+                        console.log(`📱 使用目标用户的现有设备ID: ${targetDeviceId}`);
+                    } else {
+                        console.log(`📱 目标用户没有现有设备ID，使用默认值: ${targetDeviceId}`);
+                    }
+                    
                     // 为目标用户创建相同的被监管用户记录
                     const newUserResult = await query(`
                         INSERT INTO users (app_user_id, username, display_name, email, phone, gender, birthday, 
@@ -211,7 +337,7 @@ class LinkService {
                     `, [
                         toAppUser, userData.username, userData.display_name, userData.email, userData.phone,
                         userData.gender, userData.birthday, userData.avatar_color, userData.timezone,
-                        'default_device', toAppUser, true
+                        targetDeviceId, toAppUser, true
                     ]);
                     
                     const newUserId = newUserResult.insertId;
@@ -354,6 +480,72 @@ class LinkService {
             
         } catch (error) {
             console.error('❌ 取消关联关系失败:', error);
+            throw error;
+        }
+    }
+    
+    // 直接创建关联关系（用于接受邀请时）
+    static async createLinkDirectly(fromAppUser, toAppUser, supervisedUserId) {
+        try {
+            console.log(`🔗 直接创建关联关系: ${fromAppUser} <-> ${toAppUser} (被监管用户: ${supervisedUserId})`);
+            
+            // 验证被监管用户存在且属于发起用户
+            const supervisedUser = await query(`
+                SELECT id, username, display_name, app_user_id 
+                FROM users 
+                WHERE id = ? AND app_user_id = ? AND is_active = 1
+            `, [supervisedUserId, fromAppUser]);
+            
+            if (supervisedUser.length === 0) {
+                const error = new Error('被监管用户不存在或不属于发起用户');
+                error.code = 'SUPERVISED_USER_NOT_FOUND';
+                throw error;
+            }
+            
+            // 检查是否已存在活跃的关联关系
+            const existingLink = await query(`
+                SELECT id FROM user_links 
+                WHERE ((manager_app_user = ? AND linked_app_user = ?) OR 
+                       (manager_app_user = ? AND linked_app_user = ?)) 
+                AND supervised_user_id = ? AND status = 'active'
+            `, [fromAppUser, toAppUser, toAppUser, fromAppUser, supervisedUserId]);
+            
+            if (existingLink.length > 0) {
+                throw new Error('关联关系已存在');
+            }
+            
+            // 在事务中创建关联关系
+            return await transaction(async () => {
+                // 创建关联关系
+                const linkResult = await query(`
+                    INSERT INTO user_links (
+                        manager_app_user, linked_app_user, supervised_user_id, 
+                        supervised_user_name, status, created_at
+                    ) VALUES (?, ?, ?, ?, 'active', CURRENT_TIMESTAMP)
+                `, [fromAppUser, toAppUser, supervisedUserId, supervisedUser[0].display_name]);
+                
+                const linkId = linkResult.insertId;
+                
+                // 更新被监管用户的关联状态
+                await query(`
+                    UPDATE users 
+                    SET supervised_app_user = ?, is_linked = 1, updated_at = CURRENT_TIMESTAMP
+                    WHERE id = ?
+                `, [toAppUser, supervisedUserId]);
+                
+                console.log(`✅ 关联关系创建成功，ID: ${linkId}`);
+                return { 
+                    linkId, 
+                    status: 'active',
+                    managerUser: fromAppUser,
+                    linkedUser: toAppUser,
+                    supervisedUserId,
+                    supervisedUserName: supervisedUser[0].display_name
+                };
+            });
+            
+        } catch (error) {
+            console.error('❌ 直接创建关联关系失败:', error);
             throw error;
         }
     }
