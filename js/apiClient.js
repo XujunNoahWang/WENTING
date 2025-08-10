@@ -115,7 +115,7 @@ const ApiClient = {
         // 获取所有用户（支持跨设备访问）
         async getAll() {
             const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
-            const appUserId = localStorage.getItem('wenting_current_app_user');
+            const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             
             console.log('🔍 ApiClient.users.getAll 调试信息:');
             console.log('  - deviceId:', deviceId);
@@ -150,7 +150,7 @@ const ApiClient = {
         // 创建用户
         async create(userData) {
             const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
-            const appUserId = localStorage.getItem('wenting_current_app_user');
+            const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             
             console.log('🔍 ApiClient.users.create 调试信息:');
             console.log('  - deviceId:', deviceId);
@@ -251,9 +251,10 @@ const ApiClient = {
         },
 
         // 取消完成TODO
-        async uncomplete(id, date) {
+        async uncomplete(id, date, userId) {
             return ApiClient.post(`/todos/${id}/uncomplete`, {
-                date: date
+                date: date,
+                user_id: userId
             });
         }
     },

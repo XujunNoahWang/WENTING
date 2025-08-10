@@ -660,7 +660,7 @@ const App = {
             const linkStatusArea = document.getElementById('linkStatusArea');
             if (!linkStatusArea) return;
             
-            const currentAppUser = localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             if (!currentAppUser) {
                 linkStatusArea.innerHTML = `
                     <div class="link-status-error">
@@ -847,7 +847,7 @@ const App = {
             }
             
             // 检查用户的关联状态
-            const currentAppUser = localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             if (!currentAppUser) {
                 linkContentEl.innerHTML = '<div class="link-error">用户未登录</div>';
                 return;
@@ -996,7 +996,7 @@ const App = {
             }
             
             // 检查是否尝试关联自己
-            const currentAppUser = localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             if (targetUsername === currentAppUser) {
                 this.showLinkNotification('error', '不能关联自己');
                 return;
@@ -1215,7 +1215,7 @@ const App = {
         try {
             console.log(`📝 [SPA Link] 响应关联邀请: ${action}`, { fromUser, supervisedUserName, requestId });
             
-            const currentAppUser = localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             if (!currentAppUser) {
                 this.showLinkNotification('error', '用户未登录');
                 return;
@@ -1522,7 +1522,7 @@ const App = {
         try {
             console.log('🔗 [SPA Link] 执行取消关联:', { supervisedUserId, linkId, linkedUser });
             
-            const currentAppUser = localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
             if (!currentAppUser) {
                 this.showLinkNotification('error', '用户未登录');
                 return;

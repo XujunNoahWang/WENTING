@@ -542,14 +542,14 @@ const TodoManager = {
             // 同步到服务器 - 优先使用WebSocket
             if (WebSocketClient.isConnected) {
                 if (wasCompleted) {
-                    await WebSocketClient.todos.uncomplete(todoId, dateStr);
+                    await WebSocketClient.todos.uncomplete(todoId, dateStr, userId);
                 } else {
                     await WebSocketClient.todos.complete(todoId, userId, dateStr);
                 }
             } else {
                 // 降级到HTTP
                 if (wasCompleted) {
-                    await ApiClient.todos.uncomplete(todoId, dateStr);
+                    await ApiClient.todos.uncomplete(todoId, dateStr, userId);
                 } else {
                     await ApiClient.todos.complete(todoId, userId, dateStr);
                 }
@@ -1269,6 +1269,31 @@ const TodoManager = {
                 }
                 // 重新加载当前日期的数据
                 this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
+                break;
+                
+            case 'TODO_SYNC_UPDATE':
+                // 处理关联用户的实时同步更新
+                console.log('🔗 收到Link同步更新:', data);
+                if (data.sync && data.sync.fromUser) {
+                    console.log(`🔄 来自 ${data.sync.fromUser} 的同步操作: ${data.operation}`);
+                    
+                    // 清除缓存
+                    this.clearAllRelatedCache();
+                    
+                    // 重新加载数据以显示同步的变更
+                    this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
+                    
+                    // 显示同步通知
+                    const operationText = {
+                        'COMPLETE': '完成',
+                        'UNCOMPLETE': '取消完成',
+                        'CREATE': '创建',
+                        'UPDATE': '更新',
+                        'DELETE': '删除'
+                    }[data.operation] || data.operation;
+                    
+                    this.showSyncStatusToast(`${data.sync.fromUser} ${operationText}了待办事项`, 'info');
+                }
                 break;
         }
     },

@@ -69,7 +69,17 @@
       "Bash(tasklist)",
       "Bash(start \"雯婷后端服务 - WebSocket注册测试\" npm run dev)",
       "Bash(cmd /c taskkill:*)",
-      "Bash(start \"雯婷后端服务 - Link修复测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - Link修复测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - Todo勾选同步修复测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - 双向Todo同步修复测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - 双向Todo同步修复完成测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - 错误处理器修复完成测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - WebSocket用户信息修复完成测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - Todo双向同步修复完成测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - 心跳同步测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - WebSocket同步修复完成\" npm run dev)",
+      "Bash(git restore:*)",
+      "Bash(git reset:*)"
     ],
     "deny": []
   }

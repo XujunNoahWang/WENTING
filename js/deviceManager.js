@@ -16,7 +16,7 @@ const DeviceManager = {
         this.displayDeviceInfo();
         
         // 确保新用户的设备ID同步到数据库
-        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
         if (currentAppUser && this.deviceId) {
             console.log('🔄 为新用户同步设备ID到数据库...');
             // 异步同步，不阻塞初始化
@@ -39,7 +39,7 @@ const DeviceManager = {
         }
         
         // 检查是否有当前登录用户，如果有，尝试从数据库获取该用户的设备ID
-        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
         if (currentAppUser) {
             console.log('🔍 检测到已登录用户:', currentAppUser, '尝试获取其设备ID...');
             const existingDeviceId = this.tryGetExistingDeviceId(currentAppUser);
@@ -287,7 +287,7 @@ const DeviceManager = {
 
     // 同步设备ID到数据库中的用户记录
     async syncDeviceIdToDatabase() {
-        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
         if (!currentAppUser || !this.deviceId) {
             return;
         }

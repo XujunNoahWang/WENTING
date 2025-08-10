@@ -22,7 +22,7 @@ const ProfileManager = {
         }
         
         // 获取当前登录用户
-        this.currentAppUser = localStorage.getItem('wenting_current_app_user');
+        this.currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
         
         if (!this.currentAppUser) {
             console.error('❌ 用户未登录');

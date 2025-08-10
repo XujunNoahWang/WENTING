@@ -207,6 +207,12 @@ const WebSocketClient = {
             return;
         }
 
+        // 处理其他响应消息
+        if (type.endsWith('_RESPONSE')) {
+            console.log(`📨 收到响应消息: ${type}`, message.success ? '✅' : '❌');
+            return;
+        }
+
         console.log('⚠️ 未处理的消息类型:', type);
     },
 
