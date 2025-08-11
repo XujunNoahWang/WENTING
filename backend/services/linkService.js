@@ -454,13 +454,14 @@ class LinkService {
             const notes = await query('SELECT * FROM notes WHERE user_id = ?', [fromUserId]);
             
             for (const note of notes) {
+                // 🔥 不同步AI建议，让每个用户有自己的AI建议
                 await query(`
                     INSERT INTO notes (user_id, title, description, precautions, ai_suggestions, created_at, updated_at)
-                    VALUES (?, ?, ?, ?, ?, ?, ?)
-                `, [toUserId, note.title, note.description, note.precautions, note.ai_suggestions, note.created_at, note.updated_at]);
+                    VALUES (?, ?, ?, ?, '', ?, ?)
+                `, [toUserId, note.title, note.description, note.precautions, note.created_at, note.updated_at]);
             }
             
-            console.log(`✅ 同步了 ${notes.length} 个Notes项目`);
+            console.log(`✅ 同步了 ${notes.length} 个Notes项目（不包含AI建议）`);
         } catch (error) {
             console.error('❌ 同步Notes失败:', error);
             throw error;
@@ -887,12 +888,13 @@ class LinkService {
             for (const targetUserId of targetUserIds) {
                 switch (operation) {
                     case 'CREATE':
+                        // 🔥 不同步AI建议，让每个用户有自己的AI建议
                         await query(`
                             INSERT INTO notes (user_id, title, description, precautions, ai_suggestions, created_at, updated_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?)
+                            VALUES (?, ?, ?, ?, '', ?, ?)
                         `, [
                             targetUserId, data.title, data.description, data.precautions, 
-                            data.ai_suggestions, data.created_at || new Date(), data.updated_at || new Date()
+                            data.created_at || new Date(), data.updated_at || new Date()
                         ]);
                         break;
                         
@@ -901,12 +903,13 @@ class LinkService {
                         const matchTitle = data.original_title || data.title;
                         console.log(`🔍 [Notes] 更新同步 - 查找标题: "${matchTitle}" -> 更新为: "${data.title}"`);
                         
+                        // 🔥 不同步AI建议，保持各自用户的AI建议不变
                         const updateResult = await query(`
                             UPDATE notes 
-                            SET title = ?, description = ?, precautions = ?, ai_suggestions = ?, updated_at = CURRENT_TIMESTAMP
+                            SET title = ?, description = ?, precautions = ?, updated_at = CURRENT_TIMESTAMP
                             WHERE user_id = ? AND title = ?
                         `, [
-                            data.title, data.description, data.precautions, data.ai_suggestions,
+                            data.title, data.description, data.precautions,
                             targetUserId, matchTitle
                         ]);
                         

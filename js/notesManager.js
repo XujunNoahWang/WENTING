@@ -385,16 +385,6 @@ const NotesManager = {
                         ${syncIndicator}
                     </div>
                     <div class="note-actions" onclick="event.stopPropagation()">
-                        <button class="note-action-btn" onclick="NotesManager.shareNote(${note.id})" title="分享">
-                            <svg viewBox="0 0 24 24" width="16" height="16">
-                                <path d="M18 16.08c-.76 0-1.44.3-1.96.77L8.91 12.7c.05-.23.09-.46.09-.7s-.04-.47-.09-.7l7.05-4.11c.54.5 1.25.81 2.04.81 1.66 0 3-1.34 3-3s-1.34-3-3-3-3 1.34-3 3c0 .24.04.47.09.7L8.04 9.81C7.5 9.31 6.79 9 6 9c-1.66 0-3 1.34-3 3s1.34 3 3 3c.79 0 1.50-.31 2.04-.81l7.12 4.16c-.05.21-.08.43-.08.65 0 1.61 1.31 2.92 2.92 2.92s2.92-1.31 2.92-2.92-1.31-2.92-2.92-2.92z"/>
-                            </svg>
-                        </button>
-                        <button class="note-action-btn" onclick="NotesManager.showEditNoteForm(${note.id})" title="编辑">
-                            <svg viewBox="0 0 24 24" width="16" height="16">
-                                <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z"/>
-                            </svg>
-                        </button>
                         <button class="note-action-btn delete" onclick="NotesManager.deleteNote(${note.id})" title="删除">
                             <svg viewBox="0 0 24 24" width="16" height="16">
                                 <path d="M6 19c0 1.1.9 2 2 2h8c1.1 0 2-.9 2-2V7H6v12zM19 4h-3.5l-1-1h-5l-1 1H5v2h14V4z"/>
@@ -547,8 +537,9 @@ const NotesManager = {
         }
     },
 
-    // 显示编辑笔记表单
-    async showEditNoteForm(noteId) {
+
+    // 显示编辑笔记内容表单（只编辑描述和注意事项）
+    async showEditNoteContentForm(noteId) {
         try {
             // 获取笔记详情
             const response = await ApiClient.notes.getById(noteId);
@@ -558,36 +549,25 @@ const NotesManager = {
             
             const note = response.data;
             const formHtml = `
-                <div class="modal-overlay" id="editNoteModal">
+                <div class="modal-overlay" id="editNoteContentModal">
                     <div class="modal-content">
                         <div class="modal-header">
-                            <h3>编辑健康笔记</h3>
-                            <button class="modal-close" onclick="NotesManager.closeNoteForm()">×</button>
+                            <h3>编辑笔记内容</h3>
+                            <button class="modal-close" onclick="NotesManager.closeNoteContentForm()">×</button>
                         </div>
-                        <form class="note-form" onsubmit="NotesManager.handleEditNote(event, ${noteId})">
+                        <form class="note-form" onsubmit="NotesManager.handleEditNoteContent(event, ${noteId})">
                             <div class="form-group">
-                                <label for="edit-note-title">健康状况标题 *</label>
-                                <input type="text" id="edit-note-title" name="title" required maxlength="100" 
-                                       value="${Utils.escapeHtml(note.title)}" 
-                                       placeholder="如：关节炎、血压高、轻度抑郁等">
-                            </div>
-                            <div class="form-group">
-                                <label for="edit-note-description">详细描述</label>
-                                <textarea id="edit-note-description" name="description" rows="4" 
+                                <label for="edit-content-description">详细描述</label>
+                                <textarea id="edit-content-description" name="description" rows="4" 
                                           placeholder="详细描述您的健康状况...">${Utils.escapeHtml(note.description || '')}</textarea>
                             </div>
                             <div class="form-group">
-                                <label for="edit-note-precautions">注意事项/医嘱</label>
-                                <textarea id="edit-note-precautions" name="precautions" rows="3" 
+                                <label for="edit-content-precautions">注意事项/医嘱</label>
+                                <textarea id="edit-content-precautions" name="precautions" rows="3" 
                                           placeholder="医生建议、注意事项等...">${Utils.escapeHtml(note.precautions || '')}</textarea>
                             </div>
-                            <div class="form-group">
-                                <label for="edit-note-ai-suggestions">AI建议 <span class="form-note">(可编辑和修改)</span></label>
-                                <textarea id="edit-note-ai-suggestions" name="ai_suggestions" rows="8" 
-                                          placeholder="AI生成的建议内容...">${Utils.escapeHtml(note.ai_suggestions || '')}</textarea>
-                            </div>
                             <div class="form-actions">
-                                <button type="button" onclick="NotesManager.closeNoteForm()">取消</button>
+                                <button type="button" onclick="NotesManager.closeNoteContentForm()">取消</button>
                                 <button type="submit">保存修改</button>
                             </div>
                         </form>
@@ -597,13 +577,13 @@ const NotesManager = {
             
             document.body.insertAdjacentHTML('beforeend', formHtml);
         } catch (error) {
-            console.error('显示编辑表单失败:', error);
+            console.error('显示编辑内容表单失败:', error);
             this.showMessage('加载笔记数据失败: ' + error.message, 'error');
         }
     },
 
-    // 处理编辑笔记
-    async handleEditNote(event, noteId) {
+    // 处理编辑笔记内容
+    async handleEditNoteContent(event, noteId) {
         event.preventDefault();
         
         const form = event.target;
@@ -616,40 +596,64 @@ const NotesManager = {
             
             const formData = new FormData(form);
             const noteData = {
-                title: formData.get('title').trim(),
                 description: formData.get('description').trim(),
-                precautions: formData.get('precautions').trim(),
-                ai_suggestions: formData.get('ai_suggestions').trim()
+                precautions: formData.get('precautions').trim()
+                // 注意：这里不包括 ai_suggestions，保持不变
             };
             
-            console.log('🔄 更新笔记:', noteId, noteData);
+            console.log('🔄 更新笔记内容:', noteId, noteData);
             const response = await ApiClient.notes.update(noteId, noteData);
             
             if (response.success) {
-                console.log('✅ [Notes] 后端更新成功:', response.data);
+                console.log('✅ [Notes] 内容更新成功:', response.data);
                 
-                // 🔥 关键修复：重新从API加载最新数据，确保数据一致性
+                // 重新从API加载最新数据，确保数据一致性
                 await this.loadNotesFromAPI(true, this.currentUser);
                 
-                // 关闭表单
-                this.closeNoteForm();
+                // 关闭编辑表单
+                this.closeNoteContentForm();
                 
-                // 如果详情模态框打开，也关闭它
-                this.closeNoteDetails();
+                // 更新详情页面内容
+                this.updateNoteDetailsContent(noteId, response.data);
                 
-                this.showMessage('笔记更新成功！', 'success');
-                console.log('✅ [Notes] 更新操作完成，界面已更新');
+                this.showMessage('笔记内容更新成功！', 'success');
+                console.log('✅ [Notes] 内容更新操作完成，界面已更新');
             } else {
-                throw new Error(response.message || '更新笔记失败');
+                throw new Error(response.message || '更新笔记内容失败');
             }
             
         } catch (error) {
-            console.error('❌ 更新笔记失败:', error);
-            this.showMessage('更新笔记失败: ' + error.message, 'error');
+            console.error('❌ 更新笔记内容失败:', error);
+            this.showMessage('更新笔记内容失败: ' + error.message, 'error');
         } finally {
             submitButton.disabled = false;
             submitButton.textContent = '保存修改';
         }
+    },
+
+    // 关闭笔记内容编辑表单
+    closeNoteContentForm() {
+        const modal = document.getElementById('editNoteContentModal');
+        if (modal) {
+            modal.remove();
+        }
+    },
+
+    // 更新详情页面内容（不刷新整个详情页，只更新内容部分）
+    updateNoteDetailsContent(noteId, updatedNote) {
+        // 更新详细描述
+        const descriptionElement = document.querySelector('.detail-section:nth-child(1) p');
+        if (descriptionElement) {
+            descriptionElement.textContent = updatedNote.description || 'N/A';
+        }
+        
+        // 更新注意事项
+        const precautionsElement = document.querySelector('.detail-section:nth-child(2) p');
+        if (precautionsElement) {
+            precautionsElement.textContent = updatedNote.precautions || 'N/A';
+        }
+        
+        console.log('✅ 详情页面内容已更新');
     },
 
     // 关闭笔记表单
@@ -677,18 +681,14 @@ const NotesManager = {
                             <button class="modal-close" onclick="NotesManager.closeNoteDetails()">×</button>
                         </div>
                         <div class="note-details">
-                            ${note.description ? `
-                                <div class="detail-section">
-                                    <h4>详细描述</h4>
-                                    <p>${Utils.escapeHtml(note.description)}</p>
-                                </div>
-                            ` : ''}
-                            ${note.precautions ? `
-                                <div class="detail-section">
-                                    <h4>注意事项/医嘱</h4>
-                                    <p>${Utils.escapeHtml(note.precautions)}</p>
-                                </div>
-                            ` : ''}
+                            <div class="detail-section">
+                                <h4>详细描述</h4>
+                                <p>${note.description ? Utils.escapeHtml(note.description) : 'N/A'}</p>
+                            </div>
+                            <div class="detail-section">
+                                <h4>注意事项/医嘱</h4>
+                                <p>${note.precautions ? Utils.escapeHtml(note.precautions) : 'N/A'}</p>
+                            </div>
                             <div class="detail-section">
                                 <h4>AI建议</h4>
                                 ${note.ai_suggestions ? `
@@ -702,9 +702,8 @@ const NotesManager = {
                             </div>
                         </div>
                         <div class="modal-actions">
-                            <button onclick="NotesManager.showEditNoteForm(${noteId})">编辑</button>
-                            <button onclick="NotesManager.regenerateAISuggestions(${noteId})" class="regenerate-ai-btn">再次生成AI建议</button>
-                            <button onclick="NotesManager.closeNoteDetails()">关闭</button>
+                            <button onclick="NotesManager.showEditNoteContentForm(${noteId})" class="edit-content-btn">编辑</button>
+                            ${note.ai_suggestions ? `<button onclick="NotesManager.regenerateAISuggestions(${noteId})" class="regenerate-ai-btn">再次生成AI建议</button>` : ''}
                         </div>
                     </div>
                 </div>
@@ -731,12 +730,11 @@ const NotesManager = {
         if (!modal) return;
 
         // 获取所有需要禁用的按钮
-        const editButton = modal.querySelector('button[onclick*="showEditNoteForm"]');
+        const editButton = modal.querySelector('.edit-content-btn');
         const regenerateButton = modal.querySelector('.regenerate-ai-btn');
-        const closeButton = modal.querySelector('button[onclick*="closeNoteDetails"]');
         const generateButton = modal.querySelector('.generate-ai-btn');
 
-        const buttons = [editButton, regenerateButton, closeButton, generateButton].filter(btn => btn);
+        const buttons = [editButton, regenerateButton, generateButton].filter(btn => btn);
 
         if (isLoading) {
             // 启用加载状态
@@ -865,6 +863,17 @@ const NotesManager = {
                         const aiContentHtml = `<div class="ai-suggestions-content">${this.formatAISuggestions(response.data.ai_suggestions)}</div>`;
                         noSuggestionsElement.outerHTML = aiContentHtml;
                         generateButton.remove();
+                        
+                        // 在模态框底部添加"再次生成AI建议"按钮
+                        const modalActions = document.querySelector('.modal-actions');
+                        if (modalActions && !modalActions.querySelector('.regenerate-ai-btn')) {
+                            // 在编辑按钮之后添加"再次生成AI建议"按钮
+                            const regenerateButton = document.createElement('button');
+                            regenerateButton.className = 'regenerate-ai-btn';
+                            regenerateButton.setAttribute('onclick', `NotesManager.regenerateAISuggestions(${noteId})`);
+                            regenerateButton.textContent = '再次生成AI建议';
+                            modalActions.appendChild(regenerateButton);
+                        }
                     }
                 }
                 
@@ -996,178 +1005,6 @@ const NotesManager = {
         return `<div style="white-space: normal; line-height: 1.6;">${formatted}</div>`;
     },
 
-    // 分享笔记功能
-    async shareNote(noteId) {
-        try {
-            console.log('🔗 开始分享笔记，ID:', noteId);
-            
-            // 获取笔记详情
-            const response = await ApiClient.notes.getById(noteId);
-            if (!response.success) {
-                throw new Error(response.message);
-            }
-            
-            const note = response.data;
-            
-            // 创建分享内容
-            await this.generateShareImage(note);
-            
-        } catch (error) {
-            console.error('❌ 分享笔记失败:', error);
-            this.showMessage('分享笔记失败: ' + error.message, 'error');
-        }
-    },
-
-    // 生成分享图片
-    async generateShareImage(note) {
-        try {
-            // 创建分享内容容器
-            const shareContainer = document.createElement('div');
-            shareContainer.className = 'share-content-container';
-            shareContainer.style.cssText = `
-                position: fixed;
-                top: -9999px;
-                left: -9999px;
-                width: 600px;
-                background: white;
-                font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-                z-index: -1;
-            `;
-            
-            // 格式化分享内容
-            const shareContent = this.formatShareContent(note);
-            shareContainer.innerHTML = shareContent;
-            
-            document.body.appendChild(shareContainer);
-            
-            // 检查是否有html2canvas库
-            if (typeof html2canvas === 'undefined') {
-                // 动态加载html2canvas库
-                await this.loadHtml2Canvas();
-            }
-            
-            // 生成图片
-            console.log('📸 开始生成分享图片...');
-            const canvas = await html2canvas(shareContainer, {
-                backgroundColor: '#ffffff',
-                scale: 2,
-                useCORS: true,
-                allowTaint: true,
-                width: 600,
-                height: shareContainer.offsetHeight
-            });
-            
-            // 清理临时容器
-            document.body.removeChild(shareContainer);
-            
-            // 下载图片
-            this.downloadImage(canvas, `健康档案-${note.title}-${new Date().toISOString().split('T')[0]}.png`);
-            
-            this.showMessage('健康档案图片已生成，正在下载...', 'success');
-            
-        } catch (error) {
-            console.error('❌ 生成分享图片失败:', error);
-            this.showMessage('生成分享图片失败: ' + error.message, 'error');
-        }
-    },
-
-    // 格式化分享内容
-    formatShareContent(note) {
-        const currentDate = new Date().toLocaleDateString('zh-CN');
-        
-        return `
-            <div style="padding: 40px; background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); color: white;">
-                <div style="background: white; border-radius: 16px; padding: 32px; color: #333; box-shadow: 0 20px 40px rgba(0,0,0,0.1);">
-                    <div style="text-align: center; margin-bottom: 32px;">
-                        <h1 style="font-size: 24px; font-weight: 700; color: #1d9bf0; margin: 0 0 8px 0;">雯婷健康档案</h1>
-                        <p style="color: #657786; margin: 0; font-size: 14px;">生成日期: ${currentDate}</p>
-                    </div>
-                    
-                    <div style="margin-bottom: 24px;">
-                        <h2 style="font-size: 20px; font-weight: 600; color: #14171a; margin: 0 0 12px 0; padding-bottom: 8px; border-bottom: 2px solid #1d9bf0;">${Utils.escapeHtml(note.title)}</h2>
-                    </div>
-                    
-                    ${note.description ? `
-                        <div style="margin-bottom: 24px;">
-                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">详细描述</h3>
-                            <div style="background: #f8f9fa; padding: 16px; border-radius: 8px; border-left: 4px solid #28a745;">
-                                <p style="margin: 0; line-height: 1.6; color: #495057;">${Utils.escapeHtml(note.description)}</p>
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    ${note.precautions ? `
-                        <div style="margin-bottom: 24px;">
-                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">注意事项/医嘱</h3>
-                            <div style="background: #fff3cd; padding: 16px; border-radius: 8px; border-left: 4px solid #ffc107;">
-                                <p style="margin: 0; line-height: 1.6; color: #856404;">${Utils.escapeHtml(note.precautions)}</p>
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    ${note.ai_suggestions ? `
-                        <div style="margin-bottom: 24px;">
-                            <h3 style="font-size: 16px; font-weight: 600; color: #495057; margin: 0 0 8px 0;">AI健康建议</h3>
-                            <div style="background: #e7f3ff; padding: 16px; border-radius: 8px; border-left: 4px solid #1d9bf0;">
-                                <div style="margin: 0; line-height: 1.6; color: #0c5460;">${this.formatAISuggestionsForShare(note.ai_suggestions)}</div>
-                            </div>
-                        </div>
-                    ` : ''}
-                    
-                    <div style="text-align: center; margin-top: 32px; padding-top: 24px; border-top: 1px solid #e1e8ed;">
-                        <p style="margin: 0; font-size: 12px; color: #657786;">此健康档案由雯婷应用生成 | 仅供参考，如有疑问请咨询专业医师</p>
-                    </div>
-                </div>
-            </div>
-        `;
-    },
-
-    // 格式化AI建议用于分享
-    formatAISuggestionsForShare(suggestions) {
-        if (!suggestions) return '';
-        
-        return suggestions
-            .replace(/\*\*(.*?)\*\*/g, '<strong style="color: #1d9bf0;">$1</strong>')
-            .replace(/\n/g, '<br>')
-            .replace(/<br><br>/g, '<br><br>');
-    },
-
-    // 动态加载html2canvas库
-    async loadHtml2Canvas() {
-        return new Promise((resolve, reject) => {
-            const script = document.createElement('script');
-            script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
-            script.onload = () => {
-                console.log('✅ html2canvas库加载成功');
-                resolve();
-            };
-            script.onerror = () => {
-                console.error('❌ html2canvas库加载失败');
-                reject(new Error('无法加载图片生成库'));
-            };
-            document.head.appendChild(script);
-        });
-    },
-
-    // 下载图片
-    downloadImage(canvas, filename) {
-        try {
-            // 创建下载链接
-            const link = document.createElement('a');
-            link.download = filename;
-            link.href = canvas.toDataURL('image/png');
-            
-            // 触发下载
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-            
-            console.log('✅ 图片下载成功:', filename);
-        } catch (error) {
-            console.error('❌ 图片下载失败:', error);
-            throw error;
-        }
-    },
 
     // 绑定事件
     bindEvents() {

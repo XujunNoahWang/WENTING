@@ -428,12 +428,13 @@ class DataSyncService {
     
     // 同步Notes创建
     static async syncNotesCreate(notesData, targetUserId) {
-        const { title, description, precautions, ai_suggestions } = notesData;
+        const { title, description, precautions } = notesData;
         
+        // 🔥 不同步AI建议，让每个用户有自己的AI建议
         await query(`
             INSERT INTO notes (user_id, title, description, precautions, ai_suggestions)
-            VALUES (?, ?, ?, ?, ?)
-        `, [targetUserId, title, description, precautions || '', ai_suggestions || '']);
+            VALUES (?, ?, ?, ?, '')
+        `, [targetUserId, title, description, precautions || '']);
     }
     
     // 同步Notes更新
@@ -454,7 +455,8 @@ class DataSyncService {
             const values = [];
             
             Object.keys(updateData).forEach(key => {
-                if (key !== 'id' && key !== 'user_id') {
+                // 🔥 不同步AI建议，保持各自用户的AI建议不变
+                if (key !== 'id' && key !== 'user_id' && key !== 'ai_suggestions') {
                     fields.push(`${key} = ?`);
                     values.push(updateData[key]);
                 }
