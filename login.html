@@ -314,7 +314,26 @@
     </div>
 
     <script>
-        const API_BASE_URL = 'http://localhost:3001';
+        // 动态获取API基础URL，与主应用保持一致
+        function getAPIBaseURL() {
+            const hostname = window.location.hostname;
+            const protocol = window.location.protocol;
+            
+            // 自动适配 cloudflare tunnel 的 https 域名
+            if (protocol === 'https:' && hostname.endsWith('.trycloudflare.com')) {
+                // 直接用当前域名的 https，且不加端口
+                return `https://${hostname}`;
+            } else if (hostname === '192.168.3.5') {
+                return 'http://192.168.3.5:3001';
+            } else if (hostname === 'localhost' || hostname === '127.0.0.1') {
+                return 'http://localhost:3001';
+            } else {
+                // 默认使用当前主机的3001端口
+                return `http://${hostname}:3001`;
+            }
+        }
+        
+        const API_BASE_URL = getAPIBaseURL();
 
         // 切换到注册页面
         function showRegister() {
