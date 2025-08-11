@@ -81,6 +81,9 @@ const App = {
             try {
                 await WebSocketClient.init();
                 console.log('✅ WebSocket连接已建立');
+                
+                // 🔥 关键修复：确保注册消息在用户信息准备好后发送
+                this.ensureWebSocketRegistration();
             } catch (error) {
                 console.error('⚠️ WebSocket连接失败，但应用将继续使用HTTP模式:', error);
             }
@@ -1700,6 +1703,41 @@ const App = {
             }
         };
         reader.readAsText(file);
+    },
+
+    // 🔥 新增：确保WebSocket注册的方法
+    ensureWebSocketRegistration() {
+        let attempts = 0;
+        const maxAttempts = 10;
+        const checkInterval = 500; // 500ms
+
+        const tryRegistration = () => {
+            attempts++;
+            console.log(`🔄 [WebSocket] 尝试注册 (${attempts}/${maxAttempts})`);
+
+            const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
+            const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
+            const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+
+            console.log('🔍 [WebSocket] 注册信息检查:', { deviceId, appUserId, userId });
+
+            if (deviceId && appUserId) {
+                console.log('✅ [WebSocket] 注册信息完整，发送注册消息');
+                WebSocketClient.sendRegistrationMessage();
+                return;
+            }
+
+            if (attempts < maxAttempts) {
+                console.log(`⏳ [WebSocket] 注册信息不完整，${checkInterval}ms后重试...`);
+                setTimeout(tryRegistration, checkInterval);
+            } else {
+                console.error('❌ [WebSocket] 达到最大重试次数，注册失败');
+                console.log('💡 [WebSocket] 请检查用户登录状态和设备ID生成');
+            }
+        };
+
+        // 立即尝试一次，然后根据需要重试
+        tryRegistration();
     }
 };
 

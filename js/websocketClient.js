@@ -159,6 +159,20 @@ const WebSocketClient = {
             return;
         }
 
+        // 处理心跳响应并检查数据变化
+        if (type === 'PONG' || type === 'PING_RESPONSE') {
+            console.log('💗 收到心跳响应');
+            this.handleHeartbeatResponse(message);
+            return;
+        }
+
+        // 🔥 关键修复：统一处理所有同步消息
+        if (type === 'TODO_SYNC_UPDATE' || type === 'NOTES_SYNC_UPDATE' || type === 'DATA_SYNC_UPDATE') {
+            console.log(`🔄 [SYNC] 收到同步消息: ${type}`, message);
+            this.handleSyncMessage(message);
+            return;
+        }
+
         // 处理广播消息
         if (type.endsWith('_BROADCAST')) {
             this.handleBroadcast(message);
@@ -171,42 +185,6 @@ const WebSocketClient = {
             return;
         }
 
-        // 处理心跳响应并检查数据变化
-        if (type === 'PONG' || type === 'PING_RESPONSE') {
-            console.log('💗 收到心跳响应');
-            this.handleHeartbeatResponse(message);
-            return;
-        }
-
-        // 处理所有同步相关消息 - 根据类型精准重新加载
-        if (type === 'DATA_SYNC_UPDATE' || type === 'TODO_SYNC_UPDATE' || type === 'NOTES_SYNC_UPDATE') {
-            console.log(`🔄 收到同步消息: ${type}，触发对应数据重新加载`);
-            
-            // 根据消息类型决定重新加载的数据类型
-            let dataType = 'all';
-            if (type === 'TODO_SYNC_UPDATE') {
-                dataType = 'todos';
-            } else if (type === 'NOTES_SYNC_UPDATE') {
-                dataType = 'notes';
-            }
-            
-            this.reloadApplicationData(dataType);
-            
-            // 显示同步提示（如果有同步信息）
-            if (message.sync && message.sync.fromUser) {
-                const operationText = {
-                    'COMPLETE': '完成',
-                    'UNCOMPLETE': '取消完成',
-                    'CREATE': '创建',
-                    'UPDATE': '更新',
-                    'DELETE': '删除'
-                }[message.operation] || message.operation;
-                
-                this.showSyncNotification(`${message.sync.fromUser} ${operationText}了${type.includes('TODO') ? '待办事项' : '笔记'}`, 'info');
-            }
-            return;
-        }
-
         // 处理其他响应消息
         if (type.endsWith('_RESPONSE')) {
             console.log(`📨 收到响应消息: ${type}`, message.success ? '✅' : '❌');
@@ -214,6 +192,48 @@ const WebSocketClient = {
         }
 
         console.log('⚠️ 未处理的消息类型:', type);
+    },
+
+    // 🔥 新增：统一的同步消息处理方法
+    handleSyncMessage(message) {
+        const { type, operation, data, sync } = message;
+        
+        console.log(`🔄 [SYNC] 处理同步消息:`, {
+            type,
+            operation,
+            fromUser: sync?.fromUser,
+            userId: sync?.userId
+        });
+
+        // 确定数据类型
+        let dataType = 'all';
+        if (type === 'TODO_SYNC_UPDATE') {
+            dataType = 'todos';
+        } else if (type === 'NOTES_SYNC_UPDATE') {
+            dataType = 'notes';
+        }
+
+        // 立即清除缓存并重新加载数据
+        this.reloadApplicationData(dataType, true); // 强制重新加载
+
+        // 显示同步通知
+        if (sync && sync.fromUser) {
+            const operationText = {
+                'COMPLETE': '完成',
+                'UNCOMPLETE': '取消完成',
+                'CREATE': '创建',
+                'UPDATE': '更新',
+                'DELETE': '删除'
+            }[operation] || operation;
+            
+            const itemType = type.includes('TODO') ? '待办事项' : '笔记';
+            this.showSyncNotification(`${sync.fromUser} ${operationText}了${itemType}`, 'success');
+        }
+
+        // 通知TodoManager处理同步更新
+        if (type === 'TODO_SYNC_UPDATE' && window.TodoManager) {
+            window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
+        }
     },
 
     // 处理广播消息（其他设备的操作）
@@ -481,8 +501,17 @@ const WebSocketClient = {
         const userId = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
         const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
 
-        if (!deviceId || !appUserId) {
-            console.log('⚠️ 无法发送注册消息：缺少设备ID或用户ID');
+        console.log('🔍 WebSocket注册信息调试:', { deviceId, userId, appUserId });
+
+        if (!deviceId) {
+            console.error('❌ 缺少deviceId，无法注册WebSocket');
+            console.log('💡 请检查 window.DeviceManager.getCurrentDeviceId()');
+            return;
+        }
+        
+        if (!appUserId) {
+            console.error('❌ 缺少appUserId，无法注册WebSocket');
+            console.log('💡 请检查 localStorage.getItem("wenting_current_app_user")');
             return;
         }
 
@@ -496,9 +525,16 @@ const WebSocketClient = {
 
         try {
             this.ws.send(JSON.stringify(registrationMessage));
-            console.log('📝 用户注册消息已发送:', { deviceId, userId, appUserId });
+            console.log('📝 用户注册消息已发送:', registrationMessage);
         } catch (error) {
             console.error('❌ 发送注册消息失败:', error);
+            // 添加重试机制
+            setTimeout(() => {
+                if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
+                    console.log('🔄 重试发送WebSocket注册消息...');
+                    this.sendRegistrationMessage();
+                }
+            }, 1000);
         }
     },
 
@@ -549,36 +585,61 @@ const WebSocketClient = {
     },
     
     // 重新加载应用数据
-    reloadApplicationData(dataType = 'all') {
+    reloadApplicationData(dataType = 'all', forceReload = false) {
         try {
+            console.log('🔄 [RELOAD] 重新加载应用数据:', { dataType, forceReload });
+            
             // 如果指定了数据类型或者全部重新加载，才处理TODO
             if (dataType === 'all' || dataType === 'todos') {
                 if (window.TodoManager) {
-                    console.log('🔄 重新加载TODO数据');
+                    console.log('🧹 [RELOAD] 清除TODO缓存');
                     window.TodoManager.clearAllRelatedCache();
                     
                     const currentDate = window.DateManager ? window.DateManager.selectedDate : new Date();
                     const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                    const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
+                    
+                    console.log('📅 [RELOAD] 重新加载TODO数据:', { 
+                        currentDate: currentDate.toISOString().split('T')[0], 
+                        currentUser,
+                        currentModule,
+                        forceReload
+                    });
                     
                     if (currentUser) {
-                        window.TodoManager.loadTodosForDate(currentDate, currentUser);
+                        // 强制重新加载，不使用缓存
+                        window.TodoManager.loadTodosForDate(currentDate, currentUser, false).then(() => {
+                            console.log('✅ [RELOAD] TODO数据重新加载完成');
+                            
+                            // 如果当前在TODO模块，重新渲染界面
+                            if (currentModule === 'todo') {
+                                console.log('🎨 [RELOAD] 重新渲染TODO界面');
+                                window.TodoManager.renderTodoPanel(currentUser);
+                            }
+                        }).catch(error => {
+                            console.error('❌ [RELOAD] TODO数据重新加载失败:', error);
+                        });
+                    } else {
+                        console.log('⚠️ [RELOAD] 没有当前用户，跳过TODO数据加载');
                     }
+                } else {
+                    console.log('⚠️ [RELOAD] TodoManager不可用');
                 }
             }
             
             // 如果指定了数据类型或者全部重新加载，才处理Notes
             if (dataType === 'all' || dataType === 'notes') {
                 if (window.NotesManager && typeof window.NotesManager.loadNotesFromAPI === 'function') {
-                    console.log('🔄 重新加载Notes数据');
+                    console.log('🔄 [RELOAD] 重新加载Notes数据');
                     window.NotesManager.loadNotesFromAPI();
                 } else if (window.NotesManager) {
-                    console.log('⚠️ NotesManager存在但loadNotesFromAPI方法不可用');
+                    console.log('⚠️ [RELOAD] NotesManager存在但loadNotesFromAPI方法不可用');
                 }
             }
             
-            console.log('✅ 应用数据重新加载完成');
+            console.log('✅ [RELOAD] 应用数据重新加载完成');
         } catch (error) {
-            console.error('❌ 重新加载应用数据失败:', error);
+            console.error('❌ [RELOAD] 重新加载应用数据失败:', error);
         }
     },
     

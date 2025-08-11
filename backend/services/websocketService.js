@@ -241,16 +241,61 @@ class WebSocketService {
 
     async handleTodoCreate(todoData) {
         const todo = await Todo.create(todoData);
+        
+        // 🔥 关键修复：触发同步逻辑
+        try {
+            const DataSyncService = require('./dataSyncService');
+            await DataSyncService.syncTodoOperation('create', todo, todo.user_id);
+            console.log('✅ [WebSocket] TODO创建同步完成');
+        } catch (syncError) {
+            console.error('⚠️ [WebSocket] TODO创建同步失败，但创建成功:', syncError);
+        }
+        
         return { todo };
     }
 
     async handleTodoUpdate(todoId, updateData) {
         const todo = await Todo.updateById(todoId, updateData);
+        
+        // 🔥 关键修复：触发同步逻辑
+        try {
+            const DataSyncService = require('./dataSyncService');
+            await DataSyncService.syncTodoOperation('update', {
+                originalTodoId: todoId,
+                updateData: todo,
+                title: todo.title
+            }, todo.user_id);
+            console.log('✅ [WebSocket] TODO更新同步完成');
+        } catch (syncError) {
+            console.error('⚠️ [WebSocket] TODO更新同步失败，但更新成功:', syncError);
+        }
+        
         return { todo };
     }
 
     async handleTodoDelete(todoId, deletionType, deletionDate) {
+        // 先获取todo信息用于同步
+        const { query } = require('../config/sqlite');
+        const todo = await query('SELECT title, user_id FROM todos WHERE id = ?', [todoId]);
+        
         const success = await Todo.deleteById(todoId, deletionType, deletionDate);
+        
+        // 🔥 关键修复：触发同步逻辑
+        if (success && todo.length > 0) {
+            try {
+                const DataSyncService = require('./dataSyncService');
+                await DataSyncService.syncTodoOperation('delete', {
+                    originalTodoId: todoId,
+                    deletionType: deletionType,
+                    deletionDate: deletionDate,
+                    title: todo[0].title
+                }, todo[0].user_id);
+                console.log('✅ [WebSocket] TODO删除同步完成');
+            } catch (syncError) {
+                console.error('⚠️ [WebSocket] TODO删除同步失败，但删除成功:', syncError);
+            }
+        }
+        
         return { success, todoId, deletionType };
     }
 

@@ -1272,27 +1272,52 @@ const TodoManager = {
                 break;
                 
             case 'TODO_SYNC_UPDATE':
-                // 处理关联用户的实时同步更新
-                console.log('🔗 收到Link同步更新:', data);
-                if (data.sync && data.sync.fromUser) {
-                    console.log(`🔄 来自 ${data.sync.fromUser} 的同步操作: ${data.operation}`);
-                    
-                    // 清除缓存
-                    this.clearAllRelatedCache();
-                    
-                    // 重新加载数据以显示同步的变更
-                    this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
-                    
-                    // 显示同步通知
-                    const operationText = {
-                        'COMPLETE': '完成',
-                        'UNCOMPLETE': '取消完成',
-                        'CREATE': '创建',
-                        'UPDATE': '更新',
-                        'DELETE': '删除'
-                    }[data.operation] || data.operation;
-                    
-                    this.showSyncStatusToast(`${data.sync.fromUser} ${operationText}了待办事项`, 'info');
+                // 🔥 关键修复：处理关联用户的实时同步更新
+                console.log('🔗 [TODO] 收到Link同步更新:', data);
+                
+                // 立即清除所有缓存
+                console.log('🧹 [TODO] 清除所有缓存以确保数据同步');
+                this.clearAllRelatedCache();
+                
+                // 获取当前日期和用户
+                const currentDate = window.DateManager ? window.DateManager.selectedDate : new Date();
+                const currentUser = this.currentUser;
+                const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null;
+                
+                console.log('📅 [TODO] 同步更新信息:', {
+                    currentDate: currentDate.toISOString().split('T')[0],
+                    currentUser,
+                    currentModule,
+                    operation: data.operation,
+                    fromUser: data.sync?.fromUser
+                });
+                
+                if (currentUser) {
+                    // 强制重新加载数据
+                    this.loadTodosForDate(currentDate, currentUser, false).then(() => {
+                        console.log('✅ [TODO] 同步数据重新加载完成');
+                        
+                        // 如果当前在TODO模块，确保界面更新
+                        if (currentModule === 'todo') {
+                            console.log('🎨 [TODO] 重新渲染界面以显示同步数据');
+                            this.renderTodoPanel(currentUser);
+                        }
+                        
+                        // 显示同步通知
+                        if (data.sync && data.sync.fromUser) {
+                            const operationText = {
+                                'COMPLETE': '完成',
+                                'UNCOMPLETE': '取消完成',
+                                'CREATE': '创建',
+                                'UPDATE': '更新',
+                                'DELETE': '删除'
+                            }[data.operation] || data.operation;
+                            
+                            this.showSyncStatusToast(`${data.sync.fromUser} ${operationText}了待办事项`, 'success');
+                        }
+                    }).catch(error => {
+                        console.error('❌ [TODO] 同步数据重新加载失败:', error);
+                    });
                 }
                 break;
         }

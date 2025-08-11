@@ -670,26 +670,58 @@ class LinkService {
     static async getLinkedUserIds(supervisedUserId, managerUser, linkedUser) {
         try {
             // 获取原始被监管用户信息
-            const originalUser = await query('SELECT username FROM users WHERE id = ?', [supervisedUserId]);
+            const originalUser = await query('SELECT username, app_user_id FROM users WHERE id = ?', [supervisedUserId]);
             if (originalUser.length === 0) {
                 return [];
             }
             
             const username = originalUser[0].username;
+            const originalAppUser = originalUser[0].app_user_id;
             
-            // 获取所有关联用户中相同username的被监管用户ID
-            const targetUsers = await query(`
-                SELECT DISTINCT u.id, u.app_user_id
-                FROM users u
-                JOIN user_links ul ON (
-                    (ul.manager_app_user = u.app_user_id OR ul.linked_app_user = u.app_user_id) 
-                    AND ul.supervised_user_id = ?
-                    AND ul.status = 'active'
-                )
-                WHERE u.username = ? AND u.id != ? AND u.is_active = 1
-            `, [supervisedUserId, username, supervisedUserId]);
+            console.log(`🔍 查找关联用户: 原始用户ID ${supervisedUserId}, 用户名 "${username}", App用户 "${originalAppUser}"`);
             
-            return targetUsers.map(user => user.id);
+            // 获取与当前用户有关联关系的所有app_user
+            const linkedAppUsers = await query(`
+                SELECT DISTINCT 
+                    CASE 
+                        WHEN ul.manager_app_user = ? THEN ul.linked_app_user
+                        WHEN ul.linked_app_user = ? THEN ul.manager_app_user
+                        ELSE NULL
+                    END as target_app_user
+                FROM user_links ul
+                WHERE (ul.manager_app_user = ? OR ul.linked_app_user = ?) 
+                AND ul.supervised_user_id = ? 
+                AND ul.status = 'active'
+            `, [originalAppUser, originalAppUser, originalAppUser, originalAppUser, supervisedUserId]);
+            
+            console.log(`🔗 找到关联的App用户:`, linkedAppUsers.map(u => u.target_app_user));
+            
+            if (linkedAppUsers.length === 0) {
+                console.log('⚠️ 没有找到关联的App用户');
+                return [];
+            }
+            
+            // 获取这些关联app_user中相同username的被监管用户ID
+            const targetUserIds = [];
+            for (const linkedAppUser of linkedAppUsers) {
+                if (!linkedAppUser.target_app_user) continue;
+                
+                const targetUsers = await query(`
+                    SELECT id FROM users 
+                    WHERE app_user_id = ? AND username = ? AND is_active = 1
+                `, [linkedAppUser.target_app_user, username]);
+                
+                targetUsers.forEach(user => {
+                    if (!targetUserIds.includes(user.id)) {
+                        targetUserIds.push(user.id);
+                    }
+                });
+                
+                console.log(`👤 App用户 "${linkedAppUser.target_app_user}" 中找到用户:`, targetUsers.map(u => u.id));
+            }
+            
+            console.log(`🎯 最终目标用户IDs:`, targetUserIds);
+            return targetUserIds;
             
         } catch (error) {
             console.error('❌ 获取关联用户ID失败:', error);
