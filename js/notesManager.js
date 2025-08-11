@@ -704,6 +704,7 @@ const NotesManager = {
                         <div class="modal-actions">
                             <button onclick="NotesManager.showEditNoteContentForm(${noteId})" class="edit-content-btn">编辑</button>
                             ${note.ai_suggestions ? `<button onclick="NotesManager.regenerateAISuggestions(${noteId})" class="regenerate-ai-btn">再次生成AI建议</button>` : ''}
+                            <button onclick="NotesManager.shareNoteAsImage(${noteId})" class="share-note-btn">分享</button>
                         </div>
                     </div>
                 </div>
@@ -733,8 +734,9 @@ const NotesManager = {
         const editButton = modal.querySelector('.edit-content-btn');
         const regenerateButton = modal.querySelector('.regenerate-ai-btn');
         const generateButton = modal.querySelector('.generate-ai-btn');
+        const shareButton = modal.querySelector('.share-note-btn');
 
-        const buttons = [editButton, regenerateButton, generateButton].filter(btn => btn);
+        const buttons = [editButton, regenerateButton, generateButton, shareButton].filter(btn => btn);
 
         if (isLoading) {
             // 启用加载状态
@@ -867,12 +869,18 @@ const NotesManager = {
                         // 在模态框底部添加"再次生成AI建议"按钮
                         const modalActions = document.querySelector('.modal-actions');
                         if (modalActions && !modalActions.querySelector('.regenerate-ai-btn')) {
-                            // 在编辑按钮之后添加"再次生成AI建议"按钮
+                            // 在分享按钮之前插入"再次生成AI建议"按钮
+                            const shareButton = modalActions.querySelector('.share-note-btn');
                             const regenerateButton = document.createElement('button');
                             regenerateButton.className = 'regenerate-ai-btn';
                             regenerateButton.setAttribute('onclick', `NotesManager.regenerateAISuggestions(${noteId})`);
                             regenerateButton.textContent = '再次生成AI建议';
-                            modalActions.appendChild(regenerateButton);
+                            
+                            if (shareButton) {
+                                modalActions.insertBefore(regenerateButton, shareButton);
+                            } else {
+                                modalActions.appendChild(regenerateButton);
+                            }
                         }
                     }
                 }
@@ -1005,6 +1013,232 @@ const NotesManager = {
         return `<div style="white-space: normal; line-height: 1.6;">${formatted}</div>`;
     },
 
+    // 分享笔记为图片
+    async shareNoteAsImage(noteId) {
+        try {
+            console.log('📸 开始分享笔记为图片，ID:', noteId);
+            
+            // 获取当前详情页的模态框
+            const modal = document.getElementById('noteDetailsModal');
+            if (!modal) {
+                throw new Error('找不到笔记详情页面');
+            }
+            
+            // 显示加载状态
+            this.setShareLoadingState(true);
+            
+            // 检查并加载html2canvas库
+            await this.ensureHtml2Canvas();
+            
+            // 获取笔记数据用于生成标题
+            const response = await ApiClient.notes.getById(noteId);
+            const note = response.success ? response.data : null;
+            
+            // 生成图片
+            const canvas = await html2canvas(modal.querySelector('.modal-content'), {
+                backgroundColor: '#ffffff',
+                scale: 2,
+                useCORS: true,
+                allowTaint: true,
+                logging: false,
+                width: 800,
+                onclone: (clonedDoc) => {
+                    // 在克隆的文档中优化样式
+                    const clonedModal = clonedDoc.querySelector('.modal-content');
+                    if (clonedModal) {
+                        clonedModal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)';
+                        clonedModal.style.border = '1px solid #e1e8ed';
+                        clonedModal.style.maxWidth = '800px';
+                        clonedModal.style.margin = '20px';
+                        
+                        // 隐藏关闭按钮和操作按钮
+                        const closeBtn = clonedModal.querySelector('.modal-close');
+                        const actionBtns = clonedModal.querySelector('.modal-actions');
+                        if (closeBtn) closeBtn.style.display = 'none';
+                        if (actionBtns) actionBtns.style.display = 'none';
+                        
+                        // 添加生成信息
+                        const footer = clonedDoc.createElement('div');
+                        footer.style.cssText = `
+                            text-align: center; 
+                            margin-top: 20px; 
+                            padding-top: 15px; 
+                            border-top: 1px solid #e1e8ed;
+                            font-size: 12px; 
+                            color: #666;
+                        `;
+                        footer.innerHTML = `由雯婷健康管理系统生成 · ${new Date().toLocaleDateString('zh-CN')}`;
+                        clonedModal.appendChild(footer);
+                    }
+                }
+            });
+            
+            // 根据设备类型保存图片
+            const filename = `雯婷健康档案-${note ? note.title : 'note'}-${new Date().toISOString().split('T')[0]}.png`;
+            await this.saveImageByDevice(canvas, filename);
+            
+        } catch (error) {
+            console.error('❌ 分享笔记图片失败:', error);
+            this.showMessage('生成图片失败: ' + error.message, 'error');
+        } finally {
+            this.setShareLoadingState(false);
+        }
+    },
+
+    // 设置分享加载状态
+    setShareLoadingState(isLoading) {
+        const shareButton = document.querySelector('.share-note-btn');
+        if (!shareButton) return;
+
+        if (isLoading) {
+            shareButton.disabled = true;
+            shareButton.textContent = '生成中...';
+            shareButton.style.opacity = '0.6';
+        } else {
+            shareButton.disabled = false;
+            shareButton.textContent = '分享';
+            shareButton.style.opacity = '1';
+        }
+    },
+
+    // 确保html2canvas库已加载
+    async ensureHtml2Canvas() {
+        if (typeof html2canvas !== 'undefined') {
+            return Promise.resolve();
+        }
+
+        return new Promise((resolve, reject) => {
+            const script = document.createElement('script');
+            script.src = 'https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js';
+            script.onload = () => {
+                console.log('✅ html2canvas库加载成功');
+                resolve();
+            };
+            script.onerror = () => {
+                console.error('❌ html2canvas库加载失败');
+                reject(new Error('无法加载图片生成库，请检查网络连接'));
+            };
+            document.head.appendChild(script);
+        });
+    },
+
+    // 检测设备类型
+    detectDeviceType() {
+        const userAgent = navigator.userAgent.toLowerCase();
+        const isMobile = /android|webos|iphone|ipad|ipod|blackberry|iemobile|opera mini|mobile/.test(userAgent);
+        const isIOS = /ipad|iphone|ipod/.test(userAgent);
+        const isAndroid = /android/.test(userAgent);
+        
+        return {
+            isMobile,
+            isIOS,
+            isAndroid,
+            isDesktop: !isMobile
+        };
+    },
+
+    // 根据设备类型保存图片
+    async saveImageByDevice(canvas, filename) {
+        const device = this.detectDeviceType();
+        const dataUrl = canvas.toDataURL('image/png', 1.0);
+        
+        try {
+            if (device.isMobile) {
+                // 移动设备：尝试保存到相册
+                await this.saveToGallery(dataUrl, filename, device);
+            } else {
+                // 桌面设备：下载到桌面/下载文件夹
+                this.downloadToDesktop(dataUrl, filename);
+            }
+        } catch (error) {
+            console.error('❌ 保存图片失败:', error);
+            // 降级处理：直接下载
+            this.downloadToDesktop(dataUrl, filename);
+        }
+    },
+
+    // 保存到移动设备相册
+    async saveToGallery(dataUrl, filename, device) {
+        try {
+            // 尝试使用 Web Share API (现代浏览器支持)
+            if (navigator.share && navigator.canShare) {
+                const blob = this.dataUrlToBlob(dataUrl);
+                const file = new File([blob], filename, { type: 'image/png' });
+                
+                if (navigator.canShare({ files: [file] })) {
+                    await navigator.share({
+                        files: [file],
+                        title: '雯婷健康档案',
+                        text: '分享我的健康档案'
+                    });
+                    this.showMessage('图片已通过系统分享保存', 'success');
+                    return;
+                }
+            }
+
+            // 降级方案1：创建下载链接（会保存到下载文件夹）
+            if (device.isAndroid || device.isIOS) {
+                this.downloadToDesktop(dataUrl, filename);
+                
+                if (device.isIOS) {
+                    this.showMessage('图片已保存到下载文件夹，请长按图片选择"存储到相册"', 'success');
+                } else {
+                    this.showMessage('图片已保存到下载文件夹，可在相册中查看', 'success');
+                }
+                return;
+            }
+
+            // 降级方案2：直接下载
+            this.downloadToDesktop(dataUrl, filename);
+            this.showMessage('图片已下载，请手动保存到相册', 'success');
+            
+        } catch (error) {
+            console.error('❌ 保存到相册失败:', error);
+            throw error;
+        }
+    },
+
+    // 下载到桌面/下载文件夹
+    downloadToDesktop(dataUrl, filename) {
+        try {
+            const link = document.createElement('a');
+            link.download = filename;
+            link.href = dataUrl;
+            link.style.display = 'none';
+            
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            
+            console.log('✅ 图片下载成功:', filename);
+            
+            const device = this.detectDeviceType();
+            if (device.isDesktop) {
+                this.showMessage('健康档案图片已保存到下载文件夹', 'success');
+            } else {
+                this.showMessage('图片已下载完成', 'success');
+            }
+            
+        } catch (error) {
+            console.error('❌ 图片下载失败:', error);
+            throw error;
+        }
+    },
+
+    // 将 Data URL 转换为 Blob
+    dataUrlToBlob(dataUrl) {
+        const arr = dataUrl.split(',');
+        const mime = arr[0].match(/:(.*?);/)[1];
+        const bstr = atob(arr[1]);
+        let n = bstr.length;
+        const u8arr = new Uint8Array(n);
+        
+        while (n--) {
+            u8arr[n] = bstr.charCodeAt(n);
+        }
+        
+        return new Blob([u8arr], { type: mime });
+    },
 
     // 绑定事件
     bindEvents() {
