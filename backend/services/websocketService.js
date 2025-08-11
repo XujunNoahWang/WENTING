@@ -474,23 +474,38 @@ class WebSocketService {
 
     // 广播给指定app用户的所有设备
     broadcastToAppUser(appUserId, message) {
+        console.log(`📡 [WebSocket] 尝试向app用户 ${appUserId} 广播消息:`, message.type);
+        
         if (this.appUserConnections.has(appUserId)) {
             const deviceIds = this.appUserConnections.get(appUserId);
             let broadcastCount = 0;
+            
+            console.log(`📱 [WebSocket] 用户 ${appUserId} 有 ${deviceIds.size} 个设备连接:`, Array.from(deviceIds));
 
             deviceIds.forEach(deviceId => {
                 const connection = this.connections.get(deviceId);
                 if (connection && connection.ws.readyState === WebSocket.OPEN) {
                     this.sendMessage(connection.ws, message);
                     broadcastCount++;
+                    console.log(`✅ [WebSocket] 消息已发送到设备 ${deviceId}`);
+                } else {
+                    console.log(`⚠️ [WebSocket] 设备 ${deviceId} 连接无效，跳过`);
+                    // 清理无效连接
+                    if (!connection || connection.ws.readyState !== WebSocket.OPEN) {
+                        deviceIds.delete(deviceId);
+                        this.connections.delete(deviceId);
+                    }
                 }
             });
 
             if (broadcastCount > 0) {
                 console.log(`📡 已向app用户 ${appUserId} 的 ${broadcastCount} 个设备广播消息`);
+            } else {
+                console.log(`⚠️ app用户 ${appUserId} 没有有效的设备连接`);
             }
         } else {
             console.log(`⚠️ app用户 ${appUserId} 当前没有活跃连接`);
+            console.log(`📊 [WebSocket] 当前所有连接:`, Array.from(this.appUserConnections.keys()));
         }
     }
 

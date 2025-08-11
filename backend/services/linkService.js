@@ -897,21 +897,31 @@ class LinkService {
                         break;
                         
                     case 'UPDATE':
-                        await query(`
+                        // 使用original_title进行匹配，如果没有则使用title
+                        const matchTitle = data.original_title || data.title;
+                        console.log(`🔍 [Notes] 更新同步 - 查找标题: "${matchTitle}" -> 更新为: "${data.title}"`);
+                        
+                        const updateResult = await query(`
                             UPDATE notes 
                             SET title = ?, description = ?, precautions = ?, ai_suggestions = ?, updated_at = CURRENT_TIMESTAMP
                             WHERE user_id = ? AND title = ?
                         `, [
                             data.title, data.description, data.precautions, data.ai_suggestions,
-                            targetUserId, data.original_title || data.title
+                            targetUserId, matchTitle
                         ]);
+                        
+                        console.log(`✅ [Notes] 更新同步结果: 影响行数 ${updateResult.affectedRows}`);
                         break;
                         
                     case 'DELETE':
-                        await query(`
+                        console.log(`🗑️ [Notes] 删除同步 - 查找标题: "${data.title}"`);
+                        
+                        const deleteResult = await query(`
                             DELETE FROM notes 
                             WHERE user_id = ? AND title = ?
                         `, [targetUserId, data.title]);
+                        
+                        console.log(`✅ [Notes] 删除同步结果: 影响行数 ${deleteResult.affectedRows}`);
                         break;
                 }
             }

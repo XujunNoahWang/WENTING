@@ -105,12 +105,17 @@ router.put('/:id', async (req, res) => {
             });
         }
         
-        // 同步到关联用户
+        // 🔥 关键修复：触发Notes同步逻辑
         try {
             const DataSyncService = require('../services/dataSyncService');
-            await DataSyncService.syncNotesOperation('update', note, note.user_id);
+            await DataSyncService.syncNotesOperation('update', {
+                originalNoteId: id,
+                updateData: note,
+                title: note.title,
+                original_title: note.title  // 添加original_title用于匹配
+            }, note.user_id);
         } catch (syncError) {
-            console.error('⚠️ Note更新同步失败:', syncError);
+            console.error('⚠️ Notes更新同步失败，但更新成功:', syncError);
         }
 
         res.json({
@@ -153,13 +158,16 @@ router.delete('/:id', async (req, res) => {
             });
         }
         
-        // 同步到关联用户
+        // 🔥 关键修复：触发Notes删除同步逻辑
         if (note) {
             try {
                 const DataSyncService = require('../services/dataSyncService');
-                await DataSyncService.syncNotesOperation('delete', note, note.user_id);
+                await DataSyncService.syncNotesOperation('delete', {
+                    originalNoteId: id,
+                    title: note.title
+                }, note.user_id);
             } catch (syncError) {
-                console.error('⚠️ Note删除同步失败:', syncError);
+                console.error('⚠️ Notes删除同步失败，但删除成功:', syncError);
             }
         }
 

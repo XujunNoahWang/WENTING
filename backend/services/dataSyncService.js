@@ -93,8 +93,20 @@ class DataSyncService {
         try {
             console.log(`🔄 [DataSync] Notes操作: ${operation}, 用户: ${originalUserId}`);
             
+            // 🔥 关键修复：标准化数据格式
+            let syncData = noteData;
+            if (operation === 'update' && noteData.updateData) {
+                // 如果是更新操作且有updateData，使用updateData作为主要数据
+                syncData = {
+                    ...noteData.updateData,
+                    original_title: noteData.original_title || noteData.title || noteData.updateData.title,
+                    originalNoteId: noteData.originalNoteId
+                };
+                console.log(`🔍 [DataSync] 更新数据格式化: original_title="${syncData.original_title}", new_title="${syncData.title}"`);
+            }
+            
             // 调用LinkService执行实时数据同步
-            await LinkService.syncDataChange(operation.toUpperCase(), 'notes', noteData, originalUserId);
+            await LinkService.syncDataChange(operation.toUpperCase(), 'notes', syncData, originalUserId);
             
             // 发送WebSocket实时通知给关联用户
             await this.broadcastNotesSyncNotification(operation, noteData, originalUserId);
@@ -109,7 +121,7 @@ class DataSyncService {
                 operation: 'syncNotesOperation',
                 userId: originalUserId,
                 notesOperation: operation,
-                noteId: noteData.id
+                noteId: noteData.id || (noteData.updateData && noteData.updateData.id)
             });
             
             if (!errorResult.success) {
@@ -334,8 +346,8 @@ class DataSyncService {
         }
     }
     
-    // 同步Notes操作
-    static async syncNotesOperation(operation, notesData, originalUserId) {
+    // 同步Notes操作（重构版本）
+    static async syncNotesOperationV2(operation, notesData, originalUserId) {
         try {
             console.log(`🔄 同步Notes操作: ${operation}, 用户: ${originalUserId}`);
             

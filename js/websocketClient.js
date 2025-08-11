@@ -152,6 +152,16 @@ const WebSocketClient = {
         const { type } = message;
         console.log('📥 收到WebSocket消息:', type, message);
 
+        // 🔥 新增：特别处理注册确认
+        if (type === 'USER_REGISTRATION_RESPONSE') {
+            if (this.registrationTimeout) {
+                clearTimeout(this.registrationTimeout);
+                this.registrationTimeout = null;
+            }
+            console.log('✅ WebSocket注册确认收到:', message);
+            return;
+        }
+
         // 处理响应和错误消息
         if (this.messageHandlers.has(type)) {
             const handler = this.messageHandlers.get(type);
@@ -166,9 +176,14 @@ const WebSocketClient = {
             return;
         }
 
-        // 🔥 关键修复：统一处理所有同步消息
+        // 🔥 关键修复：统一处理所有同步消息，添加更多调试信息
         if (type === 'TODO_SYNC_UPDATE' || type === 'NOTES_SYNC_UPDATE' || type === 'DATA_SYNC_UPDATE') {
             console.log(`🔄 [SYNC] 收到同步消息: ${type}`, message);
+            console.log(`🔄 [SYNC] 当前页面状态:`, {
+                currentModule: window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null,
+                currentUser: window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null,
+                appUserId: window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null
+            });
             this.handleSyncMessage(message);
             return;
         }
@@ -230,9 +245,12 @@ const WebSocketClient = {
             this.showSyncNotification(`${sync.fromUser} ${operationText}了${itemType}`, 'success');
         }
 
-        // 通知TodoManager处理同步更新
+        // 通知相应的Manager处理同步更新
         if (type === 'TODO_SYNC_UPDATE' && window.TodoManager) {
             window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
+        } else if (type === 'NOTES_SYNC_UPDATE' && window.NotesManager) {
+            // 🔥 关键修复：通知NotesManager处理同步更新（与TODO保持一致的调用方式）
+            window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
         }
     },
 
@@ -502,16 +520,26 @@ const WebSocketClient = {
         const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
 
         console.log('🔍 WebSocket注册信息调试:', { deviceId, userId, appUserId });
+        console.log('🔍 localStorage状态:', {
+            'wenting_current_app_user': localStorage.getItem('wenting_current_app_user'),
+            'wenting_current_user': localStorage.getItem('wenting_current_user')
+        });
 
         if (!deviceId) {
             console.error('❌ 缺少deviceId，无法注册WebSocket');
             console.log('💡 请检查 window.DeviceManager.getCurrentDeviceId()');
+            // 🔥 新增：尝试生成临时deviceId
+            const tempDeviceId = 'temp_' + Math.random().toString(36).substr(2, 9);
+            console.log('🔄 生成临时deviceId:', tempDeviceId);
             return;
         }
         
         if (!appUserId) {
             console.error('❌ 缺少appUserId，无法注册WebSocket');
-            console.log('💡 请检查 localStorage.getItem("wenting_current_app_user")');
+            console.log('💡 当前localStorage状态:', {
+                'wenting_current_app_user': localStorage.getItem('wenting_current_app_user'),
+                'wenting_current_user': localStorage.getItem('wenting_current_user')
+            });
             return;
         }
 
@@ -526,9 +554,19 @@ const WebSocketClient = {
         try {
             this.ws.send(JSON.stringify(registrationMessage));
             console.log('📝 用户注册消息已发送:', registrationMessage);
+            
+            // 🔥 新增：设置注册确认超时
+            if (this.registrationTimeout) {
+                clearTimeout(this.registrationTimeout);
+            }
+            this.registrationTimeout = setTimeout(() => {
+                console.warn('⚠️ WebSocket注册确认超时，尝试重新注册');
+                this.sendRegistrationMessage();
+            }, 5000);
+            
         } catch (error) {
             console.error('❌ 发送注册消息失败:', error);
-            // 添加重试机制
+            // 重试机制
             setTimeout(() => {
                 if (this.isConnected && this.ws && this.ws.readyState === WebSocket.OPEN) {
                     console.log('🔄 重试发送WebSocket注册消息...');

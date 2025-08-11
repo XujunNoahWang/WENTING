@@ -31,6 +31,8 @@ const NotesManager = {
             GlobalUserState.addListener(this.handleGlobalStateChange.bind(this));
         }
         
+        // WebSocket消息处理由websocketClient.js统一管理，无需单独注册
+        
         // 渲染界面
         this.renderNotesPanel(this.currentUser);
         this.bindEvents();
@@ -65,9 +67,11 @@ const NotesManager = {
         }
     },
 
-    // 从API加载Notes数据
-    async loadNotesFromAPI() {
+    // 从API加载Notes数据（按照TodoManager的模式，支持自动渲染）
+    async loadNotesFromAPI(autoRender = false, targetUserId = null) {
         try {
+            console.log('🔄 开始加载Notes数据...', autoRender ? '(自动渲染)' : '');
+            
             for (const user of UserManager.users) {
                 console.log(`📥 加载用户 ${user.username} 的Notes...`);
                 const response = await ApiClient.notes.getByUserId(user.id);
@@ -80,6 +84,44 @@ const NotesManager = {
                     this.notes[user.id] = [];
                 }
             }
+            
+            // 🔥 关键修复：如果需要自动渲染，立即渲染指定用户的面板
+            if (autoRender) {
+                const renderUserId = targetUserId || this.currentUser;
+                if (renderUserId) {
+                    console.log('🎨 [Notes] 数据加载完成，立即渲染界面，用户:', renderUserId);
+                    
+                    // 🔥 关键修复：检查当前用户是否还有数据，如果没有则切换到有数据的用户
+                    let actualUserId = renderUserId;
+                    
+                    if (!this.notes[renderUserId] || this.notes[renderUserId].length === 0) {
+                        console.log(`⚠️ [Notes] 用户ID ${renderUserId} 没有数据，查找有数据的用户...`);
+                        
+                        // 查找有数据的用户，按ID排序
+                        const usersWithNotes = UserManager.users
+                            .filter(u => this.notes[u.id] && this.notes[u.id].length > 0)
+                            .sort((a, b) => a.id - b.id);
+                        
+                        if (usersWithNotes.length > 0) {
+                            actualUserId = usersWithNotes[0].id;
+                            console.log(`🔄 [Notes] 切换到有数据的用户: ${actualUserId} (${usersWithNotes[0].username})`);
+                            
+                            // 更新currentUser和全局状态
+                            this.currentUser = actualUserId;
+                            if (window.GlobalUserState) {
+                                GlobalUserState.currentUserId = actualUserId;
+                                localStorage.setItem('wenting_current_user_id', actualUserId.toString());
+                                console.log('🔄 [Notes] 已更新全局用户状态');
+                            }
+                        } else {
+                            console.log('⚠️ [Notes] 没有用户有数据，显示空状态');
+                        }
+                    }
+                    
+                    this.renderNotesPanel(actualUserId);
+                }
+            }
+            
         } catch (error) {
             console.error('❌ 加载Notes数据失败:', error);
             this.showMessage('加载笔记数据失败: ' + error.message, 'error');
@@ -87,27 +129,89 @@ const NotesManager = {
             UserManager.users.forEach(user => {
                 this.notes[user.id] = [];
             });
+            
+            // 即使出错也要渲染，避免空白页面
+            if (autoRender) {
+                const renderUserId = targetUserId || this.currentUser;
+                if (renderUserId) {
+                    console.log('🎨 [Notes] 数据加载失败，仍然渲染界面避免空白，用户:', renderUserId);
+                    this.renderNotesPanel(renderUserId);
+                }
+            }
         }
     },
 
-    // 设置默认用户
+    // 设置默认用户（优先选择有数据的用户）
     setDefaultUser() {
+        console.log('🔄 [Notes] 开始设置默认用户...');
+        console.log('🔍 [Notes] 用户数据调试:');
+        console.log('  - UserManager.users.length:', UserManager.users.length);
+        console.log('  - UserManager.users:', UserManager.users);
+        
         if (UserManager.users.length > 0) {
-            // 优先使用全局状态的用户
-            let defaultUser = UserManager.users[0].id;
-            
-            if (window.GlobalUserState && GlobalUserState.getCurrentUser()) {
-                defaultUser = GlobalUserState.getCurrentUser();
+            // 检查是否有保存的用户选择
+            let savedUserId = null;
+            if (window.GlobalUserState) {
+                savedUserId = GlobalUserState.getCurrentUser();
+                console.log('💾 [Notes] 从全局状态获取保存的用户ID:', savedUserId);
             }
             
+            // 🔥 关键修复：优先选择有数据的用户
+            let defaultUser;
+            
+            // 首先检查保存的用户ID是否有效且有数据
+            if (savedUserId) {
+                const savedUser = UserManager.users.find(u => u.id == savedUserId);
+                if (savedUser && this.notes[savedUserId] && this.notes[savedUserId].length > 0) {
+                    defaultUser = parseInt(savedUserId);
+                    console.log('🎯 [Notes] 使用保存的用户ID（有数据）:', defaultUser);
+                } else if (savedUser) {
+                    console.log('⚠️ [Notes] 保存的用户ID存在但没有数据:', savedUserId);
+                }
+            }
+            
+            // 如果保存的用户ID无效或没有数据，查找有数据的用户
+            if (!defaultUser) {
+                console.log('🔍 [Notes] 查找有数据的用户...');
+                
+                // 查找有Notes数据的用户，按ID排序
+                const usersWithNotes = UserManager.users
+                    .filter(u => this.notes[u.id] && this.notes[u.id].length > 0)
+                    .sort((a, b) => a.id - b.id);
+                
+                console.log('📊 [Notes] 有数据的用户:', usersWithNotes.map(u => `ID:${u.id}(${u.username}, ${this.notes[u.id].length}条)`).join(', '));
+                
+                if (usersWithNotes.length > 0) {
+                    defaultUser = usersWithNotes[0].id;
+                    console.log('🎯 [Notes] 使用有数据的第一个用户:', defaultUser, '(用户名:', usersWithNotes[0].username, ')');
+                } else {
+                    // 如果没有用户有数据，使用ID最小的用户
+                    const sortedUsers = [...UserManager.users].sort((a, b) => a.id - b.id);
+                    defaultUser = sortedUsers[0].id;
+                    console.log('🎯 [Notes] 没有用户有数据，使用默认第一个用户:', defaultUser, '(用户名:', sortedUsers[0].username, ')');
+                }
+            }
+            
+            console.log('📋 [Notes] 所有用户按ID排序:', UserManager.users.sort((a, b) => a.id - b.id).map(u => `ID:${u.id}(${u.username})`).join(', '));
             this.currentUser = defaultUser;
             
-            // 同步到全局状态
+            // 直接同步全局状态，不触发事件
             if (window.GlobalUserState) {
-                GlobalUserState.setCurrentUser(defaultUser);
+                GlobalUserState.currentUserId = defaultUser;
+                localStorage.setItem('wenting_current_user_id', defaultUser.toString());
+                console.log('🔄 [Notes] 直接同步全局用户状态（不触发事件）');
+                console.log('🔍 [Notes] 设置后的状态:');
+                console.log('  - NotesManager.currentUser:', this.currentUser);
+                console.log('  - GlobalUserState.currentUserId:', GlobalUserState.currentUserId);
             }
+        } else {
+            console.log('📝 [Notes] 没有用户，设置为空状态');
+            this.currentUser = null;
             
-            console.log('📍 设置默认用户:', this.currentUser);
+            if (window.GlobalUserState) {
+                GlobalUserState.currentUserId = null;
+                console.log('🔄 [Notes] 设置全局状态为空用户状态');
+            }
         }
     },
 
@@ -127,6 +231,110 @@ const NotesManager = {
                     console.log('⏸️ 当前不是Notes模块，跳过渲染');
                 }
             }
+        }
+    },
+
+
+
+    // 🔥 关键修复：处理WebSocket广播消息（完全按照TodoManager的模式）
+    handleWebSocketBroadcast(type, data) {
+        console.log('🔄 处理Notes广播消息:', type, data);
+        
+        switch (type) {
+            case 'NOTES_CREATE_BROADCAST':
+            case 'NOTES_UPDATE_BROADCAST':
+            case 'NOTES_DELETE_BROADCAST':
+                // 清除所有用户的缓存，因为广播可能来自其他设备，影响所有用户
+                console.log('🧹 广播消息：清除所有Notes缓存');
+                this.clearAllNotesCache();
+                // 🔥 关键修复：重新加载Notes数据并自动渲染
+                const shouldAutoRender = window.GlobalUserState && GlobalUserState.getCurrentModule() === 'notes';
+                this.loadNotesFromAPI(shouldAutoRender, this.currentUser);
+                break;
+                
+            case 'NOTES_SYNC_UPDATE':
+                // 🔥 关键修复：处理关联用户的实时同步更新
+                console.log('🔗 [Notes] 收到Link同步更新:', data);
+                console.log('🔗 [Notes] 当前NotesManager状态:', {
+                    currentUser: this.currentUser,
+                    currentModule: window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null,
+                    notesCount: Object.keys(this.notes).length
+                });
+                
+                // 🔥 新增：立即显示同步提示
+                this.showSyncStatusToast('正在同步Notes数据...', 'info');
+                
+                // 立即清除所有缓存
+                console.log('🧹 [Notes] 清除所有缓存以确保数据同步');
+                this.clearAllNotesCache();
+                
+                // 获取当前用户和模块
+                const currentUser = this.currentUser;
+                const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null;
+                
+                console.log('📝 [Notes] 同步更新信息:', {
+                    currentUser,
+                    currentModule,
+                    operation: data.operation,
+                    fromUser: data.sync?.fromUser
+                });
+                
+                if (currentUser) {
+                    // 🔥 关键修复：强制重新加载数据并自动渲染
+                    const shouldAutoRender = currentModule === 'notes';
+                    console.log('🔄 [Notes] 开始重新加载数据，自动渲染:', shouldAutoRender);
+                    
+                    this.loadNotesFromAPI(shouldAutoRender, currentUser).then(() => {
+                        console.log('✅ [Notes] 同步数据重新加载完成');
+                        
+                        // 🔥 新增：确保渲染完成后显示成功提示
+                        if (data.sync && data.sync.fromUser) {
+                            const operationText = {
+                                'CREATE': '创建',
+                                'UPDATE': '更新',
+                                'DELETE': '删除'
+                            }[data.operation] || data.operation;
+                            
+                            this.showSyncStatusToast(`${data.sync.fromUser} ${operationText}了健康笔记`, 'success');
+                        }
+                    }).catch(error => {
+                        console.error('❌ [Notes] 同步数据重新加载失败:', error);
+                        this.showSyncStatusToast('同步失败，请刷新页面', 'error');
+                        
+                        // 即使加载失败，也要尝试渲染避免空白页面
+                        if (currentModule === 'notes') {
+                            console.log('🎨 [Notes] 加载失败，尝试渲染现有数据避免空白');
+                            this.renderNotesPanel(currentUser);
+                        }
+                    });
+                }
+                break;
+        }
+    },
+
+
+
+    // 降级到HTTP模式
+    fallbackToHTTP() {
+        console.log('📡 Notes模块降级到HTTP模式');
+        // 目前的实现已经自动处理降级，无需额外操作
+    },
+
+    // 清除所有Notes缓存 - 彻底清理方法（按照TodoManager的模式）
+    clearAllNotesCache(userId = null) {
+        console.log('🧹 开始清除所有Notes缓存...', userId ? `用户${userId}` : '所有用户');
+        
+        if (userId) {
+            // 清除指定用户的Notes数据
+            if (this.notes[userId]) {
+                delete this.notes[userId];
+                console.log(`✅ 已清除用户${userId}的Notes缓存`);
+            }
+        } else {
+            // 清除所有Notes数据
+            const userCount = Object.keys(this.notes).length;
+            this.notes = {};
+            console.log(`✅ 已清除所有${userCount}个用户的Notes缓存`);
         }
     },
 
@@ -316,21 +524,16 @@ const NotesManager = {
             const response = await ApiClient.notes.create(noteData);
             
             if (response.success) {
-                console.log('✅ 笔记创建成功:', response.data);
+                console.log('✅ [Notes] 后端创建成功:', response.data);
                 
-                // 更新本地数据
-                if (!this.notes[userId]) {
-                    this.notes[userId] = [];
-                }
-                this.notes[userId].unshift(response.data);
-                
-                // 重新渲染
-                this.renderNotesPanel(userId);
+                // 🔥 关键修复：重新从API加载最新数据，确保数据一致性
+                await this.loadNotesFromAPI(true, userId);
                 
                 // 关闭表单
                 this.closeNoteForm();
                 
                 this.showMessage('笔记添加成功！', 'success');
+                console.log('✅ [Notes] 创建操作完成，界面已更新');
             } else {
                 throw new Error(response.message || '创建笔记失败');
             }
@@ -423,18 +626,10 @@ const NotesManager = {
             const response = await ApiClient.notes.update(noteId, noteData);
             
             if (response.success) {
-                console.log('✅ 笔记更新成功:', response.data);
+                console.log('✅ [Notes] 后端更新成功:', response.data);
                 
-                // 更新本地数据
-                Object.keys(this.notes).forEach(userId => {
-                    const noteIndex = this.notes[userId].findIndex(note => note.id === noteId);
-                    if (noteIndex !== -1) {
-                        this.notes[userId][noteIndex] = { ...this.notes[userId][noteIndex], ...response.data };
-                    }
-                });
-                
-                // 重新渲染当前用户的面板
-                this.renderNotesPanel(this.currentUser);
+                // 🔥 关键修复：重新从API加载最新数据，确保数据一致性
+                await this.loadNotesFromAPI(true, this.currentUser);
                 
                 // 关闭表单
                 this.closeNoteForm();
@@ -443,6 +638,7 @@ const NotesManager = {
                 this.closeNoteDetails();
                 
                 this.showMessage('笔记更新成功！', 'success');
+                console.log('✅ [Notes] 更新操作完成，界面已更新');
             } else {
                 throw new Error(response.message || '更新笔记失败');
             }
@@ -706,23 +902,24 @@ const NotesManager = {
         }
         
         try {
+            console.log('🗑️ [Notes] 开始删除笔记:', noteId);
+            
             const response = await ApiClient.notes.delete(noteId);
             
             if (response.success) {
-                // 从本地数据中移除
-                Object.keys(this.notes).forEach(userId => {
-                    this.notes[userId] = this.notes[userId].filter(note => note.id !== noteId);
-                });
+                console.log('✅ [Notes] 后端删除成功，开始更新本地数据');
                 
-                // 重新渲染当前用户的面板
-                this.renderNotesPanel(this.currentUser);
+                // 🔥 关键修复：重新从API加载最新数据，而不是手动操作本地数据
+                // 这样可以确保数据的一致性，避免与WebSocket同步冲突
+                await this.loadNotesFromAPI(true, this.currentUser);
                 
                 this.showMessage('笔记删除成功', 'success');
+                console.log('✅ [Notes] 删除操作完成，界面已更新');
             } else {
                 throw new Error(response.message);
             }
         } catch (error) {
-            console.error('删除笔记失败:', error);
+            console.error('❌ [Notes] 删除笔记失败:', error);
             this.showMessage('删除笔记失败: ' + error.message, 'error');
         }
     },
