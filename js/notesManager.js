@@ -1017,71 +1017,59 @@ const NotesManager = {
     async shareNoteAsImage(noteId) {
         try {
             console.log('📸 开始分享笔记为图片，ID:', noteId);
-            
-            // 获取当前详情页的模态框
-            const modal = document.getElementById('noteDetailsModal');
-            if (!modal) {
-                throw new Error('找不到笔记详情页面');
-            }
-            
-            // 显示加载状态
             this.setShareLoadingState(true);
-            
-            // 检查并加载html2canvas库
+            const modal = document.getElementById('noteDetailsModal');
+            if (!modal) throw new Error('找不到笔记详情页面');
+            this.setAIGenerationLoadingState(true);
+            this.showShareLoadingOverlay(modal);
             await this.ensureHtml2Canvas();
-            
-            // 获取笔记数据用于生成标题
+            await new Promise(res => setTimeout(res, 250));
             const response = await ApiClient.notes.getById(noteId);
             const note = response.success ? response.data : null;
-            
-            // 生成图片
-            const canvas = await html2canvas(modal.querySelector('.modal-content'), {
-                backgroundColor: '#ffffff',
+
+            // 构建专用分享DOM
+            const shareDiv = document.createElement('div');
+            shareDiv.id = 'note-share-capture';
+            shareDiv.style.cssText = `
+                width: 600px; margin: 0 auto; background: #fafaf7; color: #222; font-family: 'Noto Sans SC', 'Segoe UI', Arial, sans-serif; border-radius: 12px; border: 1px solid #e1e1e1; box-shadow: 0 2px 8px #eee; padding: 36px 36px 70px 36px; position: relative; line-height: 1.7; letter-spacing: 0.01em;`
+            ;
+            // 电子墨水风格内容
+            shareDiv.innerHTML = `
+                <div style="font-size: 2.1rem; font-weight: 700; text-align: center; margin-bottom: 18px; letter-spacing: 0.04em;">${Utils.escapeHtml(note.title)}</div>
+                <div style="border-bottom:1.5px solid #e1e1e1; margin-bottom:18px;"></div>
+                <div style="margin-bottom: 18px;"><span style="font-weight:600;">详细描述</span><div style="margin-top:6px; color:#222;">${note.description ? Utils.escapeHtml(note.description) : 'N/A'}</div></div>
+                <div style="margin-bottom: 18px;"><span style="font-weight:600;">注意事项/医嘱</span><div style="margin-top:6px; color:#222;">${note.precautions ? Utils.escapeHtml(note.precautions) : 'N/A'}</div></div>
+                <div style="margin-bottom: 18px;"><span style="font-weight:600;">AI建议</span><div style="margin-top:6px; color:#222;">${note.ai_suggestions ? this.formatAISuggestions(note.ai_suggestions).replace(/<br>/g, '<br/>') : '暂无AI建议'}</div></div>
+                <div style="position:absolute;left:0;right:0;bottom:18px;text-align:center;color:#888;font-size:15px;letter-spacing:0.04em;">
+                    <span style="font-weight:700;">WENTING</span><br/>
+                    Household Health Supervisor
+                </div>
+            `;
+            document.body.appendChild(shareDiv);
+            // 截图
+            const canvas = await html2canvas(shareDiv, {
+                backgroundColor: '#fafaf7',
                 scale: 2,
                 useCORS: true,
                 allowTaint: true,
                 logging: false,
-                width: 800,
-                onclone: (clonedDoc) => {
-                    // 在克隆的文档中优化样式
-                    const clonedModal = clonedDoc.querySelector('.modal-content');
-                    if (clonedModal) {
-                        clonedModal.style.boxShadow = '0 4px 20px rgba(0,0,0,0.15)';
-                        clonedModal.style.border = '1px solid #e1e8ed';
-                        clonedModal.style.maxWidth = '800px';
-                        clonedModal.style.margin = '20px';
-                        
-                        // 隐藏关闭按钮和操作按钮
-                        const closeBtn = clonedModal.querySelector('.modal-close');
-                        const actionBtns = clonedModal.querySelector('.modal-actions');
-                        if (closeBtn) closeBtn.style.display = 'none';
-                        if (actionBtns) actionBtns.style.display = 'none';
-                        
-                        // 添加生成信息
-                        const footer = clonedDoc.createElement('div');
-                        footer.style.cssText = `
-                            text-align: center; 
-                            margin-top: 20px; 
-                            padding-top: 15px; 
-                            border-top: 1px solid #e1e8ed;
-                            font-size: 12px; 
-                            color: #666;
-                        `;
-                        footer.innerHTML = `由雯婷健康管理系统生成 · ${new Date().toLocaleDateString('zh-CN')}`;
-                        clonedModal.appendChild(footer);
-                    }
-                }
+                width: 600
             });
-            
-            // 根据设备类型保存图片
+            // 清理
+            document.body.removeChild(shareDiv);
+            this.hideShareLoadingOverlay();
+            this.setAIGenerationLoadingState(false);
+            this.setShareLoadingState(false);
+            // 保存
             const filename = `雯婷健康档案-${note ? note.title : 'note'}-${new Date().toISOString().split('T')[0]}.png`;
             await this.saveImageByDevice(canvas, filename);
-            
         } catch (error) {
             console.error('❌ 分享笔记图片失败:', error);
             this.showMessage('生成图片失败: ' + error.message, 'error');
         } finally {
             this.setShareLoadingState(false);
+            this.setAIGenerationLoadingState(false);
+            this.hideShareLoadingOverlay();
         }
     },
 
@@ -1171,7 +1159,7 @@ const NotesManager = {
                         title: '雯婷健康档案',
                         text: '分享我的健康档案'
                     });
-                    this.showMessage('图片已通过系统分享保存', 'success');
+                    this.showSuccessMessage('✅ 健康档案已成功分享！', '图片已通过系统分享保存到设备');
                     return;
                 }
             }
@@ -1181,16 +1169,16 @@ const NotesManager = {
                 this.downloadToDesktop(dataUrl, filename);
                 
                 if (device.isIOS) {
-                    this.showMessage('图片已保存到下载文件夹，请长按图片选择"存储到相册"', 'success');
+                    this.showSuccessMessage('📱 图片已保存成功！', 'iPhone用户：图片在下载文件夹中，长按选择"存储到相册"即可保存到相册');
                 } else {
-                    this.showMessage('图片已保存到下载文件夹，可在相册中查看', 'success');
+                    this.showSuccessMessage('📱 图片已保存到相册！', 'Android用户：图片已保存到下载文件夹，可在相册中查看');
                 }
                 return;
             }
 
             // 降级方案2：直接下载
             this.downloadToDesktop(dataUrl, filename);
-            this.showMessage('图片已下载，请手动保存到相册', 'success');
+            this.showSuccessMessage('📱 图片已下载成功！', '请手动将图片保存到相册');
             
         } catch (error) {
             console.error('❌ 保存到相册失败:', error);
@@ -1214,9 +1202,9 @@ const NotesManager = {
             
             const device = this.detectDeviceType();
             if (device.isDesktop) {
-                this.showMessage('健康档案图片已保存到下载文件夹', 'success');
+                this.showSuccessMessage('💻 健康档案已保存成功！', '图片已保存到电脑的下载文件夹中');
             } else {
-                this.showMessage('图片已下载完成', 'success');
+                this.showSuccessMessage('📱 图片已下载完成！', '请在下载文件夹中查看');
             }
             
         } catch (error) {
@@ -1238,6 +1226,32 @@ const NotesManager = {
         }
         
         return new Blob([u8arr], { type: mime });
+    },
+
+    // 显示分享加载遮罩
+    showShareLoadingOverlay(modal) {
+        // 如果已经存在遮罩，先移除
+        this.hideShareLoadingOverlay();
+        
+        // 复用AI生成的加载遮罩样式
+        const loadingOverlay = document.createElement('div');
+        loadingOverlay.className = 'ai-loading-overlay share-loading-overlay';
+        loadingOverlay.innerHTML = `
+            <div class="ai-loading-spinner">
+                <div class="spinner"></div>
+                <p>正在生成健康档案图片...</p>
+                <small>请稍候，正在处理中</small>
+            </div>
+        `;
+        modal.appendChild(loadingOverlay);
+    },
+
+    // 隐藏分享加载遮罩
+    hideShareLoadingOverlay() {
+        const loadingOverlay = document.querySelector('.share-loading-overlay');
+        if (loadingOverlay) {
+            loadingOverlay.remove();
+        }
     },
 
     // 绑定事件
