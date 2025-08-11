@@ -120,8 +120,9 @@ const WebSocketClient = {
                 const timeout = setTimeout(() => {
                     this.messageHandlers.delete(responseType);
                     this.messageHandlers.delete(errorType);
+                    console.warn(`⚠️ WebSocket请求超时: ${type}`, data);
                     reject(new Error('请求超时'));
-                }, 60000); // 60秒超时
+                }, 120000); // 增加到120秒超时
 
                 this.messageHandlers.set(responseType, (response) => {
                     clearTimeout(timeout);
@@ -212,13 +213,23 @@ const WebSocketClient = {
     // 🔥 新增：统一的同步消息处理方法
     handleSyncMessage(message) {
         const { type, operation, data, sync } = message;
+        const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
         
         console.log(`🔄 [SYNC] 处理同步消息:`, {
             type,
             operation,
+            currentModule,
             fromUser: sync?.fromUser,
             userId: sync?.userId
         });
+
+        // 🔥 关键修复：只有在相关页面时才进行UI更新，否则只进行后台数据同步
+        const isRelevantPage = (type === 'TODO_SYNC_UPDATE' && currentModule === 'todo') ||
+                              (type === 'NOTES_SYNC_UPDATE' && currentModule === 'notes');
+
+        if (!isRelevantPage) {
+            console.log(`⏸️ [SYNC] 当前页面(${currentModule})与同步类型(${type})不匹配，只进行后台数据同步`);
+        }
 
         // 确定数据类型
         let dataType = 'all';
@@ -228,8 +239,8 @@ const WebSocketClient = {
             dataType = 'notes';
         }
 
-        // 立即清除缓存并重新加载数据
-        this.reloadApplicationData(dataType, true); // 强制重新加载
+        // 立即清除缓存并重新加载数据（仅后台刷新，不改变当前模块或进行页面跳转）
+        this.reloadApplicationData(dataType, true);
 
         // 显示同步通知
         if (sync && sync.fromUser) {
@@ -242,15 +253,27 @@ const WebSocketClient = {
             }[operation] || operation;
             
             const itemType = type.includes('TODO') ? '待办事项' : '笔记';
-            this.showSyncNotification(`${sync.fromUser} ${operationText}了${itemType}`, 'success');
+            const syncType = isRelevantPage ? '已同步' : '后台同步';
+            
+            this.showSyncNotification(
+                `${sync.fromUser} ${operationText}了${itemType} (${syncType})`, 
+                isRelevantPage ? 'success' : 'info'
+            );
         }
 
-        // 通知相应的Manager处理同步更新
+        // 通知相应的Manager处理同步更新（只在对应模块时才触发渲染）
         if (type === 'TODO_SYNC_UPDATE' && window.TodoManager) {
-            window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
+            if (currentModule === 'todo') {
+                window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
+            } else {
+                console.log('⏸️ 当前不在TODO模块，跳过UI渲染，仅后台同步');
+            }
         } else if (type === 'NOTES_SYNC_UPDATE' && window.NotesManager) {
-            // 🔥 关键修复：通知NotesManager处理同步更新（与TODO保持一致的调用方式）
-            window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
+            if (currentModule === 'notes') {
+                window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
+            } else {
+                console.log('⏸️ 当前不在NOTES模块，跳过UI渲染，仅后台同步');
+            }
         }
     },
 
@@ -669,7 +692,23 @@ const WebSocketClient = {
             if (dataType === 'all' || dataType === 'notes') {
                 if (window.NotesManager && typeof window.NotesManager.loadNotesFromAPI === 'function') {
                     console.log('🔄 [RELOAD] 重新加载Notes数据');
-                    window.NotesManager.loadNotesFromAPI();
+                    
+                    const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
+                    const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                    
+                    console.log('📝 [RELOAD] Notes重新加载信息:', { 
+                        currentModule,
+                        currentUser,
+                        forceReload 
+                    });
+                    
+                    // 🔥 关键修复：只有在Notes模块时才自动渲染，其他情况只后台同步数据
+                    const shouldAutoRender = currentModule === 'notes';
+                    window.NotesManager.loadNotesFromAPI(shouldAutoRender, currentUser);
+                    
+                    if (!shouldAutoRender) {
+                        console.log('⏸️ [RELOAD] 当前不在Notes页面，只进行后台数据同步');
+                    }
                 } else if (window.NotesManager) {
                     console.log('⚠️ [RELOAD] NotesManager存在但loadNotesFromAPI方法不可用');
                 }

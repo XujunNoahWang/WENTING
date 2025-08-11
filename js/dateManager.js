@@ -126,7 +126,9 @@ const DateManager = {
             window.TodoManager.selectedDate = this.selectedDate;
             // 传递正确的用户ID，确保加载正确用户的数据
             const targetUser = window.GlobalUserState?.getCurrentUser() || window.TodoManager?.currentUser;
-            window.TodoManager.loadTodosForDate(this.selectedDate, targetUser, true).then(() => {
+            // 如果已用缓存渲染，则静默刷新；否则需要渲染
+            const silent = hasCache;
+            window.TodoManager.loadTodosForDate(this.selectedDate, targetUser, silent).then(() => {
                 // 数据加载完成后隐藏进度条
                 this.hideLoadingProgress();
             }).catch(() => {

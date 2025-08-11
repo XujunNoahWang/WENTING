@@ -84,18 +84,18 @@ class Todo {
         return todos.map(todo => new Todo(todo));
     }
 
-    // 获取用户指定日期的TODO（考虑重复规则）- 优化版本
+    // 获取用户指定日期的TODO（考虑重复规则）- 性能优化版本
     static async findByUserIdAndDate(userId, targetDate) {
+        const startTime = Date.now();
         try {
-            console.log(`🔍 优化查询: 获取用户${userId}在${targetDate}的TODO...`);
+            console.log(`🔍 [性能优化] 获取用户${userId}在${targetDate}的TODO...`);
             const targetDateStr = new Date(targetDate).toISOString().split('T')[0];
             
-            // 使用单一优化查询，LEFT JOIN完成状态和删除记录
-            const sql = `
-                SELECT 
-                    t.*,
-                    CASE WHEN tc.completion_date IS NOT NULL THEN 1 ELSE 0 END as is_completed_today,
-                    td.deletion_type
+            // 第一步：快速查询基础TODO数据（简化查询）
+            const basicSql = `
+                SELECT t.*, 
+                       tc.completion_date IS NOT NULL as is_completed_today,
+                       td.deletion_type
                 FROM todos t
                 LEFT JOIN todo_completions tc ON t.id = tc.todo_id AND tc.completion_date = ?
                 LEFT JOIN todo_deletions td ON t.id = td.todo_id AND td.deletion_date = ?
@@ -104,14 +104,22 @@ class Todo {
                     AND t.start_date <= ?
                     AND (t.end_date IS NULL OR t.end_date >= ?)
                 ORDER BY t.sort_order ASC, t.created_at ASC
+                LIMIT 500
             `;
             
-            const allTodos = await query(sql, [targetDateStr, targetDateStr, userId, targetDateStr, targetDateStr]);
-            console.log(`📊 数据库返回${allTodos.length}条TODO记录`);
+            const allTodos = await query(basicSql, [targetDateStr, targetDateStr, userId, targetDateStr, targetDateStr]);
+            const queryTime = Date.now() - startTime;
+            console.log(`📊 [${queryTime}ms] 数据库返回${allTodos.length}条TODO记录`);
+            
+            if (allTodos.length === 0) {
+                console.log(`✅ [${Date.now() - startTime}ms] 用户${userId}在${targetDateStr}没有TODO`);
+                return [];
+            }
             
             const todosForDate = [];
+            const filterStartTime = Date.now();
             
-            // 在内存中过滤出应该显示的TODO（重复规则判断）
+            // 使用同步的重复规则判断（避免async/await的性能损耗）
             for (const todoData of allTodos) {
                 // 如果有删除记录，跳过
                 if (todoData.deletion_type) {
@@ -120,21 +128,75 @@ class Todo {
                 
                 const todo = new Todo(todoData);
                 
-                // 检查是否应该在目标日期显示（重复规则）
-                if (await Todo.shouldShowOnDateOptimized(todo, targetDate)) {
-                    // 添加完成状态（已从数据库查询获得）
+                // 使用优化的同步重复规则判断
+                if (Todo.shouldShowOnDateSync(todo, targetDate)) {
                     todo.is_completed_today = Boolean(todoData.is_completed_today);
                     todosForDate.push(todo);
                 }
             }
             
-            console.log(`✅ 过滤后有${todosForDate.length}条TODO需要显示`);
+            const filterTime = Date.now() - filterStartTime;
+            const totalTime = Date.now() - startTime;
+            
+            console.log(`✅ [查询:${queryTime}ms 过滤:${filterTime}ms 总计:${totalTime}ms] 返回${todosForDate.length}条TODO`);
             
             // 按时间排序
             return Todo.sortByTime(todosForDate);
         } catch (error) {
-            console.error('获取用户日期TODO失败:', error);
+            const totalTime = Date.now() - startTime;
+            console.error(`❌ [${totalTime}ms] 获取用户日期TODO失败:`, error);
             throw error;
+        }
+    }
+
+    // 判断TODO是否应该在指定日期显示（同步版本 - 最高性能）
+    static shouldShowOnDateSync(todo, targetDate) {
+        const startDate = new Date(todo.start_date);
+        const target = new Date(targetDate);
+        
+        // 如果目标日期早于开始日期，不显示
+        if (target < startDate) {
+            return false;
+        }
+
+        // 如果有结束日期且目标日期晚于结束日期，不显示
+        if (todo.end_date) {
+            const endDate = new Date(todo.end_date);
+            if (target > endDate) {
+                return false;
+            }
+        }
+
+        // 检查重复周期限制
+        if (todo.cycle_type === 'custom' && todo.cycle_duration) {
+            const cycleEndDate = Todo.calculateCycleEndDate(startDate, todo.cycle_duration, todo.cycle_unit);
+            if (target > cycleEndDate) {
+                return false;
+            }
+        }
+
+        // 计算天数差
+        const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
+
+        switch (todo.repeat_type) {
+            case 'none':
+                return daysDiff === 0;
+            case 'daily':
+                return true;
+            case 'every_other_day':
+                return daysDiff % 2 === 0;
+            case 'weekly':
+                return daysDiff % 7 === 0;
+            case 'monthly':
+                return target.getDate() === startDate.getDate();
+            case 'yearly':
+                return target.getDate() === startDate.getDate() && 
+                       target.getMonth() === startDate.getMonth();
+            case 'custom':
+                const interval = todo.repeat_interval || 1;
+                return daysDiff % interval === 0;
+            default:
+                return false;
         }
     }
 

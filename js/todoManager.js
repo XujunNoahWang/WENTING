@@ -1110,13 +1110,14 @@ const TodoManager = {
     // 注意：日期导航现在由DateManager统一处理
 
     // 加载指定日期的TODO（优化版，支持缓存）
-    async loadTodosForDate(date, userId = null, silent = false) {
+    async loadTodosForDate(date, userId = null, silent = false, retryCount = 0) {
         const dateStr = date.toISOString().split('T')[0];
         const targetUserId = userId || this.currentUser;
+        const maxRetries = 3;
         
         if (!silent) {
             console.log('🔄 开始加载指定日期的TODO数据...');
-            console.log('📅 目标日期:', dateStr, '用户ID:', targetUserId);
+            console.log('📅 目标日期:', dateStr, '用户ID:', targetUserId, '重试次数:', retryCount);
         }
         
         try {
@@ -1127,7 +1128,13 @@ const TodoManager = {
                 const cachedData = this.todoCache.get(cacheKey);
                 // 确保数据存储在正确的用户下
                 this.todos[targetUserId] = [...cachedData]; // 创建副本避免引用问题
-                this.renderTodoPanel(targetUserId);
+                // 仅当当前模块为 todo 且非静默模式时才渲染
+                const shouldRender = (window.GlobalUserState ? GlobalUserState.getCurrentModule() === 'todo' : true);
+                if (shouldRender) {
+                    this.renderTodoPanel(targetUserId);
+                } else if (!silent) {
+                    console.log('⏸️ 当前不在TODO模块，使用缓存数据后台更新');
+                }
                 this.lastLoadedDate = dateStr;
                 return;
             }
@@ -1161,6 +1168,13 @@ const TodoManager = {
                     }
                 } catch (error) {
                     console.warn(`加载用户${user.id}在${dateStr}的TODO失败:`, error.message);
+                    // 如果是超时错误且还没达到最大重试次数，进行重试
+                    if (error.message.includes('请求超时') && retryCount < maxRetries) {
+                        console.log(`🔄 超时重试 ${retryCount + 1}/${maxRetries} 用户${user.id}...`);
+                        // 延迟后重试
+                        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+                        return this.loadTodosForDate(date, userId, silent, retryCount + 1);
+                    }
                     this.todos[user.id] = [];
                 }
             }
@@ -1172,18 +1186,39 @@ const TodoManager = {
                 keysToDelete.forEach(key => this.todoCache.delete(key));
             }
             
-            // 渲染当前用户的TODO面板
+            // 渲染当前用户的TODO面板（仅在TODO模块或显式需要时）
             if (targetUserId) {
-                this.renderTodoPanel(targetUserId);
+                const shouldRender = (window.GlobalUserState ? GlobalUserState.getCurrentModule() === 'todo' : true);
+                if (shouldRender) {
+                    this.renderTodoPanel(targetUserId);
+                    if (!silent) console.log('✅ TODO面板渲染完成');
+                } else if (!silent) {
+                    console.log('⏸️ 当前不在TODO模块，仅后台同步数据');
+                }
                 this.lastLoadedDate = dateStr;
-                if (!silent) console.log('✅ TODO面板渲染完成');
             } else {
                 console.warn('⚠️ 无法确定要渲染哪个用户的TODO面板');
             }
             
         } catch (error) {
-            console.error('加载日期TODO失败:', error);
-            if (!silent) this.showMessage('加载TODO失败: ' + error.message, 'error');
+            console.error(`加载用户${targetUserId}在${dateStr}的TODO失败:`, error);
+            
+            // 如果是超时错误且还没达到最大重试次数，进行重试
+            if (error.message.includes('请求超时') && retryCount < maxRetries) {
+                console.log(`🔄 整体超时重试 ${retryCount + 1}/${maxRetries}...`);
+                if (!silent) this.showMessage(`请求超时，正在重试 (${retryCount + 1}/${maxRetries})...`, 'warning');
+                
+                // 延迟后重试
+                await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+                return this.loadTodosForDate(date, userId, silent, retryCount + 1);
+            }
+            
+            // 最终失败或非超时错误
+            const errorMsg = retryCount >= maxRetries ? 
+                `加载TODO失败: ${error.message} (已重试${maxRetries}次)` : 
+                `加载TODO失败: ${error.message}`;
+            
+            if (!silent) this.showMessage(errorMsg, 'error');
         }
     },
 
@@ -1201,7 +1236,10 @@ const TodoManager = {
     },
 
     // 显示消息
-    showMessage(message, type = 'info') {
+    showMessage(message, type = 'info', duration = 3000) {
+        // 如果是重试消息，使用特殊样式
+        const isRetry = type === 'warning' && message.includes('重试');
+        
         const messageEl = document.createElement('div');
         messageEl.className = `message message-${type}`;
         messageEl.textContent = message;
@@ -1211,6 +1249,7 @@ const TodoManager = {
             right: 20px;
             padding: 12px 20px;
             border-radius: 6px;
+            z-index: 10000;
             color: white;
             font-weight: 500;
             z-index: 10000;
@@ -1231,6 +1270,15 @@ const TodoManager = {
                 messageEl.style.backgroundColor = '#2196F3';
         }
         
+        // 如果是重试消息，添加加载动画
+        if (isRetry) {
+            messageEl.innerHTML = `
+                <span class="retry-spinner">⏳</span>
+                ${message}
+            `;
+            duration = 10000; // 重试消息显示更久
+        }
+        
         document.body.appendChild(messageEl);
         
         setTimeout(() => {
@@ -1240,7 +1288,7 @@ const TodoManager = {
                     messageEl.parentNode.removeChild(messageEl);
                 }
             }, 300);
-        }, 3000);
+        }, duration);
     },
 
     // 处理WebSocket广播消息（来自其他设备的操作）

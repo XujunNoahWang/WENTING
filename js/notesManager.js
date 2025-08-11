@@ -247,7 +247,7 @@ const NotesManager = {
                 // 清除所有用户的缓存，因为广播可能来自其他设备，影响所有用户
                 console.log('🧹 广播消息：清除所有Notes缓存');
                 this.clearAllNotesCache();
-                // 🔥 关键修复：重新加载Notes数据并自动渲染
+                // 🔥 关键修复：仅当当前模块为notes时自动渲染，否则只后台同步
                 const shouldAutoRender = window.GlobalUserState && GlobalUserState.getCurrentModule() === 'notes';
                 this.loadNotesFromAPI(shouldAutoRender, this.currentUser);
                 break;

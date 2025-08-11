@@ -183,7 +183,20 @@
         }
     </script>
     <script src="js/errorHandler.js"></script>
-    <script src="build/app.min.js" defer></script>
+    <!-- 使用源代码版本进行调试，按依赖顺序加载 -->
+    <script src="js/utils.js" defer></script>
+    <script src="js/config.js" defer></script>
+    <script src="js/deviceManager.js" defer></script>
+    <script src="js/apiClient.js" defer></script>
+    <script src="js/userManager.js" defer></script>
+    <script src="js/globalUserState.js" defer></script>
+    <script src="js/dateManager.js" defer></script>
+    <script src="js/weatherManager.js" defer></script>
+    <script src="js/todoManager.js" defer></script>
+    <script src="js/notesManager.js" defer></script>
+    <script src="js/profileManager.js" defer></script>
+    <script src="js/websocketClient.js" defer></script>
+    <script src="js/app.js" defer></script>
 </body>
 
 </html>
