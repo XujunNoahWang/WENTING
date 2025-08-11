@@ -257,11 +257,28 @@ class LinkService {
                         WHERE id = ?
                     `, [requestId]);
                     
-                    // 创建关联关系
-                    await query(`
-                        INSERT INTO user_links (manager_app_user, linked_app_user, supervised_user_id, status)
-                        VALUES (?, ?, ?, 'active')
+                    // 检查是否已存在相同的关联关系（可能已取消）
+                    const existingLink = await query(`
+                        SELECT id, status FROM user_links 
+                        WHERE manager_app_user = ? AND linked_app_user = ? AND supervised_user_id = ?
                     `, [requestData.from_app_user, requestData.to_app_user, requestData.supervised_user_id]);
+                    
+                    if (existingLink.length > 0) {
+                        // 更新现有关联关系状态为活跃
+                        await query(`
+                            UPDATE user_links 
+                            SET status = 'active', updated_at = CURRENT_TIMESTAMP 
+                            WHERE id = ?
+                        `, [existingLink[0].id]);
+                        console.log(`🔄 重新激活已存在的关联关系: ${existingLink[0].id}`);
+                    } else {
+                        // 创建新的关联关系
+                        await query(`
+                            INSERT INTO user_links (manager_app_user, linked_app_user, supervised_user_id, status)
+                            VALUES (?, ?, ?, 'active')
+                        `, [requestData.from_app_user, requestData.to_app_user, requestData.supervised_user_id]);
+                        console.log(`➕ 创建新的关联关系`);
+                    }
                     
                     // 更新被监管用户的关联状态
                     await query(`
@@ -356,6 +373,32 @@ class LinkService {
                 console.log(`✅ 为目标用户创建被监管用户记录，ID: ${targetUserId}`);
             }
             
+            // 为目标用户也创建相应的关联记录（双向关联）
+            console.log(`🔗 创建双向关联记录...`);
+            
+            // 检查是否已存在目标用户的关联记录
+            const existingTargetLink = await query(`
+                SELECT id FROM user_links 
+                WHERE manager_app_user = ? AND linked_app_user = ? AND supervised_user_id = ?
+            `, [toAppUser, fromAppUser, targetUserId]);
+            
+            if (existingTargetLink.length === 0) {
+                // 创建反向关联记录
+                await query(`
+                    INSERT INTO user_links (manager_app_user, linked_app_user, supervised_user_id, status)
+                    VALUES (?, ?, ?, 'active')
+                `, [toAppUser, fromAppUser, targetUserId]);
+                console.log(`✅ 创建反向关联记录: ${toAppUser} <-> ${fromAppUser} (用户${targetUserId})`);
+            } else {
+                // 如果存在但状态不是active，更新状态
+                await query(`
+                    UPDATE user_links 
+                    SET status = 'active', updated_at = CURRENT_TIMESTAMP 
+                    WHERE id = ?
+                `, [existingTargetLink[0].id]);
+                console.log(`🔄 重新激活反向关联记录: ${existingTargetLink[0].id}`);
+            }
+            
             // 无论是新创建还是已存在，都需要同步数据
             console.log(`🔄 开始同步Todo和Notes数据...`);
             
@@ -365,7 +408,7 @@ class LinkService {
             // 同步Notes数据
             await this.syncNotes(supervisedUserId, targetUserId);
             
-            console.log(`✅ 数据同步完成`);
+            console.log(`✅ 数据同步和双向关联创建完成`);
             
         } catch (error) {
             console.error('❌ 数据同步失败:', error);
