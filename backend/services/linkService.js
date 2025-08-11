@@ -709,10 +709,24 @@ class LinkService {
                                              cycle_unit, sort_order, is_completed_today, is_active, created_at)
                             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                         `, [
-                            targetUserId, data.title, data.description, data.reminder_time, data.priority,
-                            data.repeat_type, data.repeat_interval, data.start_date, data.end_date,
-                            data.cycle_type, data.cycle_duration, data.cycle_unit, data.sort_order,
-                            data.is_completed_today || false, data.is_active || true, data.created_at || new Date()
+                            targetUserId, 
+                            data.title, 
+                            data.description || '', 
+                            data.reminder_time || 'all_day', 
+                            typeof data.priority === 'number' ? 
+                                (data.priority === 1 ? 'high' : data.priority === 2 ? 'medium' : 'low') : 
+                                (data.priority || 'medium'),
+                            data.repeat_type || 'none', 
+                            data.repeat_interval || 1, 
+                            data.start_date || new Date().toISOString().split('T')[0], 
+                            data.end_date,
+                            data.cycle_type || 'long_term', 
+                            data.cycle_duration, 
+                            data.cycle_unit || 'days', 
+                            data.sort_order || 0,
+                            data.is_completed_today || false, 
+                            data.is_active !== false, 
+                            data.created_at || new Date().toISOString()
                         ]);
                         break;
                         
@@ -731,10 +745,45 @@ class LinkService {
                         break;
                         
                     case 'DELETE':
-                        await query(`
-                            UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-                            WHERE user_id = ? AND id = ?
-                        `, [targetUserId, data.id]);
+                        // 找到目标todo（基于标题匹配）
+                        const targetTodosDelete = await query(`
+                            SELECT id FROM todos 
+                            WHERE user_id = ? AND title = ? AND is_active = 1
+                            ORDER BY created_at DESC LIMIT 1
+                        `, [targetUserId, data.title]);
+                        
+                        if (targetTodosDelete.length > 0) {
+                            const targetTodoId = targetTodosDelete[0].id;
+                            
+                            // 根据删除类型处理
+                            if (data.deletionType === 'single' && data.deletionDate) {
+                                // 单个实例删除：插入删除记录
+                                await query(`
+                                    INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
+                                    VALUES (?, ?, 'single')
+                                `, [targetTodoId, data.deletionDate]);
+                                
+                                console.log(`✅ 已同步TODO单个实例删除到用户${targetUserId}, TODO ID ${targetTodoId}, 日期 ${data.deletionDate}`);
+                            } else if (data.deletionType === 'from_date' && data.deletionDate) {
+                                // 从指定日期开始删除：插入删除记录
+                                await query(`
+                                    INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
+                                    VALUES (?, ?, 'from_date')
+                                `, [targetTodoId, data.deletionDate]);
+                                
+                                console.log(`✅ 已同步TODO从日期删除到用户${targetUserId}, TODO ID ${targetTodoId}, 从日期 ${data.deletionDate}`);
+                            } else {
+                                // 全部删除：标记为不活跃
+                                await query(`
+                                    UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+                                    WHERE id = ?
+                                `, [targetTodoId]);
+                                
+                                console.log(`✅ 已同步TODO完全删除到用户${targetUserId}, TODO ID ${targetTodoId}`);
+                            }
+                        } else {
+                            console.log(`⚠️ 未找到要删除的目标TODO (用户${targetUserId}, 标题: "${data.title}")`);
+                        }
                         break;
                         
                     case 'COMPLETE':
@@ -750,9 +799,16 @@ class LinkService {
                             
                             // 插入完成记录到todo_completions表
                             await query(`
-                                INSERT OR REPLACE INTO todo_completions (todo_id, user_id, completion_date, notes, completion_time)
-                                VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP)
+                                INSERT OR REPLACE INTO todo_completions (todo_id, user_id, completion_date, notes)
+                                VALUES (?, ?, ?, ?)
                             `, [targetTodoId, targetUserId, data.date || new Date().toISOString().split('T')[0], data.notes || '']);
+                            
+                            // 更新todos表中的完成状态
+                            await query(`
+                                UPDATE todos 
+                                SET is_completed_today = 1, updated_at = CURRENT_TIMESTAMP
+                                WHERE id = ?
+                            `, [targetTodoId]);
                             
                             console.log(`✅ 已同步TODO完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
                         }
@@ -774,6 +830,13 @@ class LinkService {
                                 DELETE FROM todo_completions 
                                 WHERE todo_id = ? AND completion_date = ?
                             `, [targetTodoId, data.date || new Date().toISOString().split('T')[0]]);
+                            
+                            // 更新todos表中的完成状态
+                            await query(`
+                                UPDATE todos 
+                                SET is_completed_today = 0, updated_at = CURRENT_TIMESTAMP
+                                WHERE id = ?
+                            `, [targetTodoId]);
                             
                             console.log(`✅ 已同步TODO取消完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
                         }

@@ -79,7 +79,13 @@
       "Bash(start \"雯婷后端服务 - 心跳同步测试\" npm run dev)",
       "Bash(start \"雯婷后端服务 - WebSocket同步修复完成\" npm run dev)",
       "Bash(git restore:*)",
-      "Bash(git reset:*)"
+      "Bash(git reset:*)",
+      "Bash(start \"雯婷后端服务 - TODO删除同步修复完成测试\" npm run dev)",
+      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\scripts\\complete-cleanup.js\")",
+      "Bash(start \"雯婷后端服务 - 数据库清理完成验证\" npm run dev)",
+      "Bash(sqlite3:*)",
+      "Bash(start \"雯婷后端服务 - TODO同步修复完成测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - TODO同步修复完成\" npm run dev)"
     ],
     "deny": []
   }

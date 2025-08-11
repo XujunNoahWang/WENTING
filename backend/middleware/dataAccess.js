@@ -58,7 +58,8 @@ class DataAccessSecurity {
     // 验证TODO操作权限
     static async validateTodoAccess(req, res, next) {
         try {
-            const { todoId } = req.params;
+            // 兼容不同的参数名：todoId 或 id
+            const todoId = req.params.todoId || req.params.id;
             const appUser = req.headers['x-app-user'] || req.body.appUser || req.query.appUser;
             
             if (!appUser) {
