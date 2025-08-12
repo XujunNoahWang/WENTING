@@ -21,14 +21,23 @@ router.get('/user/:appUser/status', async (req, res) => {
             });
         }
         
-        const links = await LinkService.getUserLinks(appUser);
+        const userLinks = await LinkService.getUserLinks(appUser);
+        
+        // 将asManager和asLinked合并为一个数组，供前端使用
+        const allLinks = [];
+        if (userLinks.asManager && userLinks.asManager.length > 0) {
+            allLinks.push(...userLinks.asManager);
+        }
+        if (userLinks.asLinked && userLinks.asLinked.length > 0) {
+            allLinks.push(...userLinks.asLinked);
+        }
         
         res.json({
             success: true,
             data: {
                 appUser,
-                links,
-                hasLinks: links && (links.asManager?.length > 0 || links.asLinked?.length > 0),
+                links: allLinks, // 前端期望的扁平数组格式
+                hasLinks: allLinks.length > 0,
                 timestamp: Date.now()
             },
             message: '获取关联状态成功'

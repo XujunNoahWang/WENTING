@@ -860,27 +860,58 @@ const App = {
             try {
                 console.log('🔍 [SPA Link] 正在检查用户关联状态...');
                 
-                // 使用WebSocketClient检查关联状态，如果WebSocket未连接则降级到HTTP
+                // 使用WebSocketClient检查当前用户的关联状态，如果WebSocket未连接则降级到HTTP
                 let response;
                 if (window.WebSocketClient && window.WebSocketClient.isConnected) {
-                    response = await window.WebSocketClient.links.checkLinkStatus(user.username);
+                    response = await window.WebSocketClient.links.checkLinkStatus(currentAppUser);
                 } else {
-                    // HTTP降级模式 - 直接调用API
-                    const apiResponse = await fetch(`/api/links/user/${user.id}/status`, {
+                    // HTTP降级模式 - 直接调用API检查当前用户的关联状态
+                    const apiResponse = await fetch(`/api/links/user/${currentAppUser}/status`, {
                         method: 'GET',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
                         }
                     });
-                    response = { success: apiResponse.ok, data: await apiResponse.json() };
+                    
+                    if (!apiResponse.ok) {
+                        throw new Error(`HTTP ${apiResponse.status}: ${apiResponse.statusText}`);
+                    }
+                    
+                    const data = await apiResponse.json();
+                    response = { success: true, data: data };
                 }
                 
                 console.log('🔗 [SPA Link] 用户关联状态:', response);
+                console.log('🔍 [Debug] response.success:', response.success);
+                console.log('🔍 [Debug] response.data:', response.data);
+                console.log('🔍 [Debug] response.data.links:', response.data?.links);
+                console.log('🔍 [Debug] links array length:', response.data?.links?.length);
                 
-                if (response.success && response.data.links && response.data.links.length > 0) {
+                // 🔥 兼容处理：支持新旧两种数据格式
+                let allLinks = [];
+                if (response.data?.links) {
+                    if (Array.isArray(response.data.links)) {
+                        // 新格式：直接是数组
+                        allLinks = response.data.links;
+                        console.log('🔍 [Debug] 使用新格式数组:', allLinks.length);
+                    } else if (response.data.links.asManager || response.data.links.asLinked) {
+                        // 旧格式：是对象包含asManager和asLinked
+                        if (response.data.links.asManager) {
+                            allLinks.push(...response.data.links.asManager);
+                        }
+                        if (response.data.links.asLinked) {
+                            allLinks.push(...response.data.links.asLinked);
+                        }
+                        console.log('🔍 [Debug] 使用旧格式对象，合并后数组长度:', allLinks.length);
+                    }
+                }
+                
+                console.log('🔍 [Debug] 最终合并的links数组:', allLinks);
+                
+                if (response.success && allLinks.length > 0) {
                     // 用户已有关联关系，显示关联信息和unlink按钮
-                    this.renderLinkedUserInterface(user, response.data.links, linkContentEl);
+                    this.renderLinkedUserInterface(user, allLinks, linkContentEl);
                 } else {
                     // 用户没有关联关系，显示关联输入界面
                     this.renderLinkInputInterface(user, linkContentEl);
@@ -888,6 +919,9 @@ const App = {
                 
             } catch (error) {
                 console.error('❌ [SPA Link] 检查关联状态失败:', error);
+                console.error('❌ [Debug] 错误详情:', error.message);
+                console.error('❌ [Debug] 当前用户:', currentAppUser);
+                console.error('❌ [Debug] 被选中用户:', user);
                 // 出错时显示输入界面作为降级处理
                 this.renderLinkInputInterface(user, linkContentEl);
             }
@@ -944,30 +978,37 @@ const App = {
                     <strong>${user.display_name}</strong> 的健康数据已与其他用户关联。
                 </div>
                 
-                <div class="link-linked-info">
-                    <div class="link-linked-status">
-                        已关联
-                    </div>
-                    <div class="link-linked-with">
-                        关联用户：<strong>${linkedUser}</strong>
-                    </div>
-                    <div class="link-role-info">
-                        您的角色：<span class="role-badge">${isManager ? '管理员' : '关联用户'}</span>
-                    </div>
-                    <div class="link-created-at">
-                        关联时间：${new Date(linkInfo.created_at).toLocaleString()}
+                <!-- 第一行：关联状态和用户信息 -->
+                <div class="link-info-row">
+                    <div class="link-status-badge success">✓ 已关联</div>
+                    <div class="link-partner-info">
+                        <span class="partner-label">关联用户:</span>
+                        <span class="partner-name">${linkedUser}</span>
                     </div>
                 </div>
                 
-                <div class="link-actions">
+                <!-- 第二行：角色和时间信息 -->
+                <div class="link-info-row">
+                    <div class="link-role-info">
+                        <span class="role-label">您的角色:</span>
+                        <span class="role-badge ${isManager ? 'manager' : 'linked'}">${isManager ? '管理员' : '关联用户'}</span>
+                    </div>
+                    <div class="link-time-info">
+                        <span class="time-label">关联时间:</span>
+                        <span class="time-value">${new Date(linkInfo.created_at).toLocaleDateString()}</span>
+                    </div>
+                </div>
+                
+                <!-- 第三行：操作按钮 -->
+                <div class="link-actions-row">
                     <button class="link-unlink-btn" 
                             onclick="App.confirmUnlink(${user.id}, ${linkInfo.id}, '${linkedUser}')">
-                        取消关联
+                        🔗 取消关联
                     </button>
                 </div>
                 
                 <div class="link-tips">
-                    💡 提示：取消关联后，对方将无法继续管理 ${user.display_name} 的健康数据。
+                    💡 取消关联后，对方将无法继续管理 ${user.display_name} 的健康数据
                 </div>
             </div>
         `;
@@ -1156,6 +1197,47 @@ const App = {
                 notification.remove();
             }
         }, 5000);
+    },
+    
+    // 显示数据同步通知（更详细的提示）
+    showDataSyncNotification(type, message) {
+        console.log(`🔄 [数据同步] 显示${type}通知:`, message);
+        
+        // 创建更详细的通知元素
+        const notification = document.createElement('div');
+        notification.className = `data-sync-notification data-sync-notification-${type}`;
+        notification.innerHTML = `
+            <div class="data-sync-notification-content">
+                <div class="data-sync-notification-header">
+                    <div class="data-sync-notification-icon">
+                        ${type === 'success' ? '🎉' : type === 'info' ? '📊' : type === 'warning' ? '⚠️' : '❌'}
+                    </div>
+                    <div class="data-sync-notification-title">数据同步通知</div>
+                    <button class="data-sync-notification-close" onclick="this.parentElement.parentElement.parentElement.remove()">×</button>
+                </div>
+                <div class="data-sync-notification-body">
+                    <p>${message}</p>
+                    <div class="data-sync-details">
+                        <small>📝 这意味着TODO项目、健康笔记等数据已完成同步</small>
+                    </div>
+                </div>
+            </div>
+        `;
+        
+        // 添加到页面
+        document.body.appendChild(notification);
+        
+        // 较长的显示时间，因为包含重要信息
+        setTimeout(() => {
+            if (notification.parentElement) {
+                notification.classList.add('data-sync-fade-out');
+                setTimeout(() => {
+                    if (notification.parentElement) {
+                        notification.remove();
+                    }
+                }, 500);
+            }
+        }, 8000);
     },
     
     // 显示关联邀请对话框
@@ -1538,14 +1620,18 @@ const App = {
                     response = await window.WebSocketClient.links.cancelLink(linkId);
                 } else {
                     // HTTP降级模式
-                    const apiResponse = await fetch(`/api/links/${linkId}/cancel`, {
+                    const apiResponse = await fetch(`/api/links/${linkId}`, {
                         method: 'DELETE',
                         headers: {
                             'Content-Type': 'application/json',
                             'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
-                        }
+                        },
+                        body: JSON.stringify({
+                            appUser: currentAppUser
+                        })
                     });
-                    response = { success: apiResponse.ok, data: await apiResponse.json() };
+                    const responseData = await apiResponse.json();
+                    response = { success: apiResponse.ok, data: responseData };
                 }
             } catch (error) {
                 response = { success: false, error: error.message };
@@ -1562,16 +1648,29 @@ const App = {
                     modal.remove();
                 }
                 
-                // 重新加载Link功能内容，显示输入界面
-                const user = window.UserManager?.users?.find(u => u.id === supervisedUserId);
-                if (user) {
-                    setTimeout(() => {
-                        this.loadLinkFunctionContent(user);
-                    }, 1000);
-                }
+                // 重新加载用户数据和Link页面
+                setTimeout(async () => {
+                    try {
+                        // 重新加载用户数据
+                        if (window.UserManager) {
+                            await UserManager.loadUsersFromAPI();
+                        }
+                        
+                        // 重新加载Link功能内容，显示发送关联界面
+                        const user = window.UserManager?.users?.find(u => u.id === supervisedUserId);
+                        if (user) {
+                            this.displayUserInfoInLink(user);
+                        }
+                        
+                        // 重新检查关联状态
+                        await this.displayLinkConnectionStatus();
+                    } catch (error) {
+                        console.error('重新加载数据失败:', error);
+                    }
+                }, 1000);
                 
             } else {
-                this.showLinkNotification('error', response.error || '取消关联失败');
+                this.showLinkNotification('error', response.data?.message || response.error || '取消关联失败');
             }
             
         } catch (error) {
@@ -1595,20 +1694,103 @@ const App = {
                 
             case 'LINK_ESTABLISHED':
                 this.showLinkNotification('success', `与 ${data.linkedUser} 的关联已建立`);
-                // 如果当前在Link页面，刷新显示
-                if (document.querySelector('.link-content')) {
+                
+                // 如果有数据同步提示，显示详细通知
+                if (data.syncMessage) {
                     setTimeout(() => {
-                        this.displayDefaultUserInLink();
+                        this.showDataSyncNotification('info', data.syncMessage);
+                    }, 2000);
+                }
+                
+                // 如果当前在Link页面，刷新显示
+                if (document.querySelector('.link-content-area')) {
+                    setTimeout(async () => {
+                        try {
+                            // 重新加载用户数据
+                            if (window.UserManager) {
+                                await UserManager.loadUsersFromAPI();
+                            }
+                            
+                            // 重新检查关联状态
+                            await this.displayLinkConnectionStatus();
+                            
+                            // 如果有选中的用户，重新显示该用户信息
+                            const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                            if (currentUser) {
+                                const user = window.UserManager?.users?.find(u => u.id === currentUser);
+                                if (user) {
+                                    this.displayUserInfoInLink(user);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('处理关联建立通知时重新加载数据失败:', error);
+                        }
+                    }, 1000);
+                }
+                break;
+                
+            case 'LINK_ACCEPTED':
+                this.showLinkNotification('success', `${data.acceptedBy} 接受了您的关联邀请`);
+                
+                // 显示数据同步完成提示
+                if (data.syncMessage) {
+                    setTimeout(() => {
+                        this.showDataSyncNotification('success', data.syncMessage);
+                    }, 2000);
+                }
+                
+                // 如果当前在Link页面，刷新显示
+                if (document.querySelector('.link-content-area')) {
+                    setTimeout(async () => {
+                        try {
+                            // 重新加载用户数据
+                            if (window.UserManager) {
+                                await UserManager.loadUsersFromAPI();
+                            }
+                            
+                            // 重新检查关联状态
+                            await this.displayLinkConnectionStatus();
+                            
+                            // 如果有选中的用户，重新显示该用户信息
+                            const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                            if (currentUser) {
+                                const user = window.UserManager?.users?.find(u => u.id === currentUser);
+                                if (user) {
+                                    this.displayUserInfoInLink(user);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('处理关联接受通知时重新加载数据失败:', error);
+                        }
                     }, 1000);
                 }
                 break;
                 
             case 'LINK_CANCELLED':
-                this.showLinkNotification('info', `${data.cancelledBy} 取消了与您的关联`);
-                // 如果当前在Link页面，刷新显示
-                if (document.querySelector('.link-content')) {
-                    setTimeout(() => {
-                        this.displayDefaultUserInLink();
+                this.showLinkNotification('warning', `${data.cancelledBy} 已取消关联关系`);
+                // 如果当前在Link页面，刷新页面显示发送关联界面
+                if (document.querySelector('.link-content-area')) {
+                    setTimeout(async () => {
+                        try {
+                            // 重新加载用户数据
+                            if (window.UserManager) {
+                                await UserManager.loadUsersFromAPI();
+                            }
+                            
+                            // 重新检查关联状态
+                            await this.displayLinkConnectionStatus();
+                            
+                            // 如果有选中的用户，重新显示该用户信息
+                            const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                            if (currentUser) {
+                                const user = window.UserManager?.users?.find(u => u.id === currentUser);
+                                if (user) {
+                                    this.displayUserInfoInLink(user);
+                                }
+                            }
+                        } catch (error) {
+                            console.error('处理关联取消通知时重新加载数据失败:', error);
+                        }
                     }, 1000);
                 }
                 break;

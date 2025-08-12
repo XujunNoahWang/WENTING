@@ -290,8 +290,54 @@ class LinkService {
                     // 同步数据
                     await this.syncUserData(requestData.supervised_user_id, requestData.from_app_user, requestData.to_app_user);
                     
+                    // 🔥 发送WebSocket通知给发起用户和接受用户
+                    try {
+                        const websocketService = require('./websocketService');
+                        
+                        if (websocketService) {
+                            // 通知发起用户（管理员）
+                            websocketService.broadcastToAppUser(requestData.from_app_user, {
+                                type: 'LINK_ACCEPTED',
+                                data: {
+                                    acceptedBy: appUser,
+                                    supervisedUserId: requestData.supervised_user_id,
+                                    supervisedUserName: requestData.supervised_user_name,
+                                    requestId: requestId,
+                                    timestamp: Date.now(),
+                                    syncMessage: `数据同步完成：${requestData.supervised_user_name} 的数据已以您的数据为准进行同步`
+                                },
+                                message: `${appUser} 接受了您的关联邀请，数据已同步`
+                            });
+                            
+                            // 通知接受用户
+                            websocketService.broadcastToAppUser(appUser, {
+                                type: 'LINK_ESTABLISHED',
+                                data: {
+                                    linkedUser: requestData.from_app_user,
+                                    supervisedUserId: requestData.supervised_user_id,
+                                    supervisedUserName: requestData.supervised_user_name,
+                                    requestId: requestId,
+                                    timestamp: Date.now(),
+                                    syncMessage: `数据同步提示：${requestData.supervised_user_name} 的数据已以 ${requestData.from_app_user} 的数据为准进行同步`
+                                },
+                                message: `关联已建立，数据已同步`
+                            });
+                            
+                            console.log(`🔔 已通知关联双方: 关联建立和数据同步完成`);
+                        }
+                    } catch (notifyError) {
+                        console.error('⚠️ 发送关联建立通知失败:', notifyError);
+                        // 不影响主要流程
+                    }
+                    
                     console.log(`✅ 关联请求已接受，开始数据同步`);
-                    return { status: 'accepted', synced: true };
+                    return { 
+                        status: 'accepted', 
+                        synced: true,
+                        fromUser: requestData.from_app_user,
+                        toUser: appUser,
+                        supervisedUserId: requestData.supervised_user_id
+                    };
                 });
                 
             } else if (action === 'reject') {
@@ -558,8 +604,38 @@ class LinkService {
                     WHERE id = ?
                 `, [linkData.supervised_user_id]);
                 
+                // 🔥 发送WebSocket实时通知给关联的另一方
+                try {
+                    const websocketService = require('./websocketService');
+                    const targetUser = linkData.manager_app_user === appUser ? 
+                                     linkData.linked_app_user : linkData.manager_app_user;
+                    
+                    if (websocketService) {
+                        websocketService.broadcastToAppUser(targetUser, {
+                            type: 'LINK_CANCELLED',
+                            data: {
+                                cancelledBy: appUser,
+                                supervisedUserId: linkData.supervised_user_id,
+                                linkId: linkId,
+                                timestamp: Date.now()
+                            },
+                            message: `${appUser} 已取消关联关系`
+                        });
+                        
+                        console.log(`🔔 已通知关联用户 ${targetUser}: 关联已取消`);
+                    }
+                } catch (notifyError) {
+                    console.error('⚠️ 发送取消关联通知失败:', notifyError);
+                    // 不影响主要流程
+                }
+                
                 console.log(`✅ 关联关系已取消`);
-                return { status: 'cancelled', linkId };
+                return { 
+                    status: 'cancelled', 
+                    linkId, 
+                    cancelledBy: appUser,
+                    supervisedUserId: linkData.supervised_user_id 
+                };
             });
             
         } catch (error) {
