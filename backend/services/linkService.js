@@ -581,60 +581,84 @@ class LinkService {
                 SELECT * FROM user_links 
                 WHERE id = ? AND (manager_app_user = ? OR linked_app_user = ?) AND status = 'active'
             `, [linkId, appUser, appUser]);
-            
             if (link.length === 0) {
                 throw new Error('关联关系不存在或无权限操作');
             }
-            
             const linkData = link[0];
-            
-            // 使用事务确保数据一致性
+
+            // 找出所有相关的双向关联记录（基于两个app用户之间的关联）
             return await transaction(async () => {
-                // 更新关联状态
-                await query(`
+                const managerUser = linkData.manager_app_user;
+                const linkedUser = linkData.linked_app_user;
+                
+                console.log(`🔍 正在查找并取消 ${managerUser} 和 ${linkedUser} 之间的所有关联记录...`);
+
+                // 🔥 修复：查找并取消两个用户之间的所有双向关联记录
+                const allRelatedLinks = await query(`
+                    SELECT * FROM user_links 
+                    WHERE ((manager_app_user = ? AND linked_app_user = ?) OR (manager_app_user = ? AND linked_app_user = ?))
+                    AND status = 'active'
+                `, [managerUser, linkedUser, linkedUser, managerUser]);
+
+                console.log(`🔍 找到需要取消的关联记录数量: ${allRelatedLinks.length}`);
+                allRelatedLinks.forEach(link => {
+                    console.log(`  - ID ${link.id}: ${link.manager_app_user} -> ${link.linked_app_user} (被监管用户: ${link.supervised_user_id})`);
+                });
+
+                // 取消所有相关的关联记录
+                const cancelLinkResult = await query(`
                     UPDATE user_links 
                     SET status = 'cancelled', updated_at = CURRENT_TIMESTAMP 
-                    WHERE id = ?
-                `, [linkId]);
+                    WHERE ((manager_app_user = ? AND linked_app_user = ?) OR (manager_app_user = ? AND linked_app_user = ?))
+                    AND status = 'active'
+                `, [managerUser, linkedUser, linkedUser, managerUser]);
                 
-                // 更新被监管用户的关联状态
-                await query(`
-                    UPDATE users 
-                    SET supervised_app_user = NULL, is_linked = 0, updated_at = CURRENT_TIMESTAMP
-                    WHERE id = ?
-                `, [linkData.supervised_user_id]);
-                
+                console.log(`✅ 取消关联记录影响行数: ${cancelLinkResult.changes}`);
+
+                // 🔥 修复：更新所有相关被监管用户的状态
+                const supervisedUserIds = allRelatedLinks.map(link => link.supervised_user_id);
+                const uniqueSupervisedUserIds = [...new Set(supervisedUserIds)]; // 去重
+
+                console.log(`🔍 需要更新的被监管用户IDs: [${uniqueSupervisedUserIds.join(', ')}]`);
+
+                for (const supervisedUserId of uniqueSupervisedUserIds) {
+                    const userUpdateResult = await query(`
+                        UPDATE users 
+                        SET supervised_app_user = NULL, is_linked = 0, updated_at = CURRENT_TIMESTAMP
+                        WHERE id = ?
+                    `, [supervisedUserId]);
+                    console.log(`✅ 更新被监管用户${supervisedUserId}状态，影响行数: ${userUpdateResult.changes}`);
+                }
+
                 // 🔥 发送WebSocket实时通知给关联的另一方
                 try {
                     const websocketService = require('./websocketService');
                     const targetUser = linkData.manager_app_user === appUser ? 
                                      linkData.linked_app_user : linkData.manager_app_user;
-                    
                     if (websocketService) {
                         websocketService.broadcastToAppUser(targetUser, {
                             type: 'LINK_CANCELLED',
                             data: {
                                 cancelledBy: appUser,
-                                supervisedUserId: linkData.supervised_user_id,
+                                supervisedUserIds: uniqueSupervisedUserIds, // 通知所有受影响的被监管用户
                                 linkId: linkId,
                                 timestamp: Date.now()
                             },
                             message: `${appUser} 已取消关联关系`
                         });
-                        
-                        console.log(`🔔 已通知关联用户 ${targetUser}: 关联已取消`);
+                        console.log(`🔔 已通知关联用户 ${targetUser}: 关联已取消，涉及${uniqueSupervisedUserIds.length}个被监管用户`);
                     }
                 } catch (notifyError) {
                     console.error('⚠️ 发送取消关联通知失败:', notifyError);
-                    // 不影响主要流程
                 }
-                
-                console.log(`✅ 关联关系已取消`);
+
+                console.log(`✅ 双向关联关系完全取消，共处理${allRelatedLinks.length}条关联记录，${uniqueSupervisedUserIds.length}个被监管用户`);
                 return { 
                     status: 'cancelled', 
                     linkId, 
                     cancelledBy: appUser,
-                    supervisedUserId: linkData.supervised_user_id 
+                    supervisedUserIds: uniqueSupervisedUserIds,
+                    cancelledLinksCount: allRelatedLinks.length
                 };
             });
             

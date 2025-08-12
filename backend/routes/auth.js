@@ -258,13 +258,32 @@ router.get('/profile/:username', async (req, res) => {
         
         const user = users[0];
         
-        // 获取管理的用户详细信息
-        const managedUsers = await query(`
-            SELECT id, username, display_name, is_active, supervised_app_user, is_linked
+        // 获取管理的用户详细信息（先查出所有用户）
+        let managedUsers = await query(`
+            SELECT id, username, display_name, is_active
             FROM users 
             WHERE app_user_id = ? AND is_active = 1
             ORDER BY created_at ASC
         `, [user.username]);
+
+        // 遍历每个被管理用户，动态判断是否被其他app_user关联
+        for (let u of managedUsers) {
+            // 查询user_links表，判断是否有active关联（无论是manager还是linked）
+            const link = await query(`
+                SELECT manager_app_user, linked_app_user, status FROM user_links 
+                WHERE supervised_user_id = ? ORDER BY created_at DESC
+            `, [u.id]);
+            // 只要有一条status为active的关联才算已关联，否则未关联
+            const activeLink = link.find(l => l.status === 'active');
+            if (activeLink) {
+                u.is_linked = true;
+                u.supervised_app_user = (activeLink.manager_app_user === user.username)
+                    ? activeLink.linked_app_user : activeLink.manager_app_user;
+            } else {
+                u.is_linked = false;
+                u.supervised_app_user = '';
+            }
+        }
         
         // 获取每个用户的笔记数量
         const userNotesCounts = await query(`

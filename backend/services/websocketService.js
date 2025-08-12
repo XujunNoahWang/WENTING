@@ -507,6 +507,17 @@ class WebSocketService {
             console.log(`⚠️ app用户 ${appUserId} 当前没有活跃连接`);
             console.log(`📊 [WebSocket] 当前所有连接:`, Array.from(this.appUserConnections.keys()));
         }
+
+        // 🔄 增强逻辑：如果消息类型为取消关联，确保关联双方都收到通知
+        if (message.type === 'LINK_CANCELLED' && message.data) {
+            const { cancelledBy, supervisedUserId } = message.data;
+            const otherUser = cancelledBy === appUserId ? message.data.linkedUser : cancelledBy;
+
+            if (otherUser) {
+                console.log(`📡 [WebSocket] 向关联用户 ${otherUser} 广播取消关联消息`);
+                this.broadcastToAppUser(otherUser, message);
+            }
+        }
     }
 
     // 发送消息
