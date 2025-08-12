@@ -258,37 +258,83 @@ router.get('/profile/:username', async (req, res) => {
         
         const user = users[0];
         
-        // 获取该用户创建的被添加用户数量
-        const userCount = await query(
-            'SELECT COUNT(*) as count FROM users WHERE app_user_id = ?',
-            [user.username]
-        );
+        // 获取管理的用户详细信息
+        const managedUsers = await query(`
+            SELECT id, username, display_name, is_active, supervised_app_user, is_linked
+            FROM users 
+            WHERE app_user_id = ? AND is_active = 1
+            ORDER BY created_at ASC
+        `, [user.username]);
         
-        // 获取该用户的TODO总数
-        const todoCount = await query(`
+        // 获取每个用户的笔记数量
+        const userNotesCounts = await query(`
+            SELECT u.id, u.display_name, COUNT(n.id) as notes_count
+            FROM users u 
+            LEFT JOIN notes n ON u.id = n.user_id 
+            WHERE u.app_user_id = ? AND u.is_active = 1
+            GROUP BY u.id, u.display_name
+            ORDER BY u.created_at ASC
+        `, [user.username]);
+        
+        // 获取任务统计（简化版）
+        const activeTodoCount = await query(`
+            SELECT COUNT(*) as count 
+            FROM todos t 
+            JOIN users u ON t.user_id = u.id 
+            WHERE u.app_user_id = ? AND t.is_active = 1
+        `, [user.username]);
+        
+        const deletedTodoCount = await query(`
+            SELECT COUNT(*) as count 
+            FROM todos t 
+            JOIN users u ON t.user_id = u.id 
+            WHERE u.app_user_id = ? AND t.is_active = 0
+        `, [user.username]);
+        
+        const totalTodoCount = await query(`
             SELECT COUNT(*) as count 
             FROM todos t 
             JOIN users u ON t.user_id = u.id 
             WHERE u.app_user_id = ?
         `, [user.username]);
         
-        // 获取该用户的Notes总数
-        const notesCount = await query(`
+        const repeatTodoCount = await query(`
             SELECT COUNT(*) as count 
-            FROM notes n 
-            JOIN users u ON n.user_id = u.id 
-            WHERE u.app_user_id = ?
+            FROM todos t 
+            JOIN users u ON t.user_id = u.id 
+            WHERE u.app_user_id = ? AND t.is_active = 1 AND t.repeat_type != 'none'
         `, [user.username]);
+        
+        const oneTimeTodoCount = await query(`
+            SELECT COUNT(*) as count 
+            FROM todos t 
+            JOIN users u ON t.user_id = u.id 
+            WHERE u.app_user_id = ? AND t.is_active = 1 AND t.repeat_type = 'none'
+        `, [user.username]);
+        
+        // 计算总笔记数
+        const totalNotesCount = userNotesCounts.reduce((sum, user) => sum + user.notes_count, 0);
         
         res.json({
             success: true,
             data: {
                 username: user.username,
                 created_at: user.created_at,
+                // 管理的用户列表
+                managed_users: managedUsers,
+                // 用户笔记统计
+                user_notes: userNotesCounts,
+                // 简化的统计数据
                 stats: {
-                    managed_users: userCount[0].count,
-                    total_todos: todoCount[0].count,
-                    total_notes: notesCount[0].count
+                    // 任务统计
+                    active_todos: activeTodoCount[0].count,
+                    deleted_todos: deletedTodoCount[0].count,
+                    total_todos: totalTodoCount[0].count,
+                    repeat_todos: repeatTodoCount[0].count,
+                    onetime_todos: oneTimeTodoCount[0].count,
+                    
+                    // 笔记统计
+                    total_notes: totalNotesCount
                 }
             }
         });

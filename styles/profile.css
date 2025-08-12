@@ -155,45 +155,121 @@
     font-size: 16px;
 }
 
-/* 统计卡片网格 */
-.stats-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 16px;
-}
-
-.stat-card {
+/* 列表形式的统计样式 */
+.stats-list-section {
+    margin-bottom: 24px;
     background: #ffffff;
     border: 1px solid #e1e5e9;
     border-radius: 12px;
-    padding: 20px;
-    text-align: center;
-    transition: all 0.3s ease;
-    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    overflow: hidden;
 }
 
-.stat-card:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    border-color: #1d9bf0;
+.stats-list-title {
+    font-size: 16px;
+    font-weight: 600;
+    color: #333;
+    margin: 0;
+    padding: 16px 20px;
+    background: #f8f9fa;
+    border-bottom: 1px solid #e1e5e9;
 }
 
-.stat-icon {
-    font-size: 32px;
-    margin-bottom: 8px;
+.stats-list {
+    padding: 0;
+    margin: 0;
 }
 
-.stat-number {
-    font-size: 28px;
+.stats-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 12px 20px;
+    border-bottom: 1px solid #f0f0f0;
+    transition: background-color 0.2s ease;
+}
+
+.stats-item:last-child {
+    border-bottom: none;
+}
+
+.stats-item:hover {
+    background-color: #f8f9fa;
+}
+
+.stats-item.highlight {
+    background: linear-gradient(135deg, rgba(29, 155, 240, 0.1), rgba(76, 175, 80, 0.1));
+    border-left: 4px solid #1d9bf0;
+}
+
+.stats-item.highlight .stats-label {
+    font-weight: 600;
+    color: #1d9bf0;
+}
+
+.stats-item.highlight .stats-value {
     font-weight: bold;
     color: #1d9bf0;
-    margin-bottom: 4px;
+    font-size: 18px;
 }
 
-.stat-label {
+.stats-item.secondary {
+    opacity: 0.7;
     font-size: 14px;
+}
+
+.stats-item.secondary .stats-label {
     color: #666;
+}
+
+.stats-item.secondary .stats-value {
+    color: #666;
+}
+
+.stats-item.empty {
+    justify-content: center;
+    color: #999;
+    font-style: italic;
+    padding: 20px;
+}
+
+.stats-label {
+    font-size: 14px;
+    color: #333;
     font-weight: 500;
+}
+
+.stats-value {
+    font-size: 16px;
+    font-weight: 600;
+    color: #1d9bf0;
+}
+
+/* 用户项特殊样式 */
+.stats-item.user-item {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 16px 20px;
+}
+
+.user-info {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    width: 100%;
+}
+
+.user-name {
+    font-size: 14px;
+    font-weight: 600;
+    color: #333;
+}
+
+.user-status {
+    font-size: 12px;
+    color: #666;
+    background: #f0f0f0;
+    padding: 4px 8px;
+    border-radius: 12px;
 }
 
 /* 操作按钮 */

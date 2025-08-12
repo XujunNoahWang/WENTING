@@ -193,21 +193,47 @@ const ProfileManager = {
 
                     <div class="profile-section">
                         <h3 class="section-title">使用统计</h3>
-                        <div class="stats-grid">
-                            <div class="stat-card">
-                                <div class="stat-icon">👥</div>
-                                <div class="stat-number">${stats.managed_users}</div>
-                                <div class="stat-label">管理用户</div>
+                        
+                        <!-- 管理成员列表 -->
+                        <div class="stats-list-section">
+                            <h4 class="stats-list-title">👥 被管理成员 (${this.profileData.managed_users.length}个)</h4>
+                            <div class="stats-list">
+                                ${this.generateManagedUsersList()}
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-icon">📝</div>
-                                <div class="stat-number">${stats.total_todos}</div>
-                                <div class="stat-label">总任务数</div>
+                        </div>
+
+                        <!-- 任务统计 -->
+                        <div class="stats-list-section">
+                            <h4 class="stats-list-title">📝 任务管理</h4>
+                            <div class="stats-list">
+                                <div class="stats-item highlight">
+                                    <span class="stats-label">进行中任务</span>
+                                    <span class="stats-value">${stats.active_todos || 0}</span>
+                                </div>
+                                <div class="stats-item">
+                                    <span class="stats-label">重复任务</span>
+                                    <span class="stats-value">${stats.repeat_todos || 0}</span>
+                                </div>
+                                <div class="stats-item">
+                                    <span class="stats-label">一次性任务</span>
+                                    <span class="stats-value">${stats.onetime_todos || 0}</span>
+                                </div>
+                                <div class="stats-item secondary">
+                                    <span class="stats-label">已删除任务</span>
+                                    <span class="stats-value">${stats.deleted_todos || 0}</span>
+                                </div>
+                                <div class="stats-item secondary">
+                                    <span class="stats-label">历史任务总数</span>
+                                    <span class="stats-value">${stats.total_todos || 0}</span>
+                                </div>
                             </div>
-                            <div class="stat-card">
-                                <div class="stat-icon">📄</div>
-                                <div class="stat-number">${stats.total_notes}</div>
-                                <div class="stat-label">总笔记数</div>
+                        </div>
+
+                        <!-- 笔记统计 -->
+                        <div class="stats-list-section">
+                            <h4 class="stats-list-title">📄 健康笔记 (总计${stats.total_notes || 0}个)</h4>
+                            <div class="stats-list">
+                                ${this.generateNotesStatsList()}
                             </div>
                         </div>
                     </div>
@@ -228,6 +254,43 @@ const ProfileManager = {
                 </div>
             </div>
         `;
+    },
+
+    // 生成管理成员列表
+    generateManagedUsersList() {
+        if (!this.profileData.managed_users || this.profileData.managed_users.length === 0) {
+            return '<div class="stats-item empty">暂无管理成员</div>';
+        }
+
+        return this.profileData.managed_users.map(user => {
+            const linkStatus = user.is_linked ? '🔗已关联' : '⭕未关联';
+            const linkUser = user.supervised_app_user ? ` (${user.supervised_app_user})` : '';
+            
+            return `
+                <div class="stats-item user-item">
+                    <div class="user-info">
+                        <span class="user-name">${user.display_name} (${user.username})</span>
+                        <span class="user-status">${linkStatus}${linkUser}</span>
+                    </div>
+                </div>
+            `;
+        }).join('');
+    },
+
+    // 生成笔记统计列表
+    generateNotesStatsList() {
+        if (!this.profileData.user_notes || this.profileData.user_notes.length === 0) {
+            return '<div class="stats-item empty">暂无笔记数据</div>';
+        }
+
+        return this.profileData.user_notes.map(user => {
+            return `
+                <div class="stats-item">
+                    <span class="stats-label">${user.display_name}</span>
+                    <span class="stats-value">${user.notes_count}个</span>
+                </div>
+            `;
+        }).join('');
     },
 
     // 绑定Profile页面事件
