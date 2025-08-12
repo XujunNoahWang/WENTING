@@ -326,6 +326,7 @@ const WebSocketClient = {
                 
             case 'LINK_INVITATION_ACCEPTED':
             case 'LINK_INVITATION_REJECTED':
+            case 'LINK_ACCEPTED':
             case 'LINK_CANCELLED':
                 // 其他Link状态通知
                 console.log(`🔗 [WebSocket] Link状态变更:`, type, data);

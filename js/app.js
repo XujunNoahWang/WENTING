@@ -769,8 +769,11 @@ const App = {
     // 在Link页面显示用户信息
     displayUserInfoInLink(user) {
         console.log('🎨 [SPA Link] 显示用户信息:', user);
+        console.log('🔍 [SPA Link] 检查 userInfoDisplay 元素是否存在...');
         
         const userInfoDisplay = document.getElementById('userInfoDisplay');
+        console.log('🔍 [SPA Link] userInfoDisplay 元素:', userInfoDisplay);
+        
         if (userInfoDisplay && user) {
             userInfoDisplay.innerHTML = `
                 <div class="selected-user-info">
@@ -1744,17 +1747,54 @@ const App = {
             case 'LINK_ACCEPTED':
                 this.showLinkNotification('success', `${data.acceptedBy} 接受了您的关联邀请`);
                 
-                // 🔥 修复：发送方也需要自动跳转到Link页面并刷新数据
-                console.log('✅ [Link] 发送方收到关联接受通知，开始刷新应用数据');
-                setTimeout(async () => {
-                    await this.refreshApplicationAfterLink();
-                }, 1000);
+                // 🔥 修复：像取消关联一样，先检查是否在Link页面
+                if (document.querySelector('.link-content-area')) {
+                    // 如果当前在Link页面，直接更新页面状态（和LINK_CANCELLED保持一致）
+                    console.log('✅ [Link] 发起方当前在Link页面，直接更新页面状态');
+                    setTimeout(async () => {
+                        try {
+                            // 重新加载用户数据
+                            if (window.UserManager) {
+                                await UserManager.loadUsersFromAPI();
+                            }
+                            
+                            // 重新检查关联状态
+                            await this.displayLinkConnectionStatus();
+                            
+                            // 如果有选中的用户，重新显示该用户信息
+                            const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+                            console.log('🔍 [Link] LINK_ACCEPTED 处理 - 当前选中用户ID:', currentUser);
+                            console.log('🔍 [Link] LINK_ACCEPTED 处理 - 可用用户列表:', window.UserManager?.users?.map(u => ({id: u.id, username: u.username})));
+                            
+                            if (currentUser) {
+                                const user = window.UserManager?.users?.find(u => u.id === currentUser);
+                                console.log('🔍 [Link] LINK_ACCEPTED 处理 - 找到的用户:', user);
+                                if (user) {
+                                    console.log('🔄 [Link] LINK_ACCEPTED 处理 - 开始调用 displayUserInfoInLink...');
+                                    this.displayUserInfoInLink(user);
+                                } else {
+                                    console.error('❌ [Link] LINK_ACCEPTED 处理 - 没有找到对应的用户对象');
+                                }
+                            } else {
+                                console.error('❌ [Link] LINK_ACCEPTED 处理 - 当前没有选中的用户');
+                            }
+                        } catch (error) {
+                            console.error('处理关联接受通知时更新Link页面失败:', error);
+                        }
+                    }, 1000);
+                } else {
+                    // 如果不在Link页面，跳转到Link页面
+                    console.log('✅ [Link] 发起方不在Link页面，跳转并刷新应用数据');
+                    setTimeout(async () => {
+                        await this.refreshApplicationAfterLink();
+                    }, 1000);
+                }
                 
                 // 显示数据同步完成提示
                 if (data.syncMessage) {
                     setTimeout(() => {
                         this.showDataSyncNotification('success', data.syncMessage);
-                    }, 3000); // 延迟一点避免与页面跳转冲突
+                    }, 3000); // 延迟一点避免与页面操作冲突
                 }
                 break;
                 

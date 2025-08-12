@@ -88,7 +88,11 @@
       "Bash(start \"雯婷后端服务 - TODO同步修复完成\" npm run dev)",
       "Bash(start \"雯婷后端服务 - Link取消功能修复测试\" npm run dev)",
       "Bash(tasklist:*)",
-      "Bash(start \"雯婷后端服务 - Link重复加载修复测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - Link重复加载修复测试\" npm run dev)",
+      "Bash(cmd /c:*)",
+      "Bash(start \"雯婷后端服务 - Link页面同时切换修复测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - Link页面调试测试\" npm run dev)",
+      "Bash(start \"雯婷后端服务 - Link ACCEPTED消息路由修复测试\" npm run dev)"
     ],
     "deny": []
   }
