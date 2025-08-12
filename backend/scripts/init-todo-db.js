@@ -64,6 +64,7 @@ async function createTodosTable() {
             cycle_unit TEXT DEFAULT 'days' CHECK(cycle_unit IN ('days', 'weeks', 'months')),
             is_active BOOLEAN DEFAULT 1,
             sort_order INTEGER DEFAULT 0,
+            is_completed_today BOOLEAN DEFAULT 0,
             created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             updated_at DATETIME DEFAULT CURRENT_TIMESTAMP,
             FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE

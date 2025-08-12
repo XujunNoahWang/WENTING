@@ -11,11 +11,14 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
-# 数据库文件
-backend/data/
-*.db
+# 数据库文件 (允许wenting.db被提交)
+# backend/data/
+# *.db
 *.sqlite
 *.sqlite3
+# 但排除临时数据库文件
+*.db-shm
+*.db-wal
 
 # 日志文件
 logs/
