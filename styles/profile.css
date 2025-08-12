@@ -1,14 +1,15 @@
-/* Profile页面样式 */
+/* Profile页面样式 - 电子墨水屏风格 */
 
 .profile-content-panel {
     width: 100%;
     height: 100%;
-    background: #ffffff;
-    border-radius: 12px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+    background: #fafafa;
+    border: 1px solid #ddd;
+    border-radius: 4px;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
+    font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
 }
 
 /* 加载状态 */
@@ -62,85 +63,19 @@
     color: #666;
 }
 
-/* Profile头部 */
-.profile-header {
-    display: flex;
-    align-items: center;
-    padding: 24px;
-    border-bottom: 1px solid #eee;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-    color: white;
-    border-radius: 12px 12px 0 0;
-}
-
-.profile-avatar {
-    margin-right: 20px;
-}
-
-.avatar-circle {
-    width: 80px;
-    height: 80px;
-    border-radius: 50%;
-    background: rgba(255, 255, 255, 0.2);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    font-size: 32px;
-    font-weight: bold;
-    color: white;
-    border: 3px solid rgba(255, 255, 255, 0.3);
-}
-
-.profile-title h2 {
-    margin: 0 0 4px 0;
-    font-size: 28px;
-    font-weight: 600;
-}
-
-.profile-subtitle {
-    margin: 0;
-    opacity: 0.9;
-    font-size: 16px;
-}
-
-/* Profile内容 */
+/* Profile内容 - 电子墨水屏风格 */
 .profile-content {
     flex: 1;
-    padding: 24px;
+    padding: 16px;
 }
 
 .profile-section {
-    margin-bottom: 32px;
+    margin-bottom: 16px;
 }
 
 .profile-section:last-child {
     margin-bottom: 0;
 }
-
-.section-title {
-    font-size: 20px;
-    font-weight: 600;
-    color: #333;
-    margin-bottom: 16px;
-    padding-bottom: 8px;
-    border-bottom: 2px solid #f0f0f0;
-}
-
-/* 信息网格 */
-.info-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 16px;
-}
-
-.info-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 16px;
-    background: #f8f9fa;
-    border-radius: 8px;
-    border-left: 4px solid #1d9bf0;
 }
 
 .info-label {
@@ -155,23 +90,24 @@
     font-size: 16px;
 }
 
-/* 列表形式的统计样式 */
+/* 列表形式的统计样式 - 电子墨水屏风格 */
 .stats-list-section {
-    margin-bottom: 24px;
+    margin-bottom: 16px;
     background: #ffffff;
-    border: 1px solid #e1e5e9;
-    border-radius: 12px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
     overflow: hidden;
 }
 
 .stats-list-title {
-    font-size: 16px;
+    font-size: 14px;
     font-weight: 600;
-    color: #333;
+    color: #222;
     margin: 0;
-    padding: 16px 20px;
-    background: #f8f9fa;
-    border-bottom: 1px solid #e1e5e9;
+    padding: 12px 16px;
+    background: #f5f5f5;
+    border-bottom: 1px solid #ccc;
+    letter-spacing: 0.3px;
 }
 
 .stats-list {
@@ -183,38 +119,33 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 12px 20px;
-    border-bottom: 1px solid #f0f0f0;
-    transition: background-color 0.2s ease;
+    padding: 10px 16px;
+    border-bottom: 1px solid #eee;
 }
 
 .stats-item:last-child {
     border-bottom: none;
 }
 
-.stats-item:hover {
-    background-color: #f8f9fa;
-}
-
 .stats-item.highlight {
-    background: linear-gradient(135deg, rgba(29, 155, 240, 0.1), rgba(76, 175, 80, 0.1));
-    border-left: 4px solid #1d9bf0;
+    background: #f9f9f9;
+    border-left: 2px solid #333;
 }
 
 .stats-item.highlight .stats-label {
     font-weight: 600;
-    color: #1d9bf0;
+    color: #000;
 }
 
 .stats-item.highlight .stats-value {
     font-weight: bold;
-    color: #1d9bf0;
-    font-size: 18px;
+    color: #000;
+    font-size: 16px;
 }
 
 .stats-item.secondary {
-    opacity: 0.7;
-    font-size: 14px;
+    opacity: 0.6;
+    font-size: 13px;
 }
 
 .stats-item.secondary .stats-label {
@@ -229,26 +160,26 @@
     justify-content: center;
     color: #999;
     font-style: italic;
-    padding: 20px;
+    padding: 16px;
 }
 
 .stats-label {
-    font-size: 14px;
-    color: #333;
-    font-weight: 500;
+    font-size: 13px;
+    color: #444;
+    font-weight: 400;
 }
 
 .stats-value {
-    font-size: 16px;
-    font-weight: 600;
-    color: #1d9bf0;
+    font-size: 14px;
+    font-weight: 500;
+    color: #222;
 }
 
 /* 用户项特殊样式 */
 .stats-item.user-item {
     flex-direction: column;
     align-items: flex-start;
-    padding: 16px 20px;
+    padding: 12px 16px;
 }
 
 .user-info {
@@ -259,74 +190,74 @@
 }
 
 .user-name {
-    font-size: 14px;
-    font-weight: 600;
-    color: #333;
+    font-size: 13px;
+    font-weight: 500;
+    color: #222;
 }
 
 .user-status {
-    font-size: 12px;
+    font-size: 11px;
     color: #666;
     background: #f0f0f0;
-    padding: 4px 8px;
-    border-radius: 12px;
+    padding: 2px 6px;
+    border-radius: 3px;
+    border: 1px solid #ddd;
 }
 
-/* 操作按钮 */
+/* 操作按钮 - 电子墨水屏风格 */
 .action-buttons {
     display: flex;
-    gap: 12px;
+    gap: 8px;
     flex-wrap: wrap;
+    padding: 12px 16px;
 }
 
 .btn {
     display: inline-flex;
     align-items: center;
-    padding: 12px 20px;
-    border: none;
+    padding: 8px 16px;
+    border: 1px solid #ccc;
     border-radius: 8px;
-    font-size: 14px;
+    font-size: 13px;
     font-weight: 500;
     cursor: pointer;
-    transition: all 0.3s ease;
     text-decoration: none;
-    min-width: 120px;
+    min-width: 100px;
     justify-content: center;
+    background: #fff;
+    color: #333;
+    transition: all 0.1s ease;
 }
 
 .btn-icon {
-    margin-right: 8px;
-    font-size: 16px;
+    margin-right: 6px;
+    font-size: 14px;
 }
 
-.btn-primary {
-    background: #1d9bf0;
+.btn:hover {
+    background: #f5f5f5;
+}
+
+.btn-success {
+    background: #28a745;
     color: white;
+    border-color: #28a745;
 }
 
-.btn-primary:hover {
-    background: #1a8cd8;
-    transform: translateY(-1px);
-}
-
-.btn-secondary {
-    background: #6c757d;
-    color: white;
-}
-
-.btn-secondary:hover {
-    background: #5a6268;
-    transform: translateY(-1px);
+.btn-success:hover {
+    background: #218838;
+    border-color: #1e7e34;
 }
 
 .btn-danger {
     background: #dc3545;
     color: white;
+    border-color: #dc3545;
 }
 
 .btn-danger:hover {
     background: #c82333;
-    transform: translateY(-1px);
+    border-color: #bd2130;
 }
 
 /* 登出确认对话框 */

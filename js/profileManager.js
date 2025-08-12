@@ -160,33 +160,23 @@ const ProfileManager = {
 
         return `
             <div class="profile-content-panel">
-                <div class="profile-header">
-                    <div class="profile-avatar">
-                        <div class="avatar-circle">
-                            ${username.charAt(0).toUpperCase()}
-                        </div>
-                    </div>
-                    <div class="profile-title">
-                        <h2>个人资料</h2>
-                        <p class="profile-subtitle">管理您的账户信息</p>
-                    </div>
-                </div>
-
                 <div class="profile-content">
                     <div class="profile-section">
-                        <h3 class="section-title">基本信息</h3>
-                        <div class="info-grid">
-                            <div class="info-item">
-                                <div class="info-label">用户名</div>
-                                <div class="info-value">${username}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">注册日期</div>
-                                <div class="info-value">${formattedDate} ${formattedTime}</div>
-                            </div>
-                            <div class="info-item">
-                                <div class="info-label">使用天数</div>
-                                <div class="info-value">${daysSinceRegistration} 天</div>
+                        <div class="stats-list-section">
+                            <h4 class="stats-list-title">📊 基本信息</h4>
+                            <div class="stats-list">
+                                <div class="stats-item">
+                                    <span class="stats-label">用户名</span>
+                                    <span class="stats-value">${username}</span>
+                                </div>
+                                <div class="stats-item">
+                                    <span class="stats-label">注册日期</span>
+                                    <span class="stats-value">${formattedDate} ${formattedTime}</span>
+                                </div>
+                                <div class="stats-item">
+                                    <span class="stats-label">使用天数</span>
+                                    <span class="stats-value">${daysSinceRegistration} 天</span>
+                                </div>
                             </div>
                         </div>
                     </div>
@@ -239,16 +229,18 @@ const ProfileManager = {
                     </div>
 
                     <div class="profile-section">
-                        <h3 class="section-title">账户操作</h3>
-                        <div class="action-buttons">
-                            <button class="btn btn-secondary" id="refreshProfileBtn">
-                                <span class="btn-icon">🔄</span>
-                                刷新数据
-                            </button>
-                            <button class="btn btn-danger" id="logoutBtn">
-                                <span class="btn-icon">🚪</span>
-                                退出登录
-                            </button>
+                        <div class="stats-list-section">
+                            <h4 class="stats-list-title">⚙️ 账户操作</h4>
+                            <div class="action-buttons">
+                                <button class="btn btn-success" id="refreshProfileBtn">
+                                    <span class="btn-icon">🔄</span>
+                                    刷新数据
+                                </button>
+                                <button class="btn btn-danger" id="logoutBtn">
+                                    <span class="btn-icon">🚪</span>
+                                    退出登录
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
