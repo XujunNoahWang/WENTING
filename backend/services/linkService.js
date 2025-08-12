@@ -421,11 +421,13 @@ class LinkService {
         try {
             // 清除目标用户的现有TODO（避免重复）
             await query('DELETE FROM todos WHERE user_id = ?', [toUserId]);
+            // 🔥 同时清除完成记录
+            await query('DELETE FROM todo_completions WHERE user_id = ?', [toUserId]);
             
             const todos = await query('SELECT * FROM todos WHERE user_id = ? AND is_active = 1', [fromUserId]);
             
             for (const todo of todos) {
-                await query(`
+                const result = await query(`
                     INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, 
                                      repeat_interval, start_date, end_date, cycle_type, cycle_duration, 
                                      cycle_unit, sort_order, is_completed_today, is_active, created_at)
@@ -436,9 +438,29 @@ class LinkService {
                     todo.cycle_type, todo.cycle_duration, todo.cycle_unit, todo.sort_order,
                     todo.is_completed_today, todo.is_active, todo.created_at
                 ]);
+                
+                const newTodoId = result.insertId;
+                
+                // 🔥 同步完成状态历史
+                const completions = await query(`
+                    SELECT completion_date, notes 
+                    FROM todo_completions 
+                    WHERE todo_id = ? AND user_id = ?
+                `, [todo.id, fromUserId]);
+                
+                for (const completion of completions) {
+                    await query(`
+                        INSERT INTO todo_completions (todo_id, user_id, completion_date, notes)
+                        VALUES (?, ?, ?, ?)
+                    `, [newTodoId, toUserId, completion.completion_date, completion.notes || '']);
+                }
+                
+                if (completions.length > 0) {
+                    console.log(`  ✅ 同步了TODO "${todo.title}" 的 ${completions.length} 个完成记录`);
+                }
             }
             
-            console.log(`✅ 同步了 ${todos.length} 个TODO项目`);
+            console.log(`✅ 同步了 ${todos.length} 个TODO项目及其完成状态历史`);
         } catch (error) {
             console.error('❌ 同步TODO失败:', error);
             throw error;
