@@ -1,5 +1,8 @@
 // 主应用程序
 const App = {
+    // 防重复调用标志
+    _refreshingAfterLink: false,
+    
     init() {
         // 等待DOM加载完成
         if (document.readyState === 'loading') {
@@ -1340,10 +1343,8 @@ const App = {
                 if (action === 'accept') {
                     this.showLinkNotification('success', `已接受与 ${fromUser} 的关联邀请，正在刷新数据...`);
                     
-                    // 接受邀请成功后，立即刷新应用数据
-                    setTimeout(async () => {
-                        await this.refreshApplicationAfterLink();
-                    }, 1000); // 给通知一点显示时间
+                    // 🔥 修复：不在这里调用 refreshApplicationAfterLink，让 WebSocket 的 LINK_ESTABLISHED 消息处理
+                    console.log('✅ [Link] 邀请接受成功，等待 WebSocket LINK_ESTABLISHED 消息触发数据刷新');
                     
                 } else {
                     this.showLinkNotification('info', `已拒绝与 ${fromUser} 的关联邀请`);
@@ -1366,6 +1367,14 @@ const App = {
     
     // Link成功后刷新应用数据
     async refreshApplicationAfterLink() {
+        // 🔥 修复：防止重复调用
+        if (this._refreshingAfterLink) {
+            console.log('⚠️ [Link] 数据刷新已在进行中，跳过重复调用');
+            return;
+        }
+        
+        this._refreshingAfterLink = true;
+        
         try {
             console.log('🔄 [Link] 开始刷新应用数据...');
             
@@ -1449,6 +1458,9 @@ const App = {
         } catch (error) {
             console.error('❌ [Link] 刷新应用数据失败:', error);
             this.showLinkNotification('error', '数据刷新失败，请手动刷新页面');
+        } finally {
+            // 🔥 修复：重置标志，允许下次调用
+            this._refreshingAfterLink = false;
         }
     },
     
@@ -1732,37 +1744,17 @@ const App = {
             case 'LINK_ACCEPTED':
                 this.showLinkNotification('success', `${data.acceptedBy} 接受了您的关联邀请`);
                 
+                // 🔥 修复：发送方也需要自动跳转到Link页面并刷新数据
+                console.log('✅ [Link] 发送方收到关联接受通知，开始刷新应用数据');
+                setTimeout(async () => {
+                    await this.refreshApplicationAfterLink();
+                }, 1000);
+                
                 // 显示数据同步完成提示
                 if (data.syncMessage) {
                     setTimeout(() => {
                         this.showDataSyncNotification('success', data.syncMessage);
-                    }, 2000);
-                }
-                
-                // 如果当前在Link页面，刷新显示
-                if (document.querySelector('.link-content-area')) {
-                    setTimeout(async () => {
-                        try {
-                            // 重新加载用户数据
-                            if (window.UserManager) {
-                                await UserManager.loadUsersFromAPI();
-                            }
-                            
-                            // 重新检查关联状态
-                            await this.displayLinkConnectionStatus();
-                            
-                            // 如果有选中的用户，重新显示该用户信息
-                            const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
-                            if (currentUser) {
-                                const user = window.UserManager?.users?.find(u => u.id === currentUser);
-                                if (user) {
-                                    this.displayUserInfoInLink(user);
-                                }
-                            }
-                        } catch (error) {
-                            console.error('处理关联接受通知时重新加载数据失败:', error);
-                        }
-                    }, 1000);
+                    }, 3000); // 延迟一点避免与页面跳转冲突
                 }
                 break;
                 
