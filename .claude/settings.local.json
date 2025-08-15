@@ -92,11 +92,8 @@
       "Bash(cmd /c:*)",
       "Bash(start \"雯婷后端服务 - Link页面同时切换修复测试\" npm run dev)",
       "Bash(start \"雯婷后端服务 - Link页面调试测试\" npm run dev)",
-      "Bash(start \"雯婷后端服务 - Link ACCEPTED消息路由修复测试\" npm run dev)",
-      "WebFetch(domain:openweathermap.org)",
-      "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\build\\app.min.js.backup\")"
+      "Bash(start \"雯婷后端服务 - Link ACCEPTED消息路由修复测试\" npm run dev)"
     ],
-    "deny": [],
-    "defaultMode": "acceptEdits"
+    "deny": []
   }
 }

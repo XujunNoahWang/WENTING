@@ -3,11 +3,9 @@ const WebSocketClient = {
     ws: null,
     isConnected: false,
     reconnectAttempts: 0,
-    MAX_RECONNECT_ATTEMPTS: 5,
-    RECONNECT_INTERVAL: 2000,
-    HEARTBEAT_INTERVAL: null,
-    REQUEST_TIMEOUT: 120000, // 120秒超时
-    REGISTRATION_TIMEOUT: 5000, // 5秒注册超时
+    maxReconnectAttempts: 5,
+    reconnectInterval: 2000,
+    heartbeatInterval: null,
     messageHandlers: new Map(),
     lastDataStatus: {
         lastTodoUpdate: null,
@@ -76,7 +74,7 @@ const WebSocketClient = {
                     this.stopHeartbeat();
                     
                     // 如果不是主动关闭，尝试重连
-                    if (event.code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+                    if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
                         this.scheduleReconnect();
                     }
                 };
@@ -124,7 +122,7 @@ const WebSocketClient = {
                     this.messageHandlers.delete(errorType);
                     console.warn(`⚠️ WebSocket请求超时: ${type}`, data);
                     reject(new Error('请求超时'));
-                }, this.REQUEST_TIMEOUT);
+                }, 120000); // 增加到120秒超时
 
                 this.messageHandlers.set(responseType, (response) => {
                     clearTimeout(timeout);
@@ -379,7 +377,7 @@ const WebSocketClient = {
 
     // 心跳检测
     startHeartbeat() {
-        this.HEARTBEAT_INTERVAL = setInterval(() => {
+        this.heartbeatInterval = setInterval(() => {
             if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
                 // 获取当前用户信息
                 const deviceId = window.DeviceManager ? window.DeviceManager.deviceId : null;
@@ -398,24 +396,24 @@ const WebSocketClient = {
     },
 
     stopHeartbeat() {
-        if (this.HEARTBEAT_INTERVAL) {
-            clearInterval(this.HEARTBEAT_INTERVAL);
-            this.HEARTBEAT_INTERVAL = null;
+        if (this.heartbeatInterval) {
+            clearInterval(this.heartbeatInterval);
+            this.heartbeatInterval = null;
         }
     },
 
     // 计划重连
     scheduleReconnect() {
         this.reconnectAttempts++;
-        const delay = this.RECONNECT_INTERVAL * this.reconnectAttempts;
+        const delay = this.reconnectInterval * this.reconnectAttempts;
         
-        console.log(`🔄 计划在 ${delay}ms 后重连 (尝试 ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
+        console.log(`🔄 计划在 ${delay}ms 后重连 (尝试 ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
         
         setTimeout(() => {
             console.log(`🔄 开始第 ${this.reconnectAttempts} 次重连尝试`);
             this.init().catch(error => {
                 console.error('❌ 重连失败:', error);
-                if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
+                if (this.reconnectAttempts < this.maxReconnectAttempts) {
                     this.scheduleReconnect();
                 } else {
                     console.error('❌ 达到最大重连次数，放弃重连');
@@ -588,7 +586,7 @@ const WebSocketClient = {
             this.registrationTimeout = setTimeout(() => {
                 console.warn('⚠️ WebSocket注册确认超时，尝试重新注册');
                 this.sendRegistrationMessage();
-            }, this.REGISTRATION_TIMEOUT);
+            }, 5000);
             
         } catch (error) {
             console.error('❌ 发送注册消息失败:', error);
