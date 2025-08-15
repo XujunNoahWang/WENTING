@@ -1,18 +1,18 @@
 // 应用配置
 const APP_CONFIG = {
 
-    // 天气配置
+    // 天气配置 - 初始状态，等待真实数据
     weather: {
-        location: '深圳',
-        icon: '☀️',
-        condition: '晴朗',
-        temperature: '22°C',
+        location: '获取位置中...',
+        icon: '🌐',
+        condition: '加载中',
+        temperature: '--°C',
         wind: {
-            level: '3级',
+            level: '--',
             label: '风力'
         },
         humidity: {
-            value: '65%',
+            value: '--%',
             label: '湿度'
         }
     }
