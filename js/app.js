@@ -67,6 +67,11 @@ const App = {
         // 初始化TODO管理器（最后初始化，因为它依赖用户管理器）
         await TodoManager.init();
         
+        // 初始化Notes管理器
+        if (window.NotesManager) {
+            await NotesManager.init();
+        }
+        
         // 初始化Profile管理器
         if (window.ProfileManager) {
             await ProfileManager.init();

@@ -30,9 +30,7 @@ const NotesManager = {
         this.setDefaultUser();
         
         // 监听全局用户状态变化，但不设置模块
-        if (window.GlobalUserState) {
-            GlobalUserState.addListener(this.handleGlobalStateChange.bind(this));
-        }
+        await this.registerGlobalStateListener();
         
         // WebSocket消息处理由websocketClient.js统一管理，无需单独注册
         
@@ -67,6 +65,30 @@ const NotesManager = {
                 };
                 checkUsers();
             });
+        }
+    },
+
+    // 🔥 新增：等待并注册全局状态监听器
+    async registerGlobalStateListener() {
+        console.log('📝 [Notes] 开始注册全局状态监听器...');
+        
+        // 等待GlobalUserState准备好
+        let attempts = 0;
+        const maxAttempts = 50; // 最多等待5秒
+        
+        while (!window.GlobalUserState && attempts < maxAttempts) {
+            console.log(`⏳ [Notes] 等待GlobalUserState准备... (${attempts + 1}/${maxAttempts})`);
+            await new Promise(resolve => setTimeout(resolve, 100));
+            attempts++;
+        }
+        
+        if (window.GlobalUserState) {
+            console.log('📝 [Notes] 注册全局状态监听器...');
+            GlobalUserState.addListener(this.handleGlobalStateChange.bind(this));
+            console.log('✅ [Notes] 全局状态监听器注册完成');
+            console.log('🔍 [Notes] 当前监听器数量:', GlobalUserState.listeners.length);
+        } else {
+            console.error('❌ [Notes] GlobalUserState未找到，无法注册监听器');
         }
     },
 
@@ -227,18 +249,18 @@ const NotesManager = {
                 console.log(`🔄 [Notes] 用户从 ${oldUser} 切换到 ${newUserId}`);
                 // 只有当前模块是notes时才渲染
                 if (GlobalUserState.getCurrentModule() === 'notes') {
-                    console.log('✅ [Notes] 当前是Notes模块，加载并渲染Notes内容');
+                    console.log('✅ [Notes] 当前是Notes模块，直接渲染Notes内容');
                     
-                    // 🔥 关键修复：加载新用户数据并渲染
-                    this.loadNotesForUser(newUserId, true);
+                    // 🔥 关键修复：直接调用渲染方法，让渲染方法内部处理数据加载
+                    this.renderNotesPanel(newUserId);
                 } else {
                     console.log('⏸️ [Notes] 当前不是Notes模块，跳过渲染');
                 }
             } else {
                 console.log('🔄 [Notes] 用户ID相同，但仍需重新渲染Notes面板（可能是初始化调用）');
                 if (GlobalUserState.getCurrentModule() === 'notes') {
-                    console.log('✅ [Notes] 当前是Notes模块，加载并渲染Notes内容');
-                    this.loadNotesForUser(newUserId, true);
+                    console.log('✅ [Notes] 当前是Notes模块，直接渲染Notes内容');
+                    this.renderNotesPanel(newUserId);
                 } else {
                     console.log('⏸️ [Notes] 当前不是Notes模块，跳过渲染');
                 }
@@ -424,15 +446,49 @@ const NotesManager = {
         }
     },
 
-    // 渲染Notes面板
-    renderNotesPanel(userId) {
+    // 🔥 修复：渲染Notes面板 - 确保数据正确加载和显示
+    async renderNotesPanel(userId) {
         const contentArea = Utils.$('#contentArea');
         if (!contentArea) return;
 
+        console.log(`🎨 [Notes] 开始渲染用户 ${userId} 的Notes面板`);
+        console.log(`🔍 [Notes] 当前用户数据检查:`, {
+            userId: userId,
+            hasData: !!this.notes[userId],
+            dataLength: this.notes[userId] ? this.notes[userId].length : 'undefined',
+            allUsersData: Object.keys(this.notes).map(id => `${id}:${this.notes[id]?.length || 0}`).join(', ')
+        });
+
+        // 🔥 关键修复：如果用户数据不存在或为空，先尝试加载
+        if (!this.notes[userId] || this.notes[userId].length === 0) {
+            console.log(`📥 [Notes] 用户${userId}数据为空，尝试从API加载...`);
+            
+            // 显示加载状态
+            contentArea.innerHTML = `
+                <div class="content-panel" id="${userId}-notes-panel">
+                    <div class="notes-content">
+                        <div class="notes-loading">
+                            <div class="loading-spinner"></div>
+                            <p>正在加载笔记...</p>
+                        </div>
+                    </div>
+                </div>
+            `;
+            
+            try {
+                // 强制从API重新加载数据
+                await this.loadNotesForUser(userId, false);
+                console.log(`✅ [Notes] 用户${userId}数据加载完成，重新渲染`);
+            } catch (error) {
+                console.error(`❌ [Notes] 加载用户${userId}数据失败:`, error);
+                // 继续渲染空状态
+            }
+        }
+
+        // 获取最新的用户数据
         const userNotes = this.notes[userId] || [];
-        console.log(`🎨 [Notes] 渲染用户 ${userId} 的Notes面板，共 ${userNotes.length} 条笔记`);
-        console.log(`🔍 [Notes] 用户${userId}的数据:`, userNotes);
-        console.log(`🔍 [Notes] 全部notes数据:`, this.notes);
+        console.log(`🎨 [Notes] 最终渲染用户 ${userId} 的Notes面板，共 ${userNotes.length} 条笔记`);
+        console.log(`🔍 [Notes] 用户${userId}的最终数据:`, userNotes);
 
         const panelHtml = `
             <div class="content-panel" id="${userId}-notes-panel">
@@ -449,6 +505,7 @@ const NotesManager = {
         `;
 
         contentArea.innerHTML = panelHtml;
+        console.log(`✅ [Notes] 用户${userId}的Notes面板渲染完成`);
     },
 
     // 渲染笔记卡片
