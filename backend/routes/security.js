@@ -90,28 +90,28 @@ router.get('/config', (req, res) => {
         const config = {
             rateLimits: {
                 linkRequests: {
-                    maxRequests: 5,
+                    MAX_REQUESTS: 5,
                     timeWindow: '1 hour',
                     description: '每小时最多5个关联请求'
                 },
                 ipRequests: {
-                    maxRequests: 20,
+                    MAX_REQUESTS: 20,
                     timeWindow: '10 minutes',
                     description: '每IP每10分钟最多20个请求'
                 }
             },
             validation: {
                 usernameFormat: '^[a-z0-9]{1,10}$',
-                messageMaxLength: 200,
+                MESSAGE_MAX_LENGTH: 200,
                 preventSelfLink: true
             },
             audit: {
                 logAllEvents: true,
                 retentionPeriod: '30 days',
                 suspiciousActivityThresholds: {
-                    permissionDenials: 10,
-                    authFailures: 5,
-                    linkOperations: 20
+                    PERMISSION_DENIALS: 10,
+                    AUTH_FAILURES: 5,
+                    LINK_OPERATIONS: 20
                 }
             }
         };

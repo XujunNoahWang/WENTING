@@ -14,10 +14,10 @@ class ErrorHandler {
     
     // 重试配置
     static RETRY_CONFIG = {
-        maxRetries: 3,
-        baseDelay: 1000,
-        maxDelay: 8000,
-        backoffMultiplier: 1.5
+        MAX_RETRIES: 3,
+        BASE_DELAY: 1000,
+        MAX_DELAY: 8000,
+        BACKOFF_MULTIPLIER: 1.5
     };
     
     // 错误计数器
@@ -306,7 +306,7 @@ class ErrorHandler {
     
     // 网络错误恢复
     static async recoverNetworkError(errorInfo) {
-        if (errorInfo.retryCount >= this.RETRY_CONFIG.maxRetries) {
+        if (errorInfo.retryCount >= this.RETRY_CONFIG.MAX_RETRIES) {
             return { success: false, message: '网络连接重试次数已达上限' };
         }
         
@@ -379,7 +379,7 @@ class ErrorHandler {
     
     // 超时错误恢复
     static async recoverTimeoutError(errorInfo) {
-        if (errorInfo.retryCount >= this.RETRY_CONFIG.maxRetries) {
+        if (errorInfo.retryCount >= this.RETRY_CONFIG.MAX_RETRIES) {
             return { success: false, message: '操作超时重试次数已达上限' };
         }
         
@@ -539,14 +539,14 @@ class ErrorHandler {
         ];
         
         return retryableTypes.includes(errorInfo.type) && 
-               (errorInfo.retryCount || 0) < this.RETRY_CONFIG.maxRetries;
+               (errorInfo.retryCount || 0) < this.RETRY_CONFIG.MAX_RETRIES;
     }
     
     // 获取重试延迟
     static getRetryDelay(retryCount) {
         const delay = Math.min(
-            this.RETRY_CONFIG.baseDelay * Math.pow(this.RETRY_CONFIG.backoffMultiplier, retryCount),
-            this.RETRY_CONFIG.maxDelay
+            this.RETRY_CONFIG.BASE_DELAY * Math.pow(this.RETRY_CONFIG.BACKOFF_MULTIPLIER, retryCount),
+            this.RETRY_CONFIG.MAX_DELAY
         );
         return delay;
     }

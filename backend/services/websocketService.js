@@ -10,6 +10,9 @@ class WebSocketService {
         this.connections = new Map(); // deviceId -> { ws, userId, appUserId, lastActive }
         this.userConnections = new Map(); // userId -> Set of deviceIds
         this.appUserConnections = new Map(); // appUserId -> Set of deviceIds
+        // 常量定义
+        this.INVITATION_EXPIRES_IN = 300000; // 5分钟过期
+        this.SYNC_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7天过期
     }
 
     // 初始化WebSocket服务器
@@ -773,7 +776,7 @@ class WebSocketService {
                 supervisedUserName,
                 message: message || `${fromAppUser} 想要与您关联 ${supervisedUserName} 的健康数据`,
                 timestamp: Date.now(),
-                expiresIn: 300000 // 5分钟过期
+                expiresIn: this.INVITATION_EXPIRES_IN
             }
         };
         
@@ -918,7 +921,7 @@ class WebSocketService {
                     message: message,
                     isUpdate: result.isOverride || false,
                     timestamp: Date.now(),
-                    expiresIn: 7 * 24 * 60 * 60 * 1000 // 7天过期
+                    expiresIn: this.SYNC_EXPIRES_IN
                 }
             });
             

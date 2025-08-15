@@ -369,9 +369,9 @@ const ApiClient = {
                     
                     // 等待位置获取完成，最多等待5秒
                     let attempts = 0;
-                    const maxAttempts = 10; // 5秒内检查10次
+                    const MAX_ATTEMPTS = 10; // 5秒内检查10次
                     
-                    while (attempts < maxAttempts && !userLocation) {
+                    while (attempts < MAX_ATTEMPTS && !userLocation) {
                         await new Promise(resolve => setTimeout(resolve, 500));
                         
                         if (window.WeatherManager.locationReady && window.WeatherManager.userLocation) {
@@ -381,7 +381,7 @@ const ApiClient = {
                         }
                         
                         attempts++;
-                        console.log(`⏳ 位置获取尝试 ${attempts}/${maxAttempts}`);
+                        console.log(`⏳ 位置获取尝试 ${attempts}/${MAX_ATTEMPTS}`);
                     }
                     
                     if (!userLocation) {

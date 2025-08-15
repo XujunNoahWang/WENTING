@@ -43,7 +43,7 @@ const NotesManager = {
     // 等待用户管理器初始化完成
     async waitForUserManager() {
         // 设置最大等待时间为5秒，避免新用户无限等待
-        const maxWaitTime = 5000; // 5秒
+        const MAX_WAIT_TIME = 5000; // 5秒
         const startTime = Date.now();
         
         if (UserManager.users.length === 0) {
@@ -55,7 +55,7 @@ const NotesManager = {
                     if (UserManager.users.length > 0) {
                         console.log('✅ Notes: 用户数据已加载');
                         resolve();
-                    } else if (elapsedTime >= maxWaitTime) {
+                    } else if (elapsedTime >= MAX_WAIT_TIME) {
                         console.log('⏰ Notes: 等待超时，可能是新用户没有被管理用户，继续初始化...');
                         resolve();
                     } else {
