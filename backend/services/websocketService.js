@@ -10,6 +10,9 @@ class WebSocketService {
         this.connections = new Map(); // deviceId -> { ws, userId, appUserId, lastActive }
         this.userConnections = new Map(); // userId -> Set of deviceIds
         this.appUserConnections = new Map(); // appUserId -> Set of deviceIds
+        // 常量定义
+        this.INVITATION_EXPIRES_IN = 300000; // 5分钟过期
+        this.SYNC_EXPIRES_IN = 7 * 24 * 60 * 60 * 1000; // 7天过期
     }
 
     // 初始化WebSocket服务器
@@ -359,16 +362,59 @@ class WebSocketService {
 
     async handleNotesCreate(noteData) {
         const note = await Note.create(noteData);
+        
+        // 🔥 关键修复：触发同步逻辑（和TODO一样）
+        try {
+            const DataSyncService = require('./dataSyncService');
+            await DataSyncService.syncNotesOperation('create', note, note.user_id);
+            console.log('✅ [WebSocket] Notes创建同步完成');
+        } catch (syncError) {
+            console.error('⚠️ [WebSocket] Notes创建同步失败，但创建成功:', syncError);
+        }
+        
         return { note };
     }
 
     async handleNotesUpdate(noteId, updateData) {
         const note = await Note.updateById(noteId, updateData);
+        
+        // 🔥 关键修复：触发同步逻辑（和TODO一样）
+        try {
+            const DataSyncService = require('./dataSyncService');
+            await DataSyncService.syncNotesOperation('update', {
+                originalNoteId: noteId,
+                updateData: note,
+                title: note.title,
+                original_title: note.title  // 添加original_title用于匹配
+            }, note.user_id);
+            console.log('✅ [WebSocket] Notes更新同步完成');
+        } catch (syncError) {
+            console.error('⚠️ [WebSocket] Notes更新同步失败，但更新成功:', syncError);
+        }
+        
         return { note };
     }
 
     async handleNotesDelete(noteId) {
+        // 获取Note信息用于同步
+        const note = await Note.findById(noteId);
+        
         const success = await Note.deleteById(noteId);
+        
+        // 🔥 关键修复：触发删除同步逻辑
+        if (note && success) {
+            try {
+                const DataSyncService = require('./dataSyncService');
+                await DataSyncService.syncNotesOperation('delete', {
+                    originalNoteId: noteId,
+                    title: note.title
+                }, note.user_id);
+                console.log('✅ [WebSocket] Notes删除同步完成');
+            } catch (syncError) {
+                console.error('⚠️ [WebSocket] Notes删除同步失败，但删除成功:', syncError);
+            }
+        }
+        
         return { noteId, success };
     }
 
@@ -476,18 +522,32 @@ class WebSocketService {
     broadcastToAppUser(appUserId, message) {
         console.log(`📡 [WebSocket] 尝试向app用户 ${appUserId} 广播消息:`, message.type);
         
+        let result = {
+            success: false,
+            broadcastCount: 0,
+            hasConnection: false,
+            deviceCount: 0,
+            error: null
+        };
+        
         if (this.appUserConnections.has(appUserId)) {
             const deviceIds = this.appUserConnections.get(appUserId);
-            let broadcastCount = 0;
+            result.hasConnection = true;
+            result.deviceCount = deviceIds.size;
             
             console.log(`📱 [WebSocket] 用户 ${appUserId} 有 ${deviceIds.size} 个设备连接:`, Array.from(deviceIds));
 
             deviceIds.forEach(deviceId => {
                 const connection = this.connections.get(deviceId);
                 if (connection && connection.ws.readyState === WebSocket.OPEN) {
-                    this.sendMessage(connection.ws, message);
-                    broadcastCount++;
-                    console.log(`✅ [WebSocket] 消息已发送到设备 ${deviceId}`);
+                    try {
+                        this.sendMessage(connection.ws, message);
+                        result.broadcastCount++;
+                        console.log(`✅ [WebSocket] 消息已发送到设备 ${deviceId}`);
+                    } catch (error) {
+                        console.log(`❌ [WebSocket] 发送消息到设备 ${deviceId} 失败:`, error.message);
+                        result.error = error.message;
+                    }
                 } else {
                     console.log(`⚠️ [WebSocket] 设备 ${deviceId} 连接无效，跳过`);
                     // 清理无效连接
@@ -498,15 +558,20 @@ class WebSocketService {
                 }
             });
 
-            if (broadcastCount > 0) {
-                console.log(`📡 已向app用户 ${appUserId} 的 ${broadcastCount} 个设备广播消息`);
+            if (result.broadcastCount > 0) {
+                console.log(`📡 已向app用户 ${appUserId} 的 ${result.broadcastCount} 个设备广播消息`);
+                result.success = true;
             } else {
                 console.log(`⚠️ app用户 ${appUserId} 没有有效的设备连接`);
+                result.error = '没有有效的设备连接';
             }
         } else {
             console.log(`⚠️ app用户 ${appUserId} 当前没有活跃连接`);
             console.log(`📊 [WebSocket] 当前所有连接:`, Array.from(this.appUserConnections.keys()));
+            result.error = '用户没有活跃连接';
         }
+        
+        return result;
 
         // 🔄 增强逻辑：如果消息类型为取消关联，确保关联双方都收到通知
         if (message.type === 'LINK_CANCELLED' && message.data) {
@@ -535,6 +600,28 @@ class WebSocketService {
             error: message,
             timestamp: Date.now()
         });
+    }
+    
+    // 🔥 新增：获取连接状态信息
+    getConnectionStatus() {
+        return {
+            totalConnections: this.connections.size,
+            appUserConnections: Array.from(this.appUserConnections.keys()),
+            appUserConnectionsDetail: Object.fromEntries(
+                Array.from(this.appUserConnections.entries()).map(([appUser, deviceIds]) => [
+                    appUser, 
+                    {
+                        deviceCount: deviceIds.size,
+                        deviceIds: Array.from(deviceIds),
+                        activeDevices: Array.from(deviceIds).filter(deviceId => {
+                            const connection = this.connections.get(deviceId);
+                            return connection && connection.ws.readyState === WebSocket.OPEN;
+                        })
+                    }
+                ])
+            ),
+            hasAppUser: (appUserId) => this.appUserConnections.has(appUserId)
+        };
     }
 
     // Link操作处理函数
@@ -773,7 +860,7 @@ class WebSocketService {
                 supervisedUserName,
                 message: message || `${fromAppUser} 想要与您关联 ${supervisedUserName} 的健康数据`,
                 timestamp: Date.now(),
-                expiresIn: 300000 // 5分钟过期
+                expiresIn: this.INVITATION_EXPIRES_IN
             }
         };
         
@@ -918,7 +1005,7 @@ class WebSocketService {
                     message: message,
                     isUpdate: result.isOverride || false,
                     timestamp: Date.now(),
-                    expiresIn: 7 * 24 * 60 * 60 * 1000 // 7天过期
+                    expiresIn: this.SYNC_EXPIRES_IN
                 }
             });
             

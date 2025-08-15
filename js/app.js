@@ -1922,12 +1922,12 @@ const App = {
     // 🔥 新增：确保WebSocket注册的方法
     ensureWebSocketRegistration() {
         let attempts = 0;
-        const maxAttempts = 10;
-        const checkInterval = 500; // 500ms
+        const MAX_ATTEMPTS = 10;
+        const CHECK_INTERVAL = 500; // 500ms
 
         const tryRegistration = () => {
             attempts++;
-            console.log(`🔄 [WebSocket] 尝试注册 (${attempts}/${maxAttempts})`);
+            console.log(`🔄 [WebSocket] 尝试注册 (${attempts}/${MAX_ATTEMPTS})`);
 
             const deviceId = window.DeviceManager ? window.DeviceManager.getCurrentDeviceId() : null;
             const appUserId = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null;
@@ -1941,9 +1941,9 @@ const App = {
                 return;
             }
 
-            if (attempts < maxAttempts) {
-                console.log(`⏳ [WebSocket] 注册信息不完整，${checkInterval}ms后重试...`);
-                setTimeout(tryRegistration, checkInterval);
+            if (attempts < MAX_ATTEMPTS) {
+                console.log(`⏳ [WebSocket] 注册信息不完整，${CHECK_INTERVAL}ms后重试...`);
+                setTimeout(tryRegistration, CHECK_INTERVAL);
             } else {
                 console.error('❌ [WebSocket] 达到最大重试次数，注册失败');
                 console.log('💡 [WebSocket] 请检查用户登录状态和设备ID生成');

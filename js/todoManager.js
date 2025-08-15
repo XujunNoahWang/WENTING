@@ -7,6 +7,9 @@ const TodoManager = {
     // 添加缓存机制
     todoCache: new Map(),
     lastLoadedDate: null,
+    // 重试配置
+    RETRY_DELAY_BASE: 1000, // 基础重试延迟1秒
+    RETRY_DELAY_MULTIPLIER: 2000, // 整体重试延迟2秒
 
     // 初始化
     async init() {
@@ -45,7 +48,7 @@ const TodoManager = {
     // 等待用户管理器初始化完成
     async waitForUserManager() {
         // 设置最大等待时间为5秒，避免新用户无限等待
-        const maxWaitTime = 5000; // 5秒
+        const MAX_WAIT_TIME = 5000; // 5秒
         const startTime = Date.now();
         
         if (UserManager.users.length === 0) {
@@ -57,7 +60,7 @@ const TodoManager = {
                     if (UserManager.users.length > 0) {
                         console.log('✅ 用户数据已加载');
                         resolve();
-                    } else if (elapsedTime >= maxWaitTime) {
+                    } else if (elapsedTime >= MAX_WAIT_TIME) {
                         console.log('⏰ 等待超时，可能是新用户没有被管理用户，继续初始化...');
                         resolve();
                     } else {
@@ -1113,7 +1116,7 @@ const TodoManager = {
     async loadTodosForDate(date, userId = null, silent = false, retryCount = 0) {
         const dateStr = date.toISOString().split('T')[0];
         const targetUserId = userId || this.currentUser;
-        const maxRetries = 3;
+        const MAX_RETRIES = 3;
         
         if (!silent) {
             console.log('🔄 开始加载指定日期的TODO数据...');
@@ -1169,10 +1172,10 @@ const TodoManager = {
                 } catch (error) {
                     console.warn(`加载用户${user.id}在${dateStr}的TODO失败:`, error.message);
                     // 如果是超时错误且还没达到最大重试次数，进行重试
-                    if (error.message.includes('请求超时') && retryCount < maxRetries) {
-                        console.log(`🔄 超时重试 ${retryCount + 1}/${maxRetries} 用户${user.id}...`);
+                    if (error.message.includes('请求超时') && retryCount < MAX_RETRIES) {
+                        console.log(`🔄 超时重试 ${retryCount + 1}/${MAX_RETRIES} 用户${user.id}...`);
                         // 延迟后重试
-                        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 1000));
+                        await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * this.RETRY_DELAY_BASE));
                         return this.loadTodosForDate(date, userId, silent, retryCount + 1);
                     }
                     this.todos[user.id] = [];
@@ -1204,18 +1207,18 @@ const TodoManager = {
             console.error(`加载用户${targetUserId}在${dateStr}的TODO失败:`, error);
             
             // 如果是超时错误且还没达到最大重试次数，进行重试
-            if (error.message.includes('请求超时') && retryCount < maxRetries) {
-                console.log(`🔄 整体超时重试 ${retryCount + 1}/${maxRetries}...`);
-                if (!silent) this.showMessage(`请求超时，正在重试 (${retryCount + 1}/${maxRetries})...`, 'warning');
+            if (error.message.includes('请求超时') && retryCount < MAX_RETRIES) {
+                console.log(`🔄 整体超时重试 ${retryCount + 1}/${MAX_RETRIES}...`);
+                if (!silent) this.showMessage(`请求超时，正在重试 (${retryCount + 1}/${MAX_RETRIES})...`, 'warning');
                 
                 // 延迟后重试
-                await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * 2000));
+                await new Promise(resolve => setTimeout(resolve, (retryCount + 1) * this.RETRY_DELAY_MULTIPLIER));
                 return this.loadTodosForDate(date, userId, silent, retryCount + 1);
             }
             
             // 最终失败或非超时错误
-            const errorMsg = retryCount >= maxRetries ? 
-                `加载TODO失败: ${error.message} (已重试${maxRetries}次)` : 
+            const errorMsg = retryCount >= MAX_RETRIES ? 
+                `加载TODO失败: ${error.message} (已重试${MAX_RETRIES}次)` : 
                 `加载TODO失败: ${error.message}`;
             
             if (!silent) this.showMessage(errorMsg, 'error');

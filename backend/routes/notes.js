@@ -105,7 +105,7 @@ router.put('/:id', async (req, res) => {
             });
         }
         
-        // 🔥 关键修复：触发Notes同步逻辑
+        // 🔥 关键修复：触发Notes同步逻辑（和TODO保持一致）
         try {
             const DataSyncService = require('../services/dataSyncService');
             await DataSyncService.syncNotesOperation('update', {
@@ -158,7 +158,7 @@ router.delete('/:id', async (req, res) => {
             });
         }
         
-        // 🔥 关键修复：触发Notes删除同步逻辑
+        // 🔥 关键修复：触发Notes删除同步逻辑（和TODO保持一致）
         if (note) {
             try {
                 const DataSyncService = require('../services/dataSyncService');

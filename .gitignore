@@ -1,64 +1,73 @@
+# 临时禁用所有忽略规则 - 包含所有文件
+# 
+# 原来的忽略规则已注释，现在提交所有文件包括：
+# - node_modules/
+# - cloudflared.exe  
+# - .env 文件
+# - 数据库文件
+# - IDE 配置
+# - 所有依赖和二进制文件
+#
+# 注意：这会让仓库变得很大，建议仅在需要完整备份时使用
+
 # 依赖文件
-node_modules/
-npm-debug.log*
-yarn-debug.log*
-yarn-error.log*
+# node_modules/
+# npm-debug.log*
+# yarn-debug.log*
+# yarn-error.log*
 
 # 环境配置文件
-.env
-.env.local
-.env.development.local
-.env.test.local
-.env.production.local
+# .env
+# .env.local
+# .env.development.local
+# .env.test.local
+# .env.production.local
 
-# 数据库文件 (允许wenting.db被提交)
-# backend/data/
-# *.db
-*.sqlite
-*.sqlite3
-# 但排除临时数据库文件
-*.db-shm
-*.db-wal
+# 数据库文件
+# *.sqlite
+# *.sqlite3
+# *.db-shm
+# *.db-wal
 
 # 日志文件
-logs/
-*.log
+# logs/
+# *.log
 
 # 临时文件
-.tmp/
-.temp/
-.cache/
+# .tmp/
+# .temp/
+# .cache/
 
 # 操作系统文件
-.DS_Store
-.DS_Store?
-._*
-.Spotlight-V100
-.Trashes
-ehthumbs.db
-Thumbs.db
+# .DS_Store
+# .DS_Store?
+# ._*
+# .Spotlight-V100
+# .Trashes
+# ehthumbs.db
+# Thumbs.db
 
 # IDE文件
-.vscode/
-.idea/
-*.swp
-*.swo
-*~
+# .vscode/
+# .idea/
+# *.swp
+# *.swo
+# *~
 
 # 备份文件
-*_old.*
-*_backup.*
-*.bak
+# *_old.*
+# *_backup.*
+# *.bak
 
 # 测试覆盖率
-coverage/
-.nyc_output/
+# coverage/
+# .nyc_output/
 
 # Cloudflare tunnel 二进制文件
-cloudflared.exe
+# cloudflared.exe
 
 # 临时文件和调试文件
-nul
+# nul
 
 # Claude 本地设置
-.claude/settings.local.json
+# .claude/settings.local.json

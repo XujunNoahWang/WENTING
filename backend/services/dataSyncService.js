@@ -133,6 +133,8 @@ class DataSyncService {
     // 广播Notes同步通知
     static async broadcastNotesSyncNotification(operation, noteData, originalUserId) {
         try {
+            console.log(`📡 [DataSync] 开始广播Notes同步通知: ${operation}, 用户ID: ${originalUserId}`);
+            
             // 获取关联关系
             const links = await query(`
                 SELECT manager_app_user, linked_app_user
@@ -141,24 +143,45 @@ class DataSyncService {
                 WHERE u.id = ? AND ul.status = 'active'
             `, [originalUserId]);
             
+            console.log(`🔍 [DataSync] 用户${originalUserId}的关联关系:`, links);
+            
             if (links.length === 0) {
+                console.log(`⚠️ [DataSync] 用户${originalUserId}没有关联关系，跳过广播`);
                 return;
             }
             
             // 获取操作用户的app_user_id
             const operatingUser = await query('SELECT app_user_id FROM users WHERE id = ?', [originalUserId]);
-            if (operatingUser.length === 0) return;
+            console.log(`📝 [DataSync] 操作用户查询结果:`, operatingUser);
+            
+            if (operatingUser.length === 0) {
+                console.log(`❌ [DataSync] 找不到用户${originalUserId}的app_user_id`);
+                return;
+            }
             
             const operatingAppUser = operatingUser[0].app_user_id;
+            console.log(`📝 [DataSync] 操作用户: ${operatingAppUser}`);
             
             // 向所有关联用户发送实时通知
             for (const link of links) {
                 const targetAppUser = operatingAppUser === link.manager_app_user ? 
                                     link.linked_app_user : link.manager_app_user;
                 
+                console.log(`🎯 [DataSync] 准备广播给: ${targetAppUser} (操作用户: ${operatingAppUser})`);
+                
                 // 发送WebSocket通知
                 if (websocketService) {
-                    websocketService.broadcastToAppUser(targetAppUser, {
+                    console.log(`📡 [DataSync] WebSocket服务存在，开始发送广播...`);
+                    
+                    // 🔥 新增：检查WebSocket连接状态
+                    console.log(`🔍 [DataSync] 检查WebSocket连接状态:`);
+                    const connectionStatus = websocketService.getConnectionStatus();
+                    console.log(`  - 总连接数: ${connectionStatus.totalConnections}`);
+                    console.log(`  - App用户连接: ${JSON.stringify(connectionStatus.appUserConnections)}`);
+                    console.log(`  - App用户连接详情: ${JSON.stringify(connectionStatus.appUserConnectionsDetail)}`);
+                    console.log(`  - 目标用户${targetAppUser}连接状态: ${connectionStatus.hasAppUser(targetAppUser)}`);
+                    
+                    const broadcastMessage = {
                         type: 'NOTES_SYNC_UPDATE',
                         operation: operation.toUpperCase(),
                         data: noteData,
@@ -167,9 +190,19 @@ class DataSyncService {
                             userId: originalUserId,
                             timestamp: Date.now()
                         }
-                    });
+                    };
                     
-                    console.log(`🔔 [WebSocket] 已通知关联用户 ${targetAppUser}: Notes ${operation}`);
+                    console.log(`📨 [DataSync] 广播消息内容:`, broadcastMessage);
+                    console.log(`🎯 [DataSync] 发送目标: ${targetAppUser}`);
+                    
+                    // 🔥 新增：记录广播前状态
+                    console.log(`📡 [DataSync] 开始广播到${targetAppUser}...`);
+                    const broadcastResult = websocketService.broadcastToAppUser(targetAppUser, broadcastMessage);
+                    console.log(`📡 [DataSync] 广播结果:`, broadcastResult);
+                    
+                    console.log(`🔔 [WebSocket] 已发送广播给关联用户 ${targetAppUser}: Notes ${operation}`);
+                } else {
+                    console.log(`❌ [DataSync] WebSocket服务不存在！`);
                 }
             }
             

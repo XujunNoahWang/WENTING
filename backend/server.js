@@ -113,6 +113,24 @@ app.get('/health', (req, res) => {
     });
 });
 
+// 🔥 新增：WebSocket连接状态检查端点
+app.get('/debug/websocket-status', (req, res) => {
+    try {
+        const status = websocketService.getConnectionStatus();
+        res.json({
+            success: true,
+            data: status,
+            timestamp: new Date().toISOString()
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
 // 静态文件服务 - 服务前端文件
 app.use(express.static('../', {
     setHeaders: (res, path) => {

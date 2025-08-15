@@ -3,9 +3,11 @@ const WebSocketClient = {
     ws: null,
     isConnected: false,
     reconnectAttempts: 0,
-    maxReconnectAttempts: 5,
-    reconnectInterval: 2000,
-    heartbeatInterval: null,
+    MAX_RECONNECT_ATTEMPTS: 5,
+    RECONNECT_INTERVAL: 2000,
+    HEARTBEAT_INTERVAL: null,
+    REQUEST_TIMEOUT: 120000, // 120秒超时
+    REGISTRATION_TIMEOUT: 5000, // 5秒注册超时
     messageHandlers: new Map(),
     lastDataStatus: {
         lastTodoUpdate: null,
@@ -74,7 +76,7 @@ const WebSocketClient = {
                     this.stopHeartbeat();
                     
                     // 如果不是主动关闭，尝试重连
-                    if (event.code !== 1000 && this.reconnectAttempts < this.maxReconnectAttempts) {
+                    if (event.code !== 1000 && this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
                         this.scheduleReconnect();
                     }
                 };
@@ -122,7 +124,7 @@ const WebSocketClient = {
                     this.messageHandlers.delete(errorType);
                     console.warn(`⚠️ WebSocket请求超时: ${type}`, data);
                     reject(new Error('请求超时'));
-                }, 120000); // 增加到120秒超时
+                }, this.REQUEST_TIMEOUT);
 
                 this.messageHandlers.set(responseType, (response) => {
                     clearTimeout(timeout);
@@ -152,6 +154,15 @@ const WebSocketClient = {
     handleMessage(message) {
         const { type } = message;
         console.log('📥 收到WebSocket消息:', type, message);
+        
+        // 🔥 新增：详细记录消息接收状态
+        const currentAppUser = localStorage.getItem('wenting_current_app_user');
+        console.log(`🔍 [WebSocket] 消息接收调试:`, {
+            messageType: type,
+            currentAppUser: currentAppUser,
+            timestamp: new Date().toISOString(),
+            messageData: message
+        });
 
         // 🔥 新增：特别处理注册确认
         if (type === 'USER_REGISTRATION_RESPONSE') {
@@ -183,8 +194,22 @@ const WebSocketClient = {
             console.log(`🔄 [SYNC] 当前页面状态:`, {
                 currentModule: window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null,
                 currentUser: window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null,
-                appUserId: window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null
+                appUserId: window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null,
+                fromUser: message.sync?.fromUser,
+                operation: message.operation
             });
+            
+            // 🔥 新增：特别记录NOTES_SYNC_UPDATE
+            if (type === 'NOTES_SYNC_UPDATE') {
+                console.log(`📝 [NOTES_SYNC] blackblade收到Notes同步消息:`, {
+                    fromUser: message.sync?.fromUser,
+                    operation: message.operation,
+                    userId: message.sync?.userId,
+                    currentAppUser: localStorage.getItem('wenting_current_app_user'),
+                    timestamp: new Date().toISOString()
+                });
+            }
+            
             this.handleSyncMessage(message);
             return;
         }
@@ -261,19 +286,13 @@ const WebSocketClient = {
             );
         }
 
-        // 通知相应的Manager处理同步更新（只在对应模块时才触发渲染）
+        // 通知相应的Manager处理同步更新（始终处理，但Manager内部会根据模块决定是否渲染UI）
         if (type === 'TODO_SYNC_UPDATE' && window.TodoManager) {
-            if (currentModule === 'todo') {
-                window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
-            } else {
-                console.log('⏸️ 当前不在TODO模块，跳过UI渲染，仅后台同步');
-            }
+            window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
         } else if (type === 'NOTES_SYNC_UPDATE' && window.NotesManager) {
-            if (currentModule === 'notes') {
-                window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
-            } else {
-                console.log('⏸️ 当前不在NOTES模块，跳过UI渲染，仅后台同步');
-            }
+            // 🔥 关键修复：始终调用NotesManager处理同步，让Manager内部决定是否渲染UI
+            console.log('🔄 [WebSocket] 调用NotesManager处理同步消息');
+            window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
         }
     },
 
@@ -377,7 +396,7 @@ const WebSocketClient = {
 
     // 心跳检测
     startHeartbeat() {
-        this.heartbeatInterval = setInterval(() => {
+        this.HEARTBEAT_INTERVAL = setInterval(() => {
             if (this.isConnected && this.ws.readyState === WebSocket.OPEN) {
                 // 获取当前用户信息
                 const deviceId = window.DeviceManager ? window.DeviceManager.deviceId : null;
@@ -396,24 +415,24 @@ const WebSocketClient = {
     },
 
     stopHeartbeat() {
-        if (this.heartbeatInterval) {
-            clearInterval(this.heartbeatInterval);
-            this.heartbeatInterval = null;
+        if (this.HEARTBEAT_INTERVAL) {
+            clearInterval(this.HEARTBEAT_INTERVAL);
+            this.HEARTBEAT_INTERVAL = null;
         }
     },
 
     // 计划重连
     scheduleReconnect() {
         this.reconnectAttempts++;
-        const delay = this.reconnectInterval * this.reconnectAttempts;
+        const delay = this.RECONNECT_INTERVAL * this.reconnectAttempts;
         
-        console.log(`🔄 计划在 ${delay}ms 后重连 (尝试 ${this.reconnectAttempts}/${this.maxReconnectAttempts})`);
+        console.log(`🔄 计划在 ${delay}ms 后重连 (尝试 ${this.reconnectAttempts}/${this.MAX_RECONNECT_ATTEMPTS})`);
         
         setTimeout(() => {
             console.log(`🔄 开始第 ${this.reconnectAttempts} 次重连尝试`);
             this.init().catch(error => {
                 console.error('❌ 重连失败:', error);
-                if (this.reconnectAttempts < this.maxReconnectAttempts) {
+                if (this.reconnectAttempts < this.MAX_RECONNECT_ATTEMPTS) {
                     this.scheduleReconnect();
                 } else {
                     console.error('❌ 达到最大重连次数，放弃重连');
@@ -586,7 +605,7 @@ const WebSocketClient = {
             this.registrationTimeout = setTimeout(() => {
                 console.warn('⚠️ WebSocket注册确认超时，尝试重新注册');
                 this.sendRegistrationMessage();
-            }, 5000);
+            }, this.REGISTRATION_TIMEOUT);
             
         } catch (error) {
             console.error('❌ 发送注册消息失败:', error);
