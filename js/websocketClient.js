@@ -153,9 +153,23 @@ const WebSocketClient = {
     // 处理接收到的消息
     handleMessage(message) {
         const { type } = message;
+        this._logMessageReceived(type, message);
+        
+        if (this._handleSpecialMessages(type, message)) return;
+        if (this._handleRegisteredHandlers(type, message)) return;
+        if (this._handleHeartbeatMessages(type, message)) return;
+        if (this._handleSyncMessages(type, message)) return;
+        if (this._handleBroadcastMessages(type, message)) return;
+        if (this._handleLinkMessages(type, message)) return;
+        if (this._handleResponseMessages(type, message)) return;
+        
+        console.log('⚠️ 未处理的消息类型:', type);
+    },
+
+    // 记录消息接收
+    _logMessageReceived(type, message) {
         console.log('📥 收到WebSocket消息:', type, message);
         
-        // 🔥 新增：详细记录消息接收状态
         const currentAppUser = localStorage.getItem('wenting_current_app_user');
         console.log(`🔍 [WebSocket] 消息接收调试:`, {
             messageType: type,
@@ -163,76 +177,93 @@ const WebSocketClient = {
             timestamp: new Date().toISOString(),
             messageData: message
         });
+    },
 
-        // 🔥 新增：特别处理注册确认
+    // 处理特殊消息
+    _handleSpecialMessages(type, message) {
         if (type === 'USER_REGISTRATION_RESPONSE') {
-            if (this.registrationTimeout) {
-                clearTimeout(this.registrationTimeout);
-                this.registrationTimeout = null;
-            }
-            console.log('✅ WebSocket注册确认收到:', message);
-            return;
+            this._handleRegistrationResponse(message);
+            return true;
         }
+        return false;
+    },
 
-        // 处理响应和错误消息
+    // 处理注册响应
+    _handleRegistrationResponse(message) {
+        if (this.registrationTimeout) {
+            clearTimeout(this.registrationTimeout);
+            this.registrationTimeout = null;
+        }
+        console.log('✅ WebSocket注册确认收到:', message);
+    },
+
+    // 处理已注册的处理器
+    _handleRegisteredHandlers(type, message) {
         if (this.messageHandlers.has(type)) {
             const handler = this.messageHandlers.get(type);
             handler(message);
-            return;
+            return true;
         }
+        return false;
+    },
 
-        // 处理心跳响应并检查数据变化
+    // 处理心跳消息
+    _handleHeartbeatMessages(type, message) {
         if (type === 'PONG' || type === 'PING_RESPONSE') {
             console.log('💗 收到心跳响应');
             this.handleHeartbeatResponse(message);
-            return;
+            return true;
         }
+        return false;
+    },
 
-        // 🔥 关键修复：统一处理所有同步消息，添加更多调试信息
+    // 处理同步消息
+    _handleSyncMessages(type, message) {
         if (type === 'TODO_SYNC_UPDATE' || type === 'NOTES_SYNC_UPDATE' || type === 'DATA_SYNC_UPDATE') {
-            console.log(`🔄 [SYNC] 收到同步消息: ${type}`, message);
-            console.log(`🔄 [SYNC] 当前页面状态:`, {
-                currentModule: window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : null,
-                currentUser: window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null,
-                appUserId: window.GlobalUserState ? window.GlobalUserState.getAppUserId() : null,
-                fromUser: message.sync?.fromUser,
-                operation: message.operation
-            });
-            
-            // 🔥 新增：特别记录NOTES_SYNC_UPDATE
-            if (type === 'NOTES_SYNC_UPDATE') {
-                console.log(`📝 [NOTES_SYNC] blackblade收到Notes同步消息:`, {
-                    fromUser: message.sync?.fromUser,
-                    operation: message.operation,
-                    userId: message.sync?.userId,
-                    currentAppUser: localStorage.getItem('wenting_current_app_user'),
-                    timestamp: new Date().toISOString()
-                });
-            }
-            
+            this._logSyncMessage(type, message);
             this.handleSyncMessage(message);
-            return;
+            return true;
         }
+        return false;
+    },
 
-        // 处理广播消息
+
+    // 记录Notes同步
+    _logNotesSync(message) {
+        console.log(`📝 [NOTES_SYNC] blackblade收到Notes同步消息:`, {
+            fromUser: message.sync?.fromUser,
+            operation: message.operation,
+            userId: message.sync?.userId,
+            currentAppUser: localStorage.getItem('wenting_current_app_user'),
+            timestamp: new Date().toISOString()
+        });
+    },
+
+    // 处理广播消息
+    _handleBroadcastMessages(type, message) {
         if (type.endsWith('_BROADCAST')) {
             this.handleBroadcast(message);
-            return;
+            return true;
         }
+        return false;
+    },
 
-        // 处理Link相关通知消息
+    // 处理Link消息
+    _handleLinkMessages(type, message) {
         if (type.startsWith('LINK_')) {
             this.handleLinkNotification(message);
-            return;
+            return true;
         }
+        return false;
+    },
 
-        // 处理其他响应消息
+    // 处理响应消息
+    _handleResponseMessages(type, message) {
         if (type.endsWith('_RESPONSE')) {
             console.log(`📨 收到响应消息: ${type}`, message.success ? '✅' : '❌');
-            return;
+            return true;
         }
-
-        console.log('⚠️ 未处理的消息类型:', type);
+        return false;
     },
 
     // 🔥 新增：统一的同步消息处理方法
@@ -710,74 +741,125 @@ const WebSocketClient = {
         try {
             console.log('🔄 [RELOAD] 重新加载应用数据:', { dataType, forceReload });
             
-            // 如果指定了数据类型或者全部重新加载，才处理TODO
-            if (dataType === 'all' || dataType === 'todos') {
-                if (window.TodoManager) {
-                    console.log('🧹 [RELOAD] 清除TODO缓存');
-                    window.TodoManager.clearAllRelatedCache();
-                    
-                    const currentDate = window.DateManager ? window.DateManager.selectedDate : new Date();
-                    const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
-                    const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
-                    
-                    console.log('📅 [RELOAD] 重新加载TODO数据:', { 
-                        currentDate: currentDate.toISOString().split('T')[0], 
-                        currentUser,
-                        currentModule,
-                        forceReload
-                    });
-                    
-                    if (currentUser) {
-                        // 强制重新加载，不使用缓存
-                        window.TodoManager.loadTodosForDate(currentDate, currentUser, false).then(() => {
-                            console.log('✅ [RELOAD] TODO数据重新加载完成');
-                            
-                            // 如果当前在TODO模块，重新渲染界面
-                            if (currentModule === 'todo') {
-                                console.log('🎨 [RELOAD] 重新渲染TODO界面');
-                                window.TodoManager.renderTodoPanel(currentUser);
-                            }
-                        }).catch(error => {
-                            console.error('❌ [RELOAD] TODO数据重新加载失败:', error);
-                        });
-                    } else {
-                        console.log('⚠️ [RELOAD] 没有当前用户，跳过TODO数据加载');
-                    }
-                } else {
-                    console.log('⚠️ [RELOAD] TodoManager不可用');
-                }
+            if (this._shouldReloadTodos(dataType)) {
+                this._reloadTodoData(forceReload);
             }
             
-            // 如果指定了数据类型或者全部重新加载，才处理Notes
-            if (dataType === 'all' || dataType === 'notes') {
-                if (window.NotesManager && typeof window.NotesManager.loadNotesFromAPI === 'function') {
-                    console.log('🔄 [RELOAD] 重新加载Notes数据');
-                    
-                    const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
-                    const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
-                    
-                    console.log('📝 [RELOAD] Notes重新加载信息:', { 
-                        currentModule,
-                        currentUser,
-                        forceReload 
-                    });
-                    
-                    // 🔥 关键修复：只有在Notes模块时才自动渲染，其他情况只后台同步数据
-                    const shouldAutoRender = currentModule === 'notes';
-                    window.NotesManager.loadNotesFromAPI(shouldAutoRender, currentUser);
-                    
-                    if (!shouldAutoRender) {
-                        console.log('⏸️ [RELOAD] 当前不在Notes页面，只进行后台数据同步');
-                    }
-                } else if (window.NotesManager) {
-                    console.log('⚠️ [RELOAD] NotesManager存在但loadNotesFromAPI方法不可用');
-                }
+            if (this._shouldReloadNotes(dataType)) {
+                this._reloadNotesData(forceReload);
             }
             
             console.log('✅ [RELOAD] 应用数据重新加载完成');
         } catch (error) {
             console.error('❌ [RELOAD] 重新加载应用数据失败:', error);
         }
+    },
+
+    // 检查是否需要重新加载TODO数据
+    _shouldReloadTodos(dataType) {
+        return dataType === 'all' || dataType === 'todos';
+    },
+
+    // 检查是否需要重新加载Notes数据
+    _shouldReloadNotes(dataType) {
+        return dataType === 'all' || dataType === 'notes';
+    },
+
+    // 重新加载TODO数据
+    _reloadTodoData(forceReload) {
+        if (!window.TodoManager) {
+            console.log('⚠️ [RELOAD] TodoManager不可用');
+            return;
+        }
+
+        console.log('🧹 [RELOAD] 清除TODO缓存');
+        window.TodoManager.clearAllRelatedCache();
+        
+        const reloadContext = this._getTodoReloadContext(forceReload);
+        console.log('📅 [RELOAD] 重新加载TODO数据:', reloadContext);
+        
+        if (reloadContext.currentUser) {
+            this._executeTodoReload(reloadContext);
+        } else {
+            console.log('⚠️ [RELOAD] 没有当前用户，跳过TODO数据加载');
+        }
+    },
+
+    // 获取TODO重新加载上下文
+    _getTodoReloadContext(forceReload) {
+        const currentDate = window.DateManager ? window.DateManager.selectedDate : new Date();
+        const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+        const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
+        
+        return {
+            currentDate: currentDate.toISOString().split('T')[0],
+            currentUser,
+            currentModule,
+            forceReload
+        };
+    },
+
+    // 执行TODO重新加载
+    _executeTodoReload(reloadContext) {
+        window.TodoManager.loadTodosForDate(
+            new Date(reloadContext.currentDate), 
+            reloadContext.currentUser, 
+            false
+        ).then(() => {
+            console.log('✅ [RELOAD] TODO数据重新加载完成');
+            this._renderTodoIfNeeded(reloadContext);
+        }).catch(error => {
+            console.error('❌ [RELOAD] TODO数据重新加载失败:', error);
+        });
+    },
+
+    // 如需要则渲染TODO界面
+    _renderTodoIfNeeded(reloadContext) {
+        if (reloadContext.currentModule === 'todo') {
+            console.log('🎨 [RELOAD] 重新渲染TODO界面');
+            window.TodoManager.renderTodoPanel(reloadContext.currentUser);
+        }
+    },
+
+    // 重新加载Notes数据
+    _reloadNotesData(forceReload) {
+        if (!this._isNotesManagerAvailable()) {
+            return;
+        }
+
+        console.log('🔄 [RELOAD] 重新加载Notes数据');
+        
+        const notesContext = this._getNotesReloadContext(forceReload);
+        console.log('📝 [RELOAD] Notes重新加载信息:', notesContext);
+        
+        const shouldAutoRender = notesContext.currentModule === 'notes';
+        window.NotesManager.loadNotesFromAPI(shouldAutoRender, notesContext.currentUser);
+        
+        if (!shouldAutoRender) {
+            console.log('⏸️ [RELOAD] 当前不在Notes页面，只进行后台数据同步');
+        }
+    },
+
+    // 检查NotesManager是否可用
+    _isNotesManagerAvailable() {
+        if (window.NotesManager && typeof window.NotesManager.loadNotesFromAPI === 'function') {
+            return true;
+        } else if (window.NotesManager) {
+            console.log('⚠️ [RELOAD] NotesManager存在但loadNotesFromAPI方法不可用');
+        }
+        return false;
+    },
+
+    // 获取Notes重新加载上下文
+    _getNotesReloadContext(forceReload) {
+        const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
+        const currentUser = window.GlobalUserState ? window.GlobalUserState.getCurrentUser() : null;
+        
+        return {
+            currentModule,
+            currentUser,
+            forceReload
+        };
     },
     
     // 显示同步通知

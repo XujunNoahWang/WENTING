@@ -528,72 +528,126 @@ const TodoManager = {
 
     // 切换TODO状态
     async toggleTodo(checkbox) {
+        const toggleContext = this._prepareToggleContext(checkbox);
+        if (!toggleContext) return;
+
+        try {
+            await this._syncToggleToServer(toggleContext);
+            this._updateLocalTodoState(toggleContext);
+            this._updateTodoUI(toggleContext);
+            this._showSyncStatus(toggleContext);
+        } catch (error) {
+            this._handleToggleError(error, toggleContext);
+        }
+    },
+
+    // 准备切换上下文
+    _prepareToggleContext(checkbox) {
         const todoId = parseInt(checkbox.dataset.id);
         const userId = parseInt(checkbox.dataset.member);
         
-        if (!todoId || !userId) return;
+        if (!todoId || !userId) return null;
 
-        // 找到对应的todo项
         const todo = this.todos[userId]?.find(t => t.id === todoId);
-        if (!todo) return;
+        if (!todo) return null;
 
-        const wasCompleted = todo.completed;
         const currentDate = DateManager.selectedDate || new Date();
         const dateStr = currentDate.toISOString().split('T')[0];
-        
-        try {
-            // 同步到服务器 - 优先使用WebSocket
-            if (WebSocketClient.isConnected) {
-                if (wasCompleted) {
-                    await WebSocketClient.todos.uncomplete(todoId, dateStr, userId);
-                } else {
-                    await WebSocketClient.todos.complete(todoId, userId, dateStr);
-                }
-            } else {
-                // 降级到HTTP
-                if (wasCompleted) {
-                    await ApiClient.todos.uncomplete(todoId, dateStr, userId);
-                } else {
-                    await ApiClient.todos.complete(todoId, userId, dateStr);
-                }
-            }
 
-            // 切换本地状态
-            todo.completed = !todo.completed;
-            
-            // 清除当前日期的缓存，确保状态同步
-            const cacheKey = `${userId}_${dateStr}`;
-            this.todoCache.delete(cacheKey);
-            console.log('🧹 TODO状态切换：清除缓存', cacheKey);
-            
-            // 更新UI
-            const todoItem = checkbox.closest('.todo-item');
-            const todoContent = checkbox.nextElementSibling;
-            const todoText = todoContent?.querySelector('.todo-text');
-            
-            if (todo.completed) {
-                checkbox.classList.add('checked');
-                if (todoText) todoText.classList.add('completed');
-                if (todoItem) todoItem.classList.add('completed');
-            } else {
-                checkbox.classList.remove('checked');
-                if (todoText) todoText.classList.remove('completed');
-                if (todoItem) todoItem.classList.remove('completed');
-            }
-            
-            // 检查是否有关联用户，显示同步状态
-            const syncStatus = this.getSyncStatus(userId);
-            if (syncStatus.isLinked) {
-                const action = todo.completed ? '完成' : '取消完成';
-                this.showSyncStatusToast(`${action}状态已同步`, 'success');
-            }
-            
-        } catch (error) {
-            console.error('切换TODO状态失败:', error);
-            // 恢复原状态
-            todo.completed = wasCompleted;
-            this.showMessage('操作失败: ' + error.message, 'error');
+        return {
+            todoId,
+            userId,
+            todo,
+            wasCompleted: todo.completed,
+            dateStr,
+            checkbox
+        };
+    },
+
+    // 同步切换到服务器
+    async _syncToggleToServer(context) {
+        const { todoId, userId, wasCompleted, dateStr } = context;
+        
+        if (WebSocketClient.isConnected) {
+            await this._syncViaWebSocket(todoId, userId, dateStr, wasCompleted);
+        } else {
+            await this._syncViaHTTP(todoId, userId, dateStr, wasCompleted);
         }
+    },
+
+    // 通过WebSocket同步
+    async _syncViaWebSocket(todoId, userId, dateStr, wasCompleted) {
+        if (wasCompleted) {
+            await WebSocketClient.todos.uncomplete(todoId, dateStr, userId);
+        } else {
+            await WebSocketClient.todos.complete(todoId, userId, dateStr);
+        }
+    },
+
+    // 通过HTTP同步
+    async _syncViaHTTP(todoId, userId, dateStr, wasCompleted) {
+        if (wasCompleted) {
+            await ApiClient.todos.uncomplete(todoId, dateStr, userId);
+        } else {
+            await ApiClient.todos.complete(todoId, userId, dateStr);
+        }
+    },
+
+    // 更新本地TODO状态
+    _updateLocalTodoState(context) {
+        const { todo, userId, dateStr } = context;
+        
+        todo.completed = !todo.completed;
+        
+        const cacheKey = `${userId}_${dateStr}`;
+        this.todoCache.delete(cacheKey);
+        console.log('🧹 TODO状态切换：清除缓存', cacheKey);
+    },
+
+    // 更新TODO界面
+    _updateTodoUI(context) {
+        const { checkbox, todo } = context;
+        const todoItem = checkbox.closest('.todo-item');
+        const todoContent = checkbox.nextElementSibling;
+        const todoText = todoContent?.querySelector('.todo-text');
+        
+        if (todo.completed) {
+            this._markTodoCompleted(checkbox, todoText, todoItem);
+        } else {
+            this._markTodoIncomplete(checkbox, todoText, todoItem);
+        }
+    },
+
+    // 标记TODO为已完成
+    _markTodoCompleted(checkbox, todoText, todoItem) {
+        checkbox.classList.add('checked');
+        if (todoText) todoText.classList.add('completed');
+        if (todoItem) todoItem.classList.add('completed');
+    },
+
+    // 标记TODO为未完成
+    _markTodoIncomplete(checkbox, todoText, todoItem) {
+        checkbox.classList.remove('checked');
+        if (todoText) todoText.classList.remove('completed');
+        if (todoItem) todoItem.classList.remove('completed');
+    },
+
+    // 显示同步状态
+    _showSyncStatus(context) {
+        const { userId, todo } = context;
+        const syncStatus = this.getSyncStatus(userId);
+        
+        if (syncStatus.isLinked) {
+            const action = todo.completed ? '完成' : '取消完成';
+            this.showSyncStatusToast(`${action}状态已同步`, 'success');
+        }
+    },
+
+    // 处理切换错误
+    _handleToggleError(error, context) {
+        console.error('切换TODO状态失败:', error);
+        context.todo.completed = context.wasCompleted;
+        this.showMessage('操作失败: ' + error.message, 'error');
     },
 
     // 显示添加TODO表单
