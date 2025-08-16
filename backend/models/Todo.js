@@ -151,33 +151,63 @@ class Todo {
 
     // 判断TODO是否应该在指定日期显示（同步版本 - 最高性能）
     static shouldShowOnDateSync(todo, targetDate) {
-        const startDate = new Date(todo.start_date);
-        const target = new Date(targetDate);
+        const dateContext = this._createDateContext(todo, targetDate);
         
-        // 如果目标日期早于开始日期，不显示
-        if (target < startDate) {
+        if (!this._isTargetDateValid(dateContext)) {
             return false;
         }
 
-        // 如果有结束日期且目标日期晚于结束日期，不显示
-        if (todo.end_date) {
-            const endDate = new Date(todo.end_date);
-            if (target > endDate) {
-                return false;
-            }
+        if (!this._isWithinEndDateRange(todo, dateContext)) {
+            return false;
         }
 
-        // 检查重复周期限制
-        if (todo.cycle_type === 'custom' && todo.cycle_duration) {
-            const cycleEndDate = Todo.calculateCycleEndDate(startDate, todo.cycle_duration, todo.cycle_unit);
-            if (target > cycleEndDate) {
-                return false;
-            }
+        if (!this._isWithinCycleRange(todo, dateContext)) {
+            return false;
         }
 
-        // 计算天数差
+        return this._checkRepeatPattern(todo, dateContext);
+    }
+
+    // 创建日期上下文
+    static _createDateContext(todo, targetDate) {
+        const startDate = new Date(todo.start_date);
+        const target = new Date(targetDate);
         const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
+        
+        return { startDate, target, daysDiff };
+    }
 
+    // 检查目标日期是否有效
+    static _isTargetDateValid(dateContext) {
+        return dateContext.target >= dateContext.startDate;
+    }
+
+    // 检查是否在结束日期范围内
+    static _isWithinEndDateRange(todo, dateContext) {
+        if (!todo.end_date) return true;
+        
+        const endDate = new Date(todo.end_date);
+        return dateContext.target <= endDate;
+    }
+
+    // 检查是否在周期范围内
+    static _isWithinCycleRange(todo, dateContext) {
+        if (todo.cycle_type !== 'custom' || !todo.cycle_duration) {
+            return true;
+        }
+        
+        const cycleEndDate = Todo.calculateCycleEndDate(
+            dateContext.startDate, 
+            todo.cycle_duration, 
+            todo.cycle_unit
+        );
+        return dateContext.target <= cycleEndDate;
+    }
+
+    // 检查重复模式
+    static _checkRepeatPattern(todo, dateContext) {
+        const { target, startDate, daysDiff } = dateContext;
+        
         switch (todo.repeat_type) {
             case 'none':
                 return daysDiff === 0;
@@ -190,67 +220,47 @@ class Todo {
             case 'monthly':
                 return target.getDate() === startDate.getDate();
             case 'yearly':
-                return target.getDate() === startDate.getDate() && 
-                       target.getMonth() === startDate.getMonth();
-            case 'custom': {
-                const interval = todo.repeat_interval || 1;
-                return daysDiff % interval === 0;
-            }
+                return this._checkYearlyPattern(target, startDate);
+            case 'custom':
+                return this._checkCustomPattern(todo, daysDiff);
             default:
                 return false;
         }
     }
 
+    // 检查年度重复模式
+    static _checkYearlyPattern(target, startDate) {
+        return target.getDate() === startDate.getDate() && 
+               target.getMonth() === startDate.getMonth();
+    }
+
+    // 检查自定义重复模式
+    static _checkCustomPattern(todo, daysDiff) {
+        const interval = todo.repeat_interval || 1;
+        return daysDiff % interval === 0;
+    }
+
     // 判断TODO是否应该在指定日期显示（优化版本 - 无数据库查询）
     static async shouldShowOnDateOptimized(todo, targetDate) {
-        const startDate = new Date(todo.start_date);
-        const target = new Date(targetDate);
+        return this._performOptimizedDateCheck(todo, targetDate);
+    }
+
+    // 执行优化的日期检查
+    static _performOptimizedDateCheck(todo, targetDate) {
+        const dateContext = this._createDateContext(todo, targetDate);
         
-        // 如果目标日期早于开始日期，不显示
-        if (target < startDate) {
+        if (!this._validateDateConstraints(todo, dateContext)) {
             return false;
         }
 
-        // 如果有结束日期且目标日期晚于结束日期，不显示
-        if (todo.end_date) {
-            const endDate = new Date(todo.end_date);
-            if (target > endDate) {
-                return false;
-            }
-        }
+        return this._checkRepeatPattern(todo, dateContext);
+    }
 
-        // 检查重复周期限制
-        if (todo.cycle_type === 'custom' && todo.cycle_duration) {
-            const cycleEndDate = Todo.calculateCycleEndDate(startDate, todo.cycle_duration, todo.cycle_unit);
-            if (target > cycleEndDate) {
-                return false;
-            }
-        }
-
-        // 计算天数差
-        const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
-
-        switch (todo.repeat_type) {
-            case 'none':
-                return daysDiff === 0;
-            case 'daily':
-                return true;
-            case 'every_other_day':
-                return daysDiff % 2 === 0;
-            case 'weekly':
-                return daysDiff % 7 === 0;
-            case 'monthly':
-                return target.getDate() === startDate.getDate();
-            case 'yearly':
-                return target.getDate() === startDate.getDate() && 
-                       target.getMonth() === startDate.getMonth();
-            case 'custom': {
-                const interval = todo.repeat_interval || 1;
-                return daysDiff % interval === 0;
-            }
-            default:
-                return false;
-        }
+    // 验证日期约束条件
+    static _validateDateConstraints(todo, dateContext) {
+        return this._isTargetDateValid(dateContext) &&
+               this._isWithinEndDateRange(todo, dateContext) &&
+               this._isWithinCycleRange(todo, dateContext);
     }
 
     // 判断TODO是否应该在指定日期显示
@@ -341,39 +351,6 @@ class Todo {
         return deletionRecord.length === 0;
     }
 
-    // 检查重复模式
-    static _checkRepeatPattern(todo, dateContext) {
-        const { startDate, target, daysDiff } = dateContext;
-        
-        switch (todo.repeat_type) {
-            case 'none':
-                return daysDiff === 0;
-                
-            case 'daily':
-                return true;
-                
-            case 'every_other_day':
-                return daysDiff % 2 === 0;
-                
-            case 'weekly':
-                return daysDiff % 7 === 0;
-                
-            case 'monthly':
-                return target.getDate() === startDate.getDate();
-                
-            case 'yearly':
-                return target.getDate() === startDate.getDate() && 
-                       target.getMonth() === startDate.getMonth();
-                       
-            case 'custom': {
-                const interval = todo.repeat_interval || 1;
-                return daysDiff % interval === 0;
-            }
-                
-            default:
-                return false;
-        }
-    }
 
     // 检查TODO在指定日期是否已完成
     static async isCompletedOnDate(todoId, date) {

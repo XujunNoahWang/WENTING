@@ -1103,52 +1103,87 @@ const TodoManager = {
     async handleEditTodo(event, todoId, _userId) {
         event.preventDefault();
         
-        const formData = new FormData(event.target);
-        const repeatType = formData.get('repeat_type') || 'none';
-        const customInterval = parseInt(formData.get('custom_interval')) || 1;
-        const cycleType = formData.get('cycle_type') || 'long_term';
-        const cycleDuration = parseInt(formData.get('cycle_duration')) || null;
-        const cycleUnit = formData.get('cycle_unit') || 'days';
+        const updateData = this._extractEditFormData(event.target);
         
-        const updateData = {
+        try {
+            await this._performTodoUpdate(todoId, updateData);
+            await this._handleUpdateSuccess();
+        } catch (error) {
+            this._handleUpdateError(error);
+        }
+    },
+
+    // 提取编辑表单数据
+    _extractEditFormData(form) {
+        const formData = new FormData(form);
+        const repeatType = formData.get('repeat_type') || 'none';
+        const cycleType = formData.get('cycle_type') || 'long_term';
+        
+        return {
             title: formData.get('title'),
             description: formData.get('description') || '',
             reminder_time: formData.get('reminder_time') || 'all_day',
             priority: formData.get('priority') || 'medium',
             repeat_type: repeatType,
-            repeat_interval: repeatType === 'custom' ? customInterval : 1,
+            repeat_interval: this._getRepeatInterval(formData, repeatType),
             cycle_type: cycleType,
-            cycle_duration: cycleType === 'custom' ? cycleDuration : null,
-            cycle_unit: cycleType === 'custom' ? cycleUnit : 'days',
+            cycle_duration: this._getCycleDuration(formData, cycleType),
+            cycle_unit: this._getCycleUnit(formData, cycleType),
             start_date: formData.get('start_date')
         };
+    },
 
-        try {
-            // 在服务器更新TODO
-            const response = await ApiClient.todos.update(todoId, updateData);
-            if (response.success) {
-                console.log('✅ 在服务器更新TODO成功');
-                
-                // 关闭表单
-                this.closeEditTodoForm();
-                
-                // 清除该用户的所有缓存，因为编辑可能改变了重复规则，影响多个日期
-                this.clearAllRelatedCache(this.currentUser);
-                
-                // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
-                const currentDate = DateManager.selectedDate || new Date();
-                await this.loadTodosForDate(currentDate, this.currentUser);
-                
-                // 显示成功消息
-                this.showMessage('TODO更新成功！', 'success');
-            } else {
-                throw new Error(response.message || '更新TODO失败');
-            }
-            
-        } catch (error) {
-            console.error('更新TODO失败:', error);
-            this.showMessage('更新TODO失败: ' + error.message, 'error');
+    // 获取重复间隔
+    _getRepeatInterval(formData, repeatType) {
+        if (repeatType === 'custom') {
+            return parseInt(formData.get('custom_interval')) || 1;
         }
+        return 1;
+    },
+
+    // 获取周期持续时间
+    _getCycleDuration(formData, cycleType) {
+        if (cycleType === 'custom') {
+            return parseInt(formData.get('cycle_duration')) || null;
+        }
+        return null;
+    },
+
+    // 获取周期单位
+    _getCycleUnit(formData, cycleType) {
+        if (cycleType === 'custom') {
+            return formData.get('cycle_unit') || 'days';
+        }
+        return 'days';
+    },
+
+    // 执行TODO更新
+    async _performTodoUpdate(todoId, updateData) {
+        const response = await ApiClient.todos.update(todoId, updateData);
+        if (!response.success) {
+            throw new Error(response.message || '更新TODO失败');
+        }
+        console.log('✅ 在服务器更新TODO成功');
+    },
+
+    // 处理更新成功
+    async _handleUpdateSuccess() {
+        this.closeEditTodoForm();
+        this._refreshTodoData();
+        this.showMessage('TODO更新成功！', 'success');
+    },
+
+    // 刷新TODO数据
+    async _refreshTodoData() {
+        this.clearAllRelatedCache(this.currentUser);
+        const currentDate = DateManager.selectedDate || new Date();
+        await this.loadTodosForDate(currentDate, this.currentUser);
+    },
+
+    // 处理更新错误
+    _handleUpdateError(error) {
+        console.error('更新TODO失败:', error);
+        this.showMessage('更新TODO失败: ' + error.message, 'error');
     },
 
     // 处理编辑重复频率变化

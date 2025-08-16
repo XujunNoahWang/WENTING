@@ -402,54 +402,60 @@ const WebSocketClient = {
         const { type, data } = message;
         console.log('🔗 [WebSocket] 处理Link通知:', type, data);
 
-        // 根据消息类型处理Link相关通知
-        switch (type) {
-            case 'LINK_REQUEST_RECEIVED':
-                // 收到关联邀请
-                console.log('📨 [WebSocket] 收到关联邀请:', data);
-                if (window.App && window.App.showLinkInvitationDialog) {
-                    window.App.showLinkInvitationDialog(data);
-                } else {
-                    console.error('❌ App.showLinkInvitationDialog 方法不存在');
-                }
-                break;
-                
-            case 'LINK_INVITATION_ACCEPTED':
-            case 'LINK_INVITATION_REJECTED':
-            case 'LINK_ACCEPTED':
-            case 'LINK_CANCELLED':
-                // 其他Link状态通知
-                console.log(`🔗 [WebSocket] Link状态变更:`, type, data);
-                if (window.App && window.App.handleLinkStatusChange) {
-                    window.App.handleLinkStatusChange(type, data);
-                } else {
-                    console.error('❌ App.handleLinkStatusChange 方法不存在');
-                }
-                break;
-                
-            case 'LINK_ESTABLISHED':
-                // Link建立成功通知 - 触发应用数据刷新
-                console.log(`🔗 [WebSocket] Link建立成功:`, data);
-                if (window.App && window.App.refreshApplicationAfterLink) {
-                    console.log('🔄 [WebSocket] 触发应用数据刷新...');
-                    window.App.refreshApplicationAfterLink();
-                } else {
-                    console.error('❌ App.refreshApplicationAfterLink 方法不存在');
-                }
-                break;
+        const handler = this._getLinkNotificationHandler(type);
+        if (handler) {
+            handler(data, type);
+        } else {
+            console.log('⚠️ [WebSocket] 未处理的Link通知类型:', type);
+        }
+    },
 
-            case 'DATA_SYNC_UPDATE':
-                // 数据同步更新通知
-                console.log('🔄 [WebSocket] 数据同步更新:', data);
-                if (window.App && window.App.handleDataSyncUpdate) {
-                    window.App.handleDataSyncUpdate(data);
-                } else {
-                    console.error('❌ App.handleDataSyncUpdate 方法不存在');
-                }
-                break;
+    // 获取Link通知处理器
+    _getLinkNotificationHandler(type) {
+        const handlers = {
+            'LINK_REQUEST_RECEIVED': this._handleLinkRequestReceived.bind(this),
+            'LINK_INVITATION_ACCEPTED': this._handleLinkStatusChange.bind(this),
+            'LINK_INVITATION_REJECTED': this._handleLinkStatusChange.bind(this),
+            'LINK_ACCEPTED': this._handleLinkStatusChange.bind(this),
+            'LINK_CANCELLED': this._handleLinkStatusChange.bind(this),
+            'LINK_ESTABLISHED': this._handleLinkEstablished.bind(this),
+            'DATA_SYNC_UPDATE': this._handleDataSyncUpdate.bind(this)
+        };
+        
+        return handlers[type];
+    },
 
-            default:
-                console.log('⚠️ [WebSocket] 未处理的Link通知类型:', type);
+    // 处理Link请求接收
+    _handleLinkRequestReceived(data) {
+        console.log('📨 [WebSocket] 收到关联邀请:', data);
+        this._callAppMethod('showLinkInvitationDialog', data);
+    },
+
+    // 处理Link状态变更
+    _handleLinkStatusChange(data, type) {
+        console.log(`🔗 [WebSocket] Link状态变更:`, type || 'unknown', data);
+        this._callAppMethod('handleLinkStatusChange', type, data);
+    },
+
+    // 处理Link建立成功
+    _handleLinkEstablished(data) {
+        console.log(`🔗 [WebSocket] Link建立成功:`, data);
+        console.log('🔄 [WebSocket] 触发应用数据刷新...');
+        this._callAppMethod('refreshApplicationAfterLink');
+    },
+
+    // 处理数据同步更新
+    _handleDataSyncUpdate(data) {
+        console.log('🔄 [WebSocket] 数据同步更新:', data);
+        this._callAppMethod('handleDataSyncUpdate', data);
+    },
+
+    // 安全调用App方法
+    _callAppMethod(methodName, ...args) {
+        if (window.App && typeof window.App[methodName] === 'function') {
+            window.App[methodName](...args);
+        } else {
+            console.error(`❌ App.${methodName} 方法不存在`);
         }
     },
 
