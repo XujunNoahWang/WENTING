@@ -255,16 +255,58 @@ class Todo {
 
     // 判断TODO是否应该在指定日期显示
     static async shouldShowOnDate(todo, targetDate) {
+        const dateContext = this._prepareDateContext(todo, targetDate);
+        
+        if (!this._isDateInValidRange(todo, dateContext)) {
+            return false;
+        }
+
+        if (!await this._isDateNotDeleted(todo.id, dateContext.targetDateStr)) {
+            return false;
+        }
+
+        return this._checkRepeatPattern(todo, dateContext);
+    }
+
+    // 准备日期上下文
+    static _prepareDateContext(todo, targetDate) {
         const startDate = new Date(todo.start_date);
         const target = new Date(targetDate);
         const targetDateStr = target.toISOString().split('T')[0];
+        const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
+        
+        return {
+            startDate,
+            target,
+            targetDateStr,
+            daysDiff
+        };
+    }
+
+    // 检查日期是否在有效范围内
+    static _isDateInValidRange(todo, dateContext) {
+        const { startDate, target, targetDateStr } = dateContext;
         
         // 如果目标日期早于开始日期，不显示
         if (target < startDate) {
             return false;
         }
 
-        // 如果有结束日期且目标日期晚于结束日期，不显示
+        // 检查结束日期限制
+        if (!this._isWithinEndDate(todo, target, targetDateStr)) {
+            return false;
+        }
+
+        // 检查重复周期限制
+        if (!this._isWithinCycleDuration(todo, startDate, target, targetDateStr)) {
+            return false;
+        }
+
+        return true;
+    }
+
+    // 检查是否在结束日期范围内
+    static _isWithinEndDate(todo, target, targetDateStr) {
         if (todo.end_date) {
             const endDate = new Date(todo.end_date);
             console.log(`📅 检查结束日期: TODO ${todo.id}, 结束日期: ${todo.end_date}, 目标日期: ${targetDateStr}, 目标日期 > 结束日期: ${target > endDate}`);
@@ -273,8 +315,11 @@ class Todo {
                 return false;
             }
         }
+        return true;
+    }
 
-        // 检查重复周期限制
+    // 检查是否在重复周期范围内
+    static _isWithinCycleDuration(todo, startDate, target, targetDateStr) {
         if (todo.cycle_type === 'custom' && todo.cycle_duration) {
             const cycleEndDate = Todo.calculateCycleEndDate(startDate, todo.cycle_duration, todo.cycle_unit);
             console.log(`📅 检查重复周期: TODO ${todo.id}, 周期结束日期: ${cycleEndDate.toISOString().split('T')[0]}, 目标日期: ${targetDateStr}`);
@@ -283,41 +328,40 @@ class Todo {
                 return false;
             }
         }
+        return true;
+    }
 
-        // 检查是否有针对这个日期的删除记录
+    // 检查日期是否未被删除
+    static async _isDateNotDeleted(todoId, targetDateStr) {
         const deletionRecord = await query(`
             SELECT deletion_type FROM todo_deletions 
             WHERE todo_id = ? AND deletion_date = ?
-        `, [todo.id, targetDateStr]);
+        `, [todoId, targetDateStr]);
         
-        if (deletionRecord.length > 0) {
-            // 如果有删除记录，不显示
-            return false;
-        }
+        return deletionRecord.length === 0;
+    }
 
-        // 计算天数差
-        const daysDiff = Math.floor((target - startDate) / (1000 * 60 * 60 * 24));
-
+    // 检查重复模式
+    static _checkRepeatPattern(todo, dateContext) {
+        const { startDate, target, daysDiff } = dateContext;
+        
         switch (todo.repeat_type) {
             case 'none':
-                // 一次性任务，只在开始日期显示
                 return daysDiff === 0;
                 
             case 'daily':
-                return true; // 每天都显示
+                return true;
                 
             case 'every_other_day':
-                return daysDiff % 2 === 0; // 隔天显示
+                return daysDiff % 2 === 0;
                 
             case 'weekly':
-                return daysDiff % 7 === 0; // 每周显示
+                return daysDiff % 7 === 0;
                 
             case 'monthly':
-                // 每月同一天显示
                 return target.getDate() === startDate.getDate();
                 
             case 'yearly':
-                // 每年同一天显示
                 return target.getDate() === startDate.getDate() && 
                        target.getMonth() === startDate.getMonth();
                        

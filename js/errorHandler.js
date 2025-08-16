@@ -89,7 +89,14 @@ class ErrorHandler {
     
     // 分析错误
     static analyzeError(error, context) {
-        const errorInfo = {
+        const errorInfo = this._createBaseErrorInfo(error, context);
+        this._classifyErrorType(error, errorInfo);
+        return errorInfo;
+    }
+
+    // 创建基础错误信息
+    static _createBaseErrorInfo(error, context) {
+        return {
             timestamp: new Date().toISOString(),
             message: error.message || '未知错误',
             stack: error.stack,
@@ -99,32 +106,85 @@ class ErrorHandler {
             retryCount: context.retryCount || 0,
             operation: context.operation || 'unknown'
         };
-        
-        // 根据错误特征分类
-        if (error.name === 'TypeError' && error.message.includes('fetch')) {
-            errorInfo.type = this.ERROR_TYPES.NETWORK;
-            errorInfo.canAutoRecover = true;
-        } else if (error.name === 'AbortError' || error.message.includes('timeout')) {
-            errorInfo.type = this.ERROR_TYPES.TIMEOUT;
-            errorInfo.canAutoRecover = true;
-        } else if (error.status === 400 || error.message.includes('validation')) {
-            errorInfo.type = this.ERROR_TYPES.VALIDATION;
-            errorInfo.canAutoRecover = false;
-        } else if (error.status === 403 || error.status === 401) {
-            errorInfo.type = this.ERROR_TYPES.PERMISSION;
-            errorInfo.canAutoRecover = false;
-        } else if (error.message.includes('WebSocket') || error.message.includes('websocket')) {
-            errorInfo.type = this.ERROR_TYPES.WEBSOCKET;
-            errorInfo.canAutoRecover = true;
-        } else if (error.message.includes('sync') || error.message.includes('同步')) {
-            errorInfo.type = this.ERROR_TYPES.SYNC;
-            errorInfo.canAutoRecover = true;
-        } else if (error.status >= 500) {
-            errorInfo.type = this.ERROR_TYPES.NETWORK;
-            errorInfo.canAutoRecover = true;
+    }
+
+    // 分类错误类型
+    static _classifyErrorType(error, errorInfo) {
+        if (this._isNetworkError(error)) {
+            this._setNetworkError(errorInfo);
+        } else if (this._isTimeoutError(error)) {
+            this._setTimeoutError(errorInfo);
+        } else if (this._isValidationError(error)) {
+            this._setValidationError(errorInfo);
+        } else if (this._isPermissionError(error)) {
+            this._setPermissionError(errorInfo);
+        } else if (this._isWebSocketError(error)) {
+            this._setWebSocketError(errorInfo);
+        } else if (this._isSyncError(error)) {
+            this._setSyncError(errorInfo);
+        } else if (this._isServerError(error)) {
+            this._setNetworkError(errorInfo);
         }
-        
-        return errorInfo;
+    }
+
+    // 错误类型检查方法
+    static _isNetworkError(error) {
+        return error.name === 'TypeError' && error.message.includes('fetch');
+    }
+
+    static _isTimeoutError(error) {
+        return error.name === 'AbortError' || error.message.includes('timeout');
+    }
+
+    static _isValidationError(error) {
+        return error.status === 400 || error.message.includes('validation');
+    }
+
+    static _isPermissionError(error) {
+        return error.status === 403 || error.status === 401;
+    }
+
+    static _isWebSocketError(error) {
+        return error.message.includes('WebSocket') || error.message.includes('websocket');
+    }
+
+    static _isSyncError(error) {
+        return error.message.includes('sync') || error.message.includes('同步');
+    }
+
+    static _isServerError(error) {
+        return error.status >= 500;
+    }
+
+    // 错误属性设置方法
+    static _setNetworkError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.NETWORK;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setTimeoutError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.TIMEOUT;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setValidationError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.VALIDATION;
+        errorInfo.canAutoRecover = false;
+    }
+
+    static _setPermissionError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.PERMISSION;
+        errorInfo.canAutoRecover = false;
+    }
+
+    static _setWebSocketError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.WEBSOCKET;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setSyncError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.SYNC;
+        errorInfo.canAutoRecover = true;
     }
     
     // 记录错误

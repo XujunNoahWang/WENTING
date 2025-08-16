@@ -161,82 +161,81 @@ class User {
     // 更新用户信息
     static async updateById(id, updateData) {
         try {
-            const {
-                username,
-                display_name,
-                email,
-                phone,
-                gender,
-                birthday,
-                avatar_color,
-                timezone
-            } = updateData;
-
-            // 如果更新用户名，检查是否已存在
-            if (username) {
-                const existingUser = await User.findByUsername(username);
-                if (existingUser && existingUser.id !== parseInt(id)) {
-                    throw new Error('用户名已存在');
-                }
-            }
-
-            // 如果更新邮箱，检查是否已存在
-            if (email) {
-                const existingEmail = await User.findByEmail(email);
-                if (existingEmail && existingEmail.id !== parseInt(id)) {
-                    throw new Error('邮箱已被使用');
-                }
-            }
-
-            const fields = [];
-            const values = [];
-
-            if (username !== undefined) {
-                fields.push('username = ?');
-                values.push(username);
-            }
-            if (display_name !== undefined) {
-                fields.push('display_name = ?');
-                values.push(display_name);
-            }
-            if (email !== undefined) {
-                fields.push('email = ?');
-                values.push(email);
-            }
-            if (phone !== undefined) {
-                fields.push('phone = ?');
-                values.push(phone);
-            }
-            if (gender !== undefined) {
-                fields.push('gender = ?');
-                values.push(gender);
-            }
-            if (birthday !== undefined) {
-                fields.push('birthday = ?');
-                values.push(birthday);
-            }
-            if (avatar_color !== undefined) {
-                fields.push('avatar_color = ?');
-                values.push(avatar_color);
-            }
-            if (timezone !== undefined) {
-                fields.push('timezone = ?');
-                values.push(timezone);
-            }
-
-            if (fields.length === 0) {
+            await this._validateUniqueFields(id, updateData);
+            
+            const updateQuery = this._buildUpdateQuery(updateData);
+            if (!updateQuery) {
                 throw new Error('没有要更新的字段');
             }
 
-            values.push(id);
-            const sql = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
-            
-            await query(sql, values);
+            await this._executeUpdate(id, updateQuery);
             return await User.findById(id);
         } catch (error) {
             console.error('更新用户失败:', error);
             throw error;
         }
+    }
+
+    // 验证唯一性字段
+    static async _validateUniqueFields(id, updateData) {
+        const { username, email } = updateData;
+        
+        if (username) {
+            await this._validateUsernameUnique(id, username);
+        }
+        
+        if (email) {
+            await this._validateEmailUnique(id, email);
+        }
+    }
+
+    // 验证用户名唯一性
+    static async _validateUsernameUnique(id, username) {
+        const existingUser = await User.findByUsername(username);
+        if (existingUser && existingUser.id !== parseInt(id)) {
+            throw new Error('用户名已存在');
+        }
+    }
+
+    // 验证邮箱唯一性
+    static async _validateEmailUnique(id, email) {
+        const existingEmail = await User.findByEmail(email);
+        if (existingEmail && existingEmail.id !== parseInt(id)) {
+            throw new Error('邮箱已被使用');
+        }
+    }
+
+    // 构建更新查询
+    static _buildUpdateQuery(updateData) {
+        const fields = [];
+        const values = [];
+        
+        const updateableFields = [
+            'username', 'display_name', 'email', 'phone', 
+            'gender', 'birthday', 'avatar_color', 'timezone'
+        ];
+
+        for (const field of updateableFields) {
+            if (updateData[field] !== undefined) {
+                fields.push(`${field} = ?`);
+                values.push(updateData[field]);
+            }
+        }
+
+        if (fields.length === 0) {
+            return null;
+        }
+
+        return { fields, values };
+    }
+
+    // 执行更新操作
+    static async _executeUpdate(id, updateQuery) {
+        const { fields, values } = updateQuery;
+        values.push(id);
+        
+        const sql = `UPDATE users SET ${fields.join(', ')}, updated_at = CURRENT_TIMESTAMP WHERE id = ?`;
+        await query(sql, values);
     }
 
     // 软删除用户

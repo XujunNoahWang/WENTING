@@ -237,8 +237,46 @@ const WebSocketClient = {
 
     // 🔥 新增：统一的同步消息处理方法
     handleSyncMessage(message) {
+        const syncContext = this._parseSyncMessage(message);
+        const isRelevantPage = this._isRelevantPageForSync(syncContext);
+        
+        this._logSyncMessage(syncContext, isRelevantPage);
+        this._performDataSync(syncContext);
+        this._showSyncNotification(syncContext, isRelevantPage);
+        this._notifyManagersForSync(syncContext, message);
+    },
+
+    // 解析同步消息
+    _parseSyncMessage(message) {
         const { type, operation, sync } = message;
         const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
+        
+        return {
+            type,
+            operation,
+            sync,
+            currentModule,
+            dataType: this._getDataTypeFromSyncType(type)
+        };
+    },
+
+    // 获取数据类型
+    _getDataTypeFromSyncType(syncType) {
+        if (syncType === 'TODO_SYNC_UPDATE') return 'todos';
+        if (syncType === 'NOTES_SYNC_UPDATE') return 'notes';
+        return 'all';
+    },
+
+    // 检查是否为相关页面
+    _isRelevantPageForSync(syncContext) {
+        const { type, currentModule } = syncContext;
+        return (type === 'TODO_SYNC_UPDATE' && currentModule === 'todo') ||
+               (type === 'NOTES_SYNC_UPDATE' && currentModule === 'notes');
+    },
+
+    // 记录同步消息
+    _logSyncMessage(syncContext, isRelevantPage) {
+        const { type, operation, currentModule, sync } = syncContext;
         
         console.log(`🔄 [SYNC] 处理同步消息:`, {
             type,
@@ -248,35 +286,22 @@ const WebSocketClient = {
             userId: sync?.userId
         });
 
-        // 🔥 关键修复：只有在相关页面时才进行UI更新，否则只进行后台数据同步
-        const isRelevantPage = (type === 'TODO_SYNC_UPDATE' && currentModule === 'todo') ||
-                              (type === 'NOTES_SYNC_UPDATE' && currentModule === 'notes');
-
         if (!isRelevantPage) {
             console.log(`⏸️ [SYNC] 当前页面(${currentModule})与同步类型(${type})不匹配，只进行后台数据同步`);
         }
+    },
 
-        // 确定数据类型
-        let dataType = 'all';
-        if (type === 'TODO_SYNC_UPDATE') {
-            dataType = 'todos';
-        } else if (type === 'NOTES_SYNC_UPDATE') {
-            dataType = 'notes';
-        }
+    // 执行数据同步
+    _performDataSync(syncContext) {
+        this.reloadApplicationData(syncContext.dataType, true);
+    },
 
-        // 立即清除缓存并重新加载数据（仅后台刷新，不改变当前模块或进行页面跳转）
-        this.reloadApplicationData(dataType, true);
-
-        // 显示同步通知
+    // 显示同步通知
+    _showSyncNotification(syncContext, isRelevantPage) {
+        const { operation, type, sync } = syncContext;
+        
         if (sync && sync.fromUser) {
-            const operationText = {
-                'COMPLETE': '完成',
-                'UNCOMPLETE': '取消完成',
-                'CREATE': '创建',
-                'UPDATE': '更新',
-                'DELETE': '删除'
-            }[operation] || operation;
-            
+            const operationText = this._getOperationText(operation);
             const itemType = type.includes('TODO') ? '待办事项' : '笔记';
             const syncType = isRelevantPage ? '已同步' : '后台同步';
             
@@ -285,12 +310,27 @@ const WebSocketClient = {
                 isRelevantPage ? 'success' : 'info'
             );
         }
+    },
 
-        // 通知相应的Manager处理同步更新（始终处理，但Manager内部会根据模块决定是否渲染UI）
+    // 获取操作文本
+    _getOperationText(operation) {
+        const operationTexts = {
+            'COMPLETE': '完成',
+            'UNCOMPLETE': '取消完成',
+            'CREATE': '创建',
+            'UPDATE': '更新',
+            'DELETE': '删除'
+        };
+        return operationTexts[operation] || operation;
+    },
+
+    // 通知管理器处理同步
+    _notifyManagersForSync(syncContext, message) {
+        const { type } = syncContext;
+        
         if (type === 'TODO_SYNC_UPDATE' && window.TodoManager) {
             window.TodoManager.handleWebSocketBroadcast('TODO_SYNC_UPDATE', message);
         } else if (type === 'NOTES_SYNC_UPDATE' && window.NotesManager) {
-            // 🔥 关键修复：始终调用NotesManager处理同步，让Manager内部决定是否渲染UI
             console.log('🔄 [WebSocket] 调用NotesManager处理同步消息');
             window.NotesManager.handleWebSocketBroadcast('NOTES_SYNC_UPDATE', message);
         }

@@ -417,84 +417,130 @@ const App = {
         console.log('切换到Notes页面');
         
         try {
-            // 恢复左侧边栏显示
-            if (window.ProfileManager) {
-                ProfileManager.showLeftSidebar();
-            }
-            
-            // 设置全局状态为notes模块
-            if (window.GlobalUserState) {
-                GlobalUserState.setCurrentModule('notes');
-            }
+            this._initializeNotesPageUI();
             
             if (window.NotesManager) {
-                // 检查是否已初始化，避免重复初始化
-                if (NotesManager.isOnline === false) {
-                    // 重新检查连接状态
-                    NotesManager.isOnline = await ApiClient.testConnection();
-                }
-                
-                const currentUser = GlobalUserState ? GlobalUserState.getCurrentUser() : NotesManager.currentUser;
-                console.log('切换到Notes页面，当前用户:', currentUser);
-                
-                // 检查用户是否存在于UserManager中
-                if (currentUser && window.UserManager && window.UserManager.users) {
-                    const userExists = UserManager.users.find(u => u.id === currentUser);
-                    if (!userExists) {
-                        console.log('⚠️ 当前用户不在用户列表中，可能是新关联的用户，重新加载用户数据...');
-                        try {
-                            await UserManager.loadUsersFromAPI();
-                            console.log('✅ 用户数据重新加载完成');
-                        } catch (error) {
-                            console.error('❌ 重新加载用户数据失败:', error);
-                        }
-                    }
-                }
-                
-                // 检查当前用户的Notes数据是否已加载
-                if (currentUser && (!NotesManager.notes[currentUser] || NotesManager.notes[currentUser].length === 0)) {
-                    console.log('🔄 Notes数据未加载，正在加载...');
-                    try {
-                        await NotesManager.loadNotesFromAPI();
-                        console.log('✅ Notes数据加载完成');
-                    } catch (error) {
-                        console.error('❌ Notes数据加载失败:', error);
-                    }
-                }
-                
-                // 渲染Notes面板
-                NotesManager.renderNotesPanel(currentUser);
-                
-                // 延长显示时间让用户看到效果
-                setTimeout(() => {
-                    if (window.DateManager) window.DateManager.hideLoadingProgress();
-                }, 600);
+                await this._handleNotesManagerAvailable();
             } else {
-                // 如果NotesManager还未加载，显示占位内容
-                const contentArea = Utils.$('#contentArea');
-                if (contentArea) {
-                    contentArea.innerHTML = `
-                        <div class="notes-content-panel">
-                            <div class="notes-placeholder">
-                                <h3>Notes 功能</h3>
-                                <p>正在加载笔记功能...</p>
-                            </div>
-                        </div>
-                    `;
-                }
-                
-                // 显示占位内容后延迟隐藏进度条
-                setTimeout(() => {
-                    if (window.DateManager) window.DateManager.hideLoadingProgress();
-                }, 600);
+                this._showNotesPlaceholder();
             }
         } catch (error) {
-            console.error('加载Notes页面失败:', error);
-            // 即使出错也要隐藏进度条
-            setTimeout(() => {
-                if (window.DateManager) window.DateManager.hideLoadingProgress();
-            }, 300);
+            this._handleNotesPageError(error);
         }
+    },
+
+    // 初始化Notes页面UI
+    _initializeNotesPageUI() {
+        if (window.ProfileManager) {
+            ProfileManager.showLeftSidebar();
+        }
+        
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentModule('notes');
+        }
+    },
+
+    // 处理NotesManager可用的情况
+    async _handleNotesManagerAvailable() {
+        await this._ensureNotesManagerOnline();
+        
+        const currentUser = this._getCurrentUserForNotes();
+        console.log('切换到Notes页面，当前用户:', currentUser);
+        
+        await this._ensureUserDataValid(currentUser);
+        await this._ensureNotesDataLoaded(currentUser);
+        
+        NotesManager.renderNotesPanel(currentUser);
+        this._hideLoadingProgressDelayed(600);
+    },
+
+    // 确保NotesManager在线
+    async _ensureNotesManagerOnline() {
+        if (NotesManager.isOnline === false) {
+            NotesManager.isOnline = await ApiClient.testConnection();
+        }
+    },
+
+    // 获取当前用户
+    _getCurrentUserForNotes() {
+        return GlobalUserState ? 
+               GlobalUserState.getCurrentUser() : 
+               NotesManager.currentUser;
+    },
+
+    // 确保用户数据有效
+    async _ensureUserDataValid(currentUser) {
+        if (currentUser && window.UserManager && window.UserManager.users) {
+            const userExists = UserManager.users.find(u => u.id === currentUser);
+            if (!userExists) {
+                await this._reloadUserData();
+            }
+        }
+    },
+
+    // 重新加载用户数据
+    async _reloadUserData() {
+        console.log('⚠️ 当前用户不在用户列表中，可能是新关联的用户，重新加载用户数据...');
+        try {
+            await UserManager.loadUsersFromAPI();
+            console.log('✅ 用户数据重新加载完成');
+        } catch (error) {
+            console.error('❌ 重新加载用户数据失败:', error);
+        }
+    },
+
+    // 确保Notes数据已加载
+    async _ensureNotesDataLoaded(currentUser) {
+        if (this._shouldLoadNotesData(currentUser)) {
+            await this._loadNotesData();
+        }
+    },
+
+    // 检查是否需要加载Notes数据
+    _shouldLoadNotesData(currentUser) {
+        return currentUser && 
+               (!NotesManager.notes[currentUser] || 
+                NotesManager.notes[currentUser].length === 0);
+    },
+
+    // 加载Notes数据
+    async _loadNotesData() {
+        console.log('🔄 Notes数据未加载，正在加载...');
+        try {
+            await NotesManager.loadNotesFromAPI();
+            console.log('✅ Notes数据加载完成');
+        } catch (error) {
+            console.error('❌ Notes数据加载失败:', error);
+        }
+    },
+
+    // 显示Notes占位符
+    _showNotesPlaceholder() {
+        const contentArea = Utils.$('#contentArea');
+        if (contentArea) {
+            contentArea.innerHTML = `
+                <div class="notes-content-panel">
+                    <div class="notes-placeholder">
+                        <h3>Notes 功能</h3>
+                        <p>正在加载笔记功能...</p>
+                    </div>
+                </div>
+            `;
+        }
+        this._hideLoadingProgressDelayed(600);
+    },
+
+    // 处理Notes页面错误
+    _handleNotesPageError(error) {
+        console.error('加载Notes页面失败:', error);
+        this._hideLoadingProgressDelayed(300);
+    },
+
+    // 延迟隐藏加载进度
+    _hideLoadingProgressDelayed(delay) {
+        setTimeout(() => {
+            if (window.DateManager) window.DateManager.hideLoadingProgress();
+        }, delay);
     },
 
     // 显示Profile页面
