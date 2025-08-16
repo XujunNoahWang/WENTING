@@ -709,11 +709,28 @@ const TodoManager = {
         }
     },
 
-    // 处理添加TODO表单提交
+    // 处理添加TODO表单提交（主入口）
     async handleAddTodo(event, userId) {
         event.preventDefault();
         
-        const formData = new FormData(event.target);
+        try {
+            // 解析表单数据
+            const todoData = this._parseAddTodoForm(event.target, userId);
+            
+            // 创建TODO
+            await this._createTodoOnServer(todoData);
+            
+            // 处理创建成功后的操作
+            await this._handleAddTodoSuccess(userId);
+            
+        } catch (error) {
+            this._handleAddTodoError(error);
+        }
+    },
+
+    // 解析添加TODO表单数据
+    _parseAddTodoForm(form, userId) {
+        const formData = new FormData(form);
         const repeatType = formData.get('repeat_type') || 'none';
         const customInterval = parseInt(formData.get('custom_interval')) || 1;
         const cycleType = formData.get('cycle_type') || 'long_term';
@@ -725,8 +742,9 @@ const TodoManager = {
         console.log('  cycleDuration:', cycleDuration);
         console.log('  cycleUnit:', cycleUnit);
         
-        // 使用当前选中的日期作为开始日期，如果用户修改了日期则使用用户选择的日期
-        const selectedStartDate = formData.get('start_date') || (DateManager.selectedDate || new Date()).toISOString().split('T')[0];
+        // 使用当前选中的日期作为开始日期
+        const selectedStartDate = formData.get('start_date') || 
+            (DateManager.selectedDate || new Date()).toISOString().split('T')[0];
         
         const todoData = {
             user_id: userId,
@@ -743,46 +761,60 @@ const TodoManager = {
         };
         
         console.log('📤 发送到服务器的TODO数据:', todoData);
+        return todoData;
+    },
 
-        try {
-            // 在服务器创建TODO - 优先使用WebSocket
-            let response;
-            if (WebSocketClient.isConnected) {
-                response = await WebSocketClient.todos.create(todoData);
-                // WebSocket返回格式调整
-                if (response.data && response.data.todo) {
-                    this.convertApiTodoToLocal(response.data.todo);
-                    console.log('✅ 通过WebSocket创建TODO成功');
-                } else {
-                    throw new Error('WebSocket响应格式错误');
-                }
-            } else {
-                response = await ApiClient.todos.create(todoData);
-                if (response.success) {
-                    this.convertApiTodoToLocal(response.data);
-                    console.log('✅ 通过HTTP创建TODO成功');
-                } else {
-                    throw new Error(response.message || '创建TODO失败');
-                }
-            }
-            
-            // 关闭表单
-            this.closeAddTodoForm();
-            
-            // 清除该用户的所有缓存，因为新TODO可能是长期重复任务，影响多个日期
-            this.clearAllRelatedCache(userId);
-            
-            // 重新加载当前日期的TODO数据，这样会正确显示/隐藏TODO
-            const currentDate = DateManager.selectedDate || new Date();
-            await this.loadTodosForDate(currentDate, userId);
-            
-            // 显示成功消息
-            this.showMessage('TODO添加成功！', 'success');
-            
-        } catch (error) {
-            console.error('添加TODO失败:', error);
-            this.showMessage('添加TODO失败: ' + error.message, 'error');
+    // 在服务器上创建TODO
+    async _createTodoOnServer(todoData) {
+        if (WebSocketClient.isConnected) {
+            return await this._createTodoViaWebSocket(todoData);
+        } else {
+            return await this._createTodoViaHTTP(todoData);
         }
+    },
+
+    // 通过WebSocket创建TODO
+    async _createTodoViaWebSocket(todoData) {
+        const response = await WebSocketClient.todos.create(todoData);
+        if (response.data && response.data.todo) {
+            this.convertApiTodoToLocal(response.data.todo);
+            console.log('✅ 通过WebSocket创建TODO成功');
+            return response;
+        } else {
+            throw new Error('WebSocket响应格式错误');
+        }
+    },
+
+    // 通过HTTP创建TODO
+    async _createTodoViaHTTP(todoData) {
+        const response = await ApiClient.todos.create(todoData);
+        if (response.success) {
+            this.convertApiTodoToLocal(response.data);
+            console.log('✅ 通过HTTP创建TODO成功');
+            return response;
+        } else {
+            throw new Error(response.message || '创建TODO失败');
+        }
+    },
+
+    // 处理TODO创建成功后的操作
+    async _handleAddTodoSuccess(userId) {
+        // 关闭表单
+        this.closeAddTodoForm();
+        
+        // 清除缓存并重新加载数据
+        this.clearAllRelatedCache(userId);
+        const currentDate = DateManager.selectedDate || new Date();
+        await this.loadTodosForDate(currentDate, userId);
+        
+        // 显示成功消息
+        this.showMessage('TODO添加成功！', 'success');
+    },
+
+    // 处理TODO创建错误
+    _handleAddTodoError(error) {
+        console.error('添加TODO失败:', error);
+        this.showMessage('添加TODO失败: ' + error.message, 'error');
     },
 
     // 处理重复频率变化
@@ -1304,7 +1336,8 @@ const TodoManager = {
     },
 
     // 处理用户加载错误
-    async _handleUserLoadError(user, dateStr, error, retryCount, silent) {
+    // eslint-disable-next-line no-unused-vars
+    async _handleUserLoadError(user, dateStr, error, retryCount, _silent) {
         console.warn(`加载用户${user.id}在${dateStr}的TODO失败:`, error.message);
         
         if (this._shouldRetryUserLoad(error, retryCount)) {

@@ -456,18 +456,40 @@ const WeatherManager = {
         localStorage.setItem('wenting_weather', JSON.stringify(this.weatherData));
     },
 
-    // 更新天气显示
+    // 更新天气显示（主入口）
     updateWeatherDisplay() {
         console.log('🔄 updateWeatherDisplay 被调用');
         console.log('更新天气显示，数据:', this.weatherData);
+        
+        // 检查天气数据
+        if (!this._validateWeatherData()) {
+            return;
+        }
+
+        // 获取DOM元素
+        const elements = this._getWeatherElements();
+        
+        // 更新各个部分
+        this._updateBasicWeatherInfo(elements);
+        this._updateWindInfo(elements);
+        this._updateHumidityInfo(elements);
+        this._updateLocationInfo(elements);
+    },
+
+    // 验证天气数据
+    _validateWeatherData() {
         if (!this.weatherData) {
             console.log('没有天气数据');
             if (!this.userLocation || !this.locationReady) {
                 this.showLocationError();
             }
-            return;
+            return false;
         }
+        return true;
+    },
 
+    // 获取天气相关DOM元素
+    _getWeatherElements() {
         const elements = {
             icon: Utils.$('.weather-icon'),
             condition: Utils.$('.weather-condition'),
@@ -478,12 +500,17 @@ const WeatherManager = {
             humidityLabel: Utils.$('.weather-humidity-label'),
             location: Utils.$('.weather-location')
         };
-
+        
         console.log('🔍 调试：location元素:', elements.location);
         console.log('🔍 调试：weatherData.location:', this.weatherData.location);
         console.log('🔍 调试：userLocation:', this.userLocation);
         console.log('🔍 调试：locationReady:', this.locationReady);
+        
+        return elements;
+    },
 
+    // 更新基础天气信息
+    _updateBasicWeatherInfo(elements) {
         if (elements.icon) {
             elements.icon.textContent = this.weatherData.icon;
         }
@@ -499,7 +526,10 @@ const WeatherManager = {
         if (elements.temp) {
             elements.temp.textContent = this.weatherData.temperature;
         }
+    },
 
+    // 更新风力信息
+    _updateWindInfo(elements) {
         if (elements.windValue) {
             elements.windValue.textContent = this.weatherData.wind.level;
         }
@@ -507,7 +537,10 @@ const WeatherManager = {
         if (elements.windLabel) {
             elements.windLabel.textContent = this.weatherData.wind.label;
         }
+    },
 
+    // 更新湿度信息
+    _updateHumidityInfo(elements) {
         if (elements.humidityValue) {
             elements.humidityValue.textContent = this.weatherData.humidity.value;
         }
@@ -515,42 +548,64 @@ const WeatherManager = {
         if (elements.humidityLabel) {
             elements.humidityLabel.textContent = this.weatherData.humidity.label;
         }
+    },
 
-        // 更新位置显示
+    // 更新位置信息
+    _updateLocationInfo(elements) {
         console.log('🔍 开始更新位置显示');
-        if (elements.location) {
-            console.log('✅ 找到location元素');
-            if (this.weatherData.isError) {
-                console.log('❌ 显示错误状态');
-                elements.location.textContent = '位置未授权';
-                elements.location.className = 'weather-location error';
-            } else if (this.weatherData.location) {
-                console.log('🏙️ 使用天气数据中的位置:', this.weatherData.location);
-                // 优先使用天气数据中的位置信息
-                elements.location.textContent = this.weatherData.location;
-                elements.location.className = 'weather-location';
-                
-                // 如果有用户位置坐标，添加到title中
-                if (this.userLocation && this.userLocation.latitude && this.userLocation.longitude) {
-                    elements.location.title = `纬度: ${this.userLocation.latitude.toFixed(4)}, 经度: ${this.userLocation.longitude.toFixed(4)}`;
-                } else {
-                    elements.location.title = '基于天气数据的位置';
-                }
-                console.log('✅ 位置已更新为:', elements.location.textContent);
-            } else if (this.userLocation && this.locationReady) {
-                console.log('📍 使用用户位置数据:', this.userLocation.city);
-                // 备用：使用用户位置数据
-                elements.location.textContent = this.userLocation.city || '当前位置';
-                elements.location.className = 'weather-location';
-                elements.location.title = `纬度: ${this.userLocation.latitude.toFixed(4)}, 经度: ${this.userLocation.longitude.toFixed(4)}`;
-            } else {
-                console.log('⏳ 显示定位中状态');
-                elements.location.textContent = '定位中...';
-                elements.location.className = 'weather-location loading';
-            }
-        } else {
+        if (!elements.location) {
             console.log('❌ 未找到location元素');
+            return;
         }
+
+        console.log('✅ 找到location元素');
+        
+        if (this.weatherData.isError) {
+            this._setLocationError(elements.location);
+        } else if (this.weatherData.location) {
+            this._setLocationFromWeatherData(elements.location);
+        } else if (this.userLocation && this.locationReady) {
+            this._setLocationFromUserData(elements.location);
+        } else {
+            this._setLocationLoading(elements.location);
+        }
+    },
+
+    // 设置位置错误状态
+    _setLocationError(locationElement) {
+        console.log('❌ 显示错误状态');
+        locationElement.textContent = '位置未授权';
+        locationElement.className = 'weather-location error';
+    },
+
+    // 使用天气数据设置位置
+    _setLocationFromWeatherData(locationElement) {
+        console.log('🏙️ 使用天气数据中的位置:', this.weatherData.location);
+        locationElement.textContent = this.weatherData.location;
+        locationElement.className = 'weather-location';
+        
+        // 设置提示信息
+        if (this.userLocation && this.userLocation.latitude && this.userLocation.longitude) {
+            locationElement.title = `纬度: ${this.userLocation.latitude.toFixed(4)}, 经度: ${this.userLocation.longitude.toFixed(4)}`;
+        } else {
+            locationElement.title = '基于天气数据的位置';
+        }
+        console.log('✅ 位置已更新为:', locationElement.textContent);
+    },
+
+    // 使用用户数据设置位置
+    _setLocationFromUserData(locationElement) {
+        console.log('📍 使用用户位置数据:', this.userLocation.city);
+        locationElement.textContent = this.userLocation.city || '当前位置';
+        locationElement.className = 'weather-location';
+        locationElement.title = `纬度: ${this.userLocation.latitude.toFixed(4)}, 经度: ${this.userLocation.longitude.toFixed(4)}`;
+    },
+
+    // 设置定位中状态
+    _setLocationLoading(locationElement) {
+        console.log('⏳ 显示定位中状态');
+        locationElement.textContent = '定位中...';
+        locationElement.className = 'weather-location loading';
     },
 
     // 更新天气数据

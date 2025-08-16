@@ -319,10 +319,27 @@ class User {
         return await User.getSettings(userId);
     }
 
-    // 验证用户数据
+    // 验证用户数据（主入口）
     static validateUserData(userData, isUpdate = false) {
         const errors = [];
 
+        // 基础字段验证
+        this._validateRequiredFields(userData, isUpdate, errors);
+        
+        // 字段长度验证
+        this._validateFieldLengths(userData, errors);
+        
+        // 格式验证
+        this._validateFormats(userData, errors);
+        
+        // 枚举值和逻辑验证
+        this._validateEnumsAndLogic(userData, errors);
+
+        return errors;
+    }
+
+    // 验证必填字段
+    static _validateRequiredFields(userData, isUpdate, errors) {
         if (!isUpdate && !userData.username) {
             errors.push('用户名不能为空');
         }
@@ -330,7 +347,10 @@ class User {
         if (!isUpdate && !userData.display_name) {
             errors.push('显示名称不能为空');
         }
+    }
 
+    // 验证字段长度
+    static _validateFieldLengths(userData, errors) {
         if (userData.username && (userData.username.length < 2 || userData.username.length > 50)) {
             errors.push('用户名长度必须在2-50字符之间');
         }
@@ -338,7 +358,10 @@ class User {
         if (userData.display_name && (userData.display_name.length < 1 || userData.display_name.length > 100)) {
             errors.push('显示名称长度必须在1-100字符之间');
         }
+    }
 
+    // 验证格式
+    static _validateFormats(userData, errors) {
         if (userData.email && userData.email.trim() !== '' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(userData.email)) {
             errors.push('邮箱格式不正确');
         }
@@ -347,6 +370,13 @@ class User {
             errors.push('手机号格式不正确（应为11位数字，以1开头）');
         }
 
+        if (userData.avatar_color && !/^#[0-9A-Fa-f]{6}$/.test(userData.avatar_color)) {
+            errors.push('头像颜色格式不正确');
+        }
+    }
+
+    // 验证枚举值和逻辑
+    static _validateEnumsAndLogic(userData, errors) {
         if (userData.gender && !['male', 'female', 'other'].includes(userData.gender)) {
             errors.push('性别值不正确');
         }
@@ -354,12 +384,6 @@ class User {
         if (userData.birthday && new Date(userData.birthday) > new Date()) {
             errors.push('生日不能是未来日期');
         }
-
-        if (userData.avatar_color && !/^#[0-9A-Fa-f]{6}$/.test(userData.avatar_color)) {
-            errors.push('头像颜色格式不正确');
-        }
-
-        return errors;
     }
 
     // 转换为安全的JSON对象（不包含敏感信息）
