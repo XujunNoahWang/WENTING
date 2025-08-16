@@ -22,7 +22,7 @@ class User {
     static async create(userData) {
         try {
             const {
-                app_user_id,
+                app_user_id: appUserId,
                 username,
                 display_name,
                 email,
@@ -34,7 +34,7 @@ class User {
                 device_id
             } = userData;
 
-            if (!app_user_id) {
+            if (!appUserId) {
                 throw new Error('注册用户ID不能为空');
             }
 
@@ -45,14 +45,14 @@ class User {
             }
 
             // 检查同一注册用户和设备上用户名是否已存在
-            const existingUser = await User.findByUsernameAndAppUserAndDevice(username, app_user_id, finalDeviceId);
+            const existingUser = await User.findByUsernameAndAppUserAndDevice(username, appUserId, finalDeviceId);
             if (existingUser) {
                 throw new Error('该用户名已存在');
             }
 
             // 检查邮箱是否已存在（如果提供了邮箱）
             if (email) {
-                const existingEmail = await User.findByEmailAndAppUserAndDevice(email, app_user_id, finalDeviceId);
+                const existingEmail = await User.findByEmailAndAppUserAndDevice(email, appUserId, finalDeviceId);
                 if (existingEmail) {
                     throw new Error('该邮箱已被使用');
                 }
@@ -64,7 +64,7 @@ class User {
             `;
             
             const result = await query(sql, [
-                app_user_id, username, display_name, email, phone, gender, birthday, avatar_color, timezone, finalDeviceId
+                appUserId, username, display_name, email, phone, gender, birthday, avatar_color, timezone, finalDeviceId
             ]);
 
             // 获取新创建的用户
@@ -272,10 +272,10 @@ class User {
     static async updateSettings(userId, settingsData) {
         const {
             notification_enabled,
-            notification_time_advance,
+            notification_time_advance: notificationTimeAdvance,
             theme,
             language,
-            week_start_day,
+            week_start_day: weekStartDay,
             settings_json
         } = settingsData;
 
@@ -286,9 +286,9 @@ class User {
             fields.push('notification_enabled = ?');
             values.push(notification_enabled);
         }
-        if (notification_time_advance !== undefined) {
+        if (notificationTimeAdvance !== undefined) {
             fields.push('notification_time_advance = ?');
-            values.push(notification_time_advance);
+            values.push(notificationTimeAdvance);
         }
         if (theme !== undefined) {
             fields.push('theme = ?');
@@ -298,9 +298,9 @@ class User {
             fields.push('language = ?');
             values.push(language);
         }
-        if (week_start_day !== undefined) {
+        if (weekStartDay !== undefined) {
             fields.push('week_start_day = ?');
-            values.push(week_start_day);
+            values.push(weekStartDay);
         }
         if (settings_json !== undefined) {
             fields.push('settings_json = ?');

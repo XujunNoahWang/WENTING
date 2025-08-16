@@ -5,7 +5,7 @@ const User = require('../models/User');
 // 获取所有用户（按注册用户和设备ID过滤）
 router.get('/', async (req, res) => {
     try {
-        const { device_id, app_user_id } = req.query;
+        const { device_id, app_user_id: appUserId } = req.query;
         
         if (!device_id) {
             return res.status(400).json({
@@ -14,7 +14,7 @@ router.get('/', async (req, res) => {
             });
         }
         
-        if (!app_user_id) {
+        if (!appUserId) {
             return res.status(400).json({
                 success: false,
                 message: '注册用户ID不能为空'
@@ -22,12 +22,12 @@ router.get('/', async (req, res) => {
         }
 
         // 首先尝试精确匹配设备ID
-        let users = await User.findAllByAppUserAndDevice(app_user_id, device_id);
+        let users = await User.findAllByAppUserAndDevice(appUserId, device_id);
         
         // 如果没有找到匹配的用户，尝试获取该app_user的所有用户（设备ID容错）
         if (users.length === 0) {
-            console.log(`⚠️ 设备ID ${device_id} 没有找到用户，尝试获取 ${app_user_id} 的所有用户`);
-            users = await User.findAllByAppUser(app_user_id);
+            console.log(`⚠️ 设备ID ${device_id} 没有找到用户，尝试获取 ${appUserId} 的所有用户`);
+            users = await User.findAllByAppUser(appUserId);
             
             if (users.length > 0) {
                 console.log(`✅ 找到 ${users.length} 个用户（设备ID容错模式）`);

@@ -414,9 +414,9 @@ router.get('/device-info/:username', async (req, res) => {
 // 更新用户的设备ID（用于设备ID同步）
 router.post('/update-device-id', async (req, res) => {
     try {
-        const { app_user_id, device_id } = req.body;
+        const { app_user_id: appUserId, device_id } = req.body;
         
-        if (!app_user_id || !device_id) {
+        if (!appUserId || !device_id) {
             return res.status(400).json({
                 success: false,
                 message: '注册用户ID和设备ID不能为空'
@@ -426,10 +426,10 @@ router.post('/update-device-id', async (req, res) => {
         // 更新该注册用户下所有被管理用户的设备ID
         const result = await query(
             'UPDATE users SET device_id = ? WHERE app_user_id = ?',
-            [device_id, app_user_id.toLowerCase().trim()]
+            [device_id, appUserId.toLowerCase().trim()]
         );
         
-        console.log(`✅ 已更新用户 ${app_user_id} 的设备ID为 ${device_id}，影响 ${result.affectedRows} 条记录`);
+        console.log(`✅ 已更新用户 ${appUserId} 的设备ID为 ${device_id}，影响 ${result.affectedRows} 条记录`);
         
         res.json({
             success: true,
