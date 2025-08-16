@@ -101,7 +101,9 @@
       "Bash(start \"雯婷后端服务 - Notes双向同步调试测试\" npm run dev)",
       "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\debug-user-mapping.js\")",
       "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\debug-whiteblade-sync.js\")",
-      "Bash(start \"雯婷后端服务 - Notes同步修复完成测试\" npm run dev)"
+      "Bash(start \"雯婷后端服务 - Notes同步修复完成测试\" npm run dev)",
+      "Bash(npx eslint:*)",
+      "Bash(git rm:*)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"
