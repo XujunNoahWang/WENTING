@@ -77,7 +77,7 @@ class AIService {
      * @returns {string} 默认建议
      */
     getDefaultHealthSuggestions(noteData, weatherData = null) {
-        const { title, description, precautions } = noteData;
+        const { title, precautions } = noteData;
         const now = new Date();
         const season = this.getSeason(now.getMonth() + 1);
         const timeOfDay = this.getTimeOfDay(now.getHours());
@@ -485,9 +485,8 @@ class AIService {
      * @param {number} lon - 经度
      * @returns {string} 气候特征
      */
-    inferClimateZone(lat, lon) {
+    inferClimateZone(lat) {
         const latitude = parseFloat(lat);
-        const longitude = parseFloat(lon);
         
         // 简单的气候区域推断
         if (Math.abs(latitude) <= 23.5) {

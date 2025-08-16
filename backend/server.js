@@ -196,7 +196,7 @@ app.use('*', (req, res) => {
 });
 
 // 全局错误处理中间件
-app.use((err, req, res, next) => {
+app.use((err, req, res) => {
     console.error('全局错误:', err);
     
     // 数据库连接错误

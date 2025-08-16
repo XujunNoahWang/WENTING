@@ -897,7 +897,7 @@ class LinkService {
                         ]);
                         break;
                         
-                    case 'DELETE':
+                    case 'DELETE': {
                         // 找到目标todo（基于标题匹配）
                         const targetTodosDelete = await query(`
                             SELECT id FROM todos 
@@ -938,8 +938,9 @@ class LinkService {
                             console.log(`⚠️ 未找到要删除的目标TODO (用户${targetUserId}, 标题: "${data.title}")`);
                         }
                         break;
+                    }
                         
-                    case 'COMPLETE':
+                    case 'COMPLETE': {
                         // 找到目标todo
                         const targetTodos = await query(`
                             SELECT id FROM todos 
@@ -966,8 +967,9 @@ class LinkService {
                             console.log(`✅ 已同步TODO完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
                         }
                         break;
+                    }
                         
-                    case 'UNCOMPLETE':
+                    case 'UNCOMPLETE': {
                         // 找到目标todo
                         const targetTodosUncomplete = await query(`
                             SELECT id FROM todos 
@@ -994,6 +996,7 @@ class LinkService {
                             console.log(`✅ 已同步TODO取消完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
                         }
                         break;
+                    }
                 }
             }
         } catch (error) {
@@ -1018,7 +1021,7 @@ class LinkService {
                         ]);
                         break;
                         
-                    case 'UPDATE':
+                    case 'UPDATE': {
                         // 使用original_title进行匹配，如果没有则使用title
                         const matchTitle = data.original_title || data.title;
                         console.log(`🔍 [Notes] 更新同步 - 查找标题: "${matchTitle}" -> 更新为: "${data.title}"`);
@@ -1035,8 +1038,9 @@ class LinkService {
                         
                         console.log(`✅ [Notes] 更新同步结果: 影响行数 ${updateResult.affectedRows}`);
                         break;
+                    }
                         
-                    case 'DELETE':
+                    case 'DELETE': {
                         console.log(`🗑️ [Notes] 删除同步 - 查找标题: "${data.title}"`);
                         
                         const deleteResult = await query(`
@@ -1046,6 +1050,7 @@ class LinkService {
                         
                         console.log(`✅ [Notes] 删除同步结果: 影响行数 ${deleteResult.affectedRows}`);
                         break;
+                    }
                 }
             }
         } catch (error) {

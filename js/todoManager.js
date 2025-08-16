@@ -1323,7 +1323,7 @@ const TodoManager = {
                 this.loadTodosForDate(DateManager.selectedDate || new Date(), this.currentUser);
                 break;
                 
-            case 'TODO_SYNC_UPDATE':
+            case 'TODO_SYNC_UPDATE': {
                 // 🔥 关键修复：处理关联用户的实时同步更新
                 console.log('🔗 [TODO] 收到Link同步更新:', data);
                 
@@ -1372,6 +1372,7 @@ const TodoManager = {
                     });
                 }
                 break;
+            }
         }
     },
 

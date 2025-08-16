@@ -3,7 +3,7 @@ const LinkService = require('../services/linkService');
 const { query, testConnection } = require('../config/sqlite');
 
 describe('LinkService', () => {
-    let testUsers = [];
+    // let testUsers = []; // 暂时注释，未使用
     let testSupervisedUser = null;
     
     beforeAll(async () => {

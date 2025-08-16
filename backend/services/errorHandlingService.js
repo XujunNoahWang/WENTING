@@ -5,7 +5,8 @@ const websocketService = require('./websocketService');
 class ErrorHandlingService {
     
     // 错误类型定义
-    static ERROR_TYPES = {
+    static get ERROR_TYPES() {
+        return {
         NETWORK: 'network',
         VALIDATION: 'validation',
         SYNC: 'sync',
@@ -14,18 +15,22 @@ class ErrorHandlingService {
         WEBSOCKET: 'websocket',
         RATE_LIMIT: 'rate_limit',
         TIMEOUT: 'timeout'
-    };
+        };
+    }
     
     // 错误严重级别
-    static SEVERITY_LEVELS = {
+    static get SEVERITY_LEVELS() {
+        return {
         LOW: 'low',
         MEDIUM: 'medium',
         HIGH: 'high',
         CRITICAL: 'critical'
-    };
+        };
+    }
     
     // 重试配置
-    static RETRY_CONFIG = {
+    static get RETRY_CONFIG() {
+        return {
         MAX_RETRIES: 3,
         BASE_DELAY: 1000,
         MAX_DELAY: 10000,
@@ -37,7 +42,8 @@ class ErrorHandlingService {
             'SYNC_FAILED',
             'WEBSOCKET_DISCONNECTED'
         ]
-    };
+        };
+    }
     
     // 处理错误
     static async handleError(error, context = {}) {
@@ -243,7 +249,7 @@ class ErrorHandlingService {
     }
     
     // 同步错误恢复
-    static async recoverSyncError(errorInfo) {
+    static async recoverSyncError() {
         try {
             console.log('🔄 尝试恢复数据同步错误...');
             
@@ -298,7 +304,7 @@ class ErrorHandlingService {
     }
     
     // WebSocket错误恢复
-    static async recoverWebSocketError(errorInfo) {
+    static async recoverWebSocketError() {
         try {
             console.log('🔄 尝试恢复WebSocket连接...');
             
@@ -332,7 +338,7 @@ class ErrorHandlingService {
     // 重试同步操作
     static async retrySyncOperation(syncRecord) {
         try {
-            const syncData = JSON.parse(syncRecord.data);
+            JSON.parse(syncRecord.data); // 解析数据但暂时不使用
             
             // 更新重试次数
             await query(`

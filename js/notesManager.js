@@ -317,7 +317,7 @@ const NotesManager = {
         switch (type) {
             case 'NOTES_CREATE_BROADCAST':
             case 'NOTES_UPDATE_BROADCAST':
-            case 'NOTES_DELETE_BROADCAST':
+            case 'NOTES_DELETE_BROADCAST': {
                 // 🔥 修复：仅清除当前用户的缓存，而不是所有用户
                 console.log('🧹 [Notes] 广播消息：清除当前用户缓存');
                 this.clearAllNotesCache(this.currentUser);
@@ -330,8 +330,9 @@ const NotesManager = {
                     console.log('⏸️ [Notes] 当前不是Notes模块，跳过渲染');
                 }
                 break;
+            }
                 
-            case 'NOTES_SYNC_UPDATE':
+            case 'NOTES_SYNC_UPDATE': {
                 // 🔥 关键修复：处理关联用户的实时同步更新
                 console.log('🔗 [Notes] 收到Link同步更新:', data);
                 console.log('🔗 [Notes] 当前NotesManager状态:', {
@@ -410,6 +411,7 @@ const NotesManager = {
                     });
                 }
                 break;
+            }
         }
     },
 

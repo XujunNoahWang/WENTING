@@ -1481,7 +1481,7 @@ const App = {
             const { table, operation, data } = syncData.data || syncData;
             
             // 显示同步通知
-            this.showDataSyncNotification(operation, table, data);
+            this.showDataSyncOperationNotification(operation, table, data);
             
             // 根据数据类型刷新相应的界面
             if (table === 'todos' && window.TodoManager) {
@@ -1535,8 +1535,8 @@ const App = {
         }
     },
     
-    // 显示数据同步通知
-    showDataSyncNotification(operation, table, data = {}) {
+    // 显示数据同步操作通知
+    showDataSyncOperationNotification(operation, table, data = {}) {
         const tableNames = {
             'todos': 'TODO',
             'notes': 'Notes'

@@ -1,7 +1,7 @@
 // 用户关联功能集成测试和端到端验证
 const LinkService = require('../services/linkService');
 const DataSyncService = require('../services/dataSyncService');
-const WebSocketService = require('../services/websocketService');
+// const WebSocketService = require('../services/websocketService'); // 暂时注释，未使用
 const { query, testConnection } = require('../config/sqlite');
 const http = require('http');
 const WebSocket = require('ws');
@@ -9,7 +9,7 @@ const WebSocket = require('ws');
 describe('用户关联功能集成测试', () => {
     let testServer;
     let wsServer;
-    let testUsers = {};
+    // let testUsers = {}; // 暂时注释，未使用
     let testSupervisedUsers = {};
     let wsClients = {};
     

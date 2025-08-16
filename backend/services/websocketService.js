@@ -2,7 +2,7 @@
 const WebSocket = require('ws');
 const Todo = require('../models/Todo');
 const Note = require('../models/Note');
-const User = require('../models/User');
+// const User = require('../models/User'); // 暂时注释，未使用
 
 class WebSocketService {
     constructor() {
@@ -22,7 +22,7 @@ class WebSocketService {
             path: '/ws'
         });
 
-        this.wss.on('connection', (ws, req) => {
+        this.wss.on('connection', (ws) => {
             console.log('🔌 新的WebSocket连接');
             
             // 连接建立时的处理
@@ -78,7 +78,7 @@ class WebSocketService {
 
     // 处理WebSocket消息
     async handleMessage(ws, message) {
-        const { type, deviceId, userId, appUserId, data, timestamp } = message;
+        const { type, deviceId, userId, appUserId, data } = message;
         
         console.log('📨 收到WebSocket消息:', { type, deviceId, userId, appUserId });
 
@@ -163,12 +163,9 @@ class WebSocketService {
                     response = await this.handleLinkCancel(data, deviceId);
                     break;
                     
-                // 在线状态检测和关联邀请
+                // 在线状态检测
                 case 'LINK_CHECK_USER_ONLINE':
                     response = await this.handleCheckUserOnline(data.appUserId);
-                    break;
-                case 'LINK_SEND_INVITATION':
-                    response = await this.handleSendLinkInvitation(data);
                     break;
                 case 'LINK_INVITATION_RESPONSE':
                     response = await this.handleLinkInvitationResponse(data);
@@ -571,11 +568,9 @@ class WebSocketService {
             result.error = '用户没有活跃连接';
         }
         
-        return result;
-
         // 🔄 增强逻辑：如果消息类型为取消关联，确保关联双方都收到通知
         if (message.type === 'LINK_CANCELLED' && message.data) {
-            const { cancelledBy, supervisedUserId } = message.data;
+            const { cancelledBy } = message.data;
             const otherUser = cancelledBy === appUserId ? message.data.linkedUser : cancelledBy;
 
             if (otherUser) {
@@ -583,6 +578,8 @@ class WebSocketService {
                 this.broadcastToAppUser(otherUser, message);
             }
         }
+        
+        return result;
     }
 
     // 发送消息
@@ -1151,7 +1148,7 @@ class WebSocketService {
     }
 
     // 处理心跳请求并检查数据更新
-    async handlePing(userId, appUserId) {
+    async handlePing(userId) {
         try {
             const { query } = require('../config/sqlite');
             

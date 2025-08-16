@@ -2,7 +2,8 @@
 class ErrorHandler {
     
     // 错误类型定义
-    static ERROR_TYPES = {
+    static get ERROR_TYPES() {
+        return {
         NETWORK: 'network',
         VALIDATION: 'validation',
         SYNC: 'sync',
@@ -10,21 +11,35 @@ class ErrorHandler {
         WEBSOCKET: 'websocket',
         TIMEOUT: 'timeout',
         UNKNOWN: 'unknown'
-    };
+        };
+    }
     
     // 重试配置
-    static RETRY_CONFIG = {
+    static get RETRY_CONFIG() {
+        return {
         MAX_RETRIES: 3,
         BASE_DELAY: 1000,
         MAX_DELAY: 8000,
         BACKOFF_MULTIPLIER: 1.5
-    };
+        };
+    }
     
     // 错误计数器
-    static errorCounts = new Map();
+    static get errorCounts() {
+        if (!this._errorCounts) {
+            this._errorCounts = new Map();
+        }
+        return this._errorCounts;
+    }
     
     // 防止无限循环的标记
-    static isHandlingError = false;
+    static get isHandlingError() {
+        return this._isHandlingError || false;
+    }
+    
+    static set isHandlingError(value) {
+        this._isHandlingError = value;
+    }
     
     // 处理错误
     static async handleError(error, context = {}) {
@@ -344,7 +359,7 @@ class ErrorHandler {
     }
     
     // WebSocket错误恢复
-    static async recoverWebSocketError(errorInfo) {
+    static async recoverWebSocketError() {
         try {
             console.log('🔄 尝试恢复WebSocket连接...');
             
@@ -362,15 +377,13 @@ class ErrorHandler {
     }
     
     // 同步错误恢复
-    static async recoverSyncError(errorInfo) {
+    static async recoverSyncError() {
         try {
             console.log('🔄 尝试恢复数据同步...');
             
             // 触发数据重新同步
             // Link功能已集成到主应用SPA中，不需要单独的linkManager
             return { success: true, message: '数据同步已恢复' };
-            
-            return { success: false, message: '无法触发数据同步' };
             
         } catch (error) {
             return { success: false, message: '数据同步恢复失败' };

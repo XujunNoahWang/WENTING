@@ -7,7 +7,7 @@ const { query, testConnection } = require('../config/sqlite');
 describe('用户关联功能端到端测试', () => {
     let browser;
     let serverProcess;
-    let testUsers = {};
+    // let testUsers = {}; // 暂时注释，未使用
     let testSupervisedUsers = {};
     const SERVER_PORT = 3001;
     const BASE_URL = `http://localhost:${SERVER_PORT}`;
@@ -569,7 +569,7 @@ async function runE2ETests() {
     
     try {
         // 检查Puppeteer是否可用
-        const puppeteer = require('puppeteer');
+        require('puppeteer'); // 检查是否可用
         console.log('✅ Puppeteer可用');
         
         console.log('✅ 所有端到端测试通过');
