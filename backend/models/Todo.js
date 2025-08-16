@@ -624,6 +624,26 @@ class Todo {
     static validateTodoData(todoData, isUpdate = false) {
         const errors = [];
 
+        // 基础字段验证
+        this._validateBasicFields(todoData, isUpdate, errors);
+        
+        // 内容字段验证
+        this._validateContentFields(todoData, errors);
+        
+        // 重复设置验证
+        this._validateRepeatSettings(todoData, errors);
+        
+        // 时间设置验证
+        this._validateTimeSettings(todoData, errors);
+        
+        // 周期设置验证
+        this._validateCycleSettings(todoData, errors);
+
+        return errors;
+    }
+
+    // 验证基础字段
+    static _validateBasicFields(todoData, isUpdate, errors) {
         if (!isUpdate && !todoData.user_id) {
             errors.push('用户ID不能为空');
         }
@@ -631,7 +651,10 @@ class Todo {
         if (!isUpdate && !todoData.title) {
             errors.push('标题不能为空');
         }
+    }
 
+    // 验证内容字段
+    static _validateContentFields(todoData, errors) {
         if (todoData.title && (todoData.title.length < 1 || todoData.title.length > 200)) {
             errors.push('标题长度必须在1-200字符之间');
         }
@@ -640,36 +663,74 @@ class Todo {
             errors.push('描述长度不能超过1000字符');
         }
 
-        if (todoData.priority && !['low', 'medium', 'high'].includes(todoData.priority)) {
+        if (todoData.priority && !this._isValidPriority(todoData.priority)) {
             errors.push('优先级值不正确');
         }
+    }
 
-        if (todoData.repeat_type && !['none', 'daily', 'every_other_day', 'weekly', 'monthly', 'yearly', 'custom'].includes(todoData.repeat_type)) {
+    // 验证重复设置
+    static _validateRepeatSettings(todoData, errors) {
+        if (todoData.repeat_type && !this._isValidRepeatType(todoData.repeat_type)) {
             errors.push('重复类型值不正确');
         }
 
-        if (todoData.repeat_interval && (todoData.repeat_interval < 1 || todoData.repeat_interval > 365)) {
+        if (todoData.repeat_interval && !this._isValidInterval(todoData.repeat_interval)) {
             errors.push('重复间隔必须在1-365之间');
         }
+    }
 
-        if (todoData.reminder_time && todoData.reminder_time !== 'all_day' && !/^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(todoData.reminder_time)) {
+    // 验证时间设置
+    static _validateTimeSettings(todoData, errors) {
+        if (todoData.reminder_time && !this._isValidReminderTime(todoData.reminder_time)) {
             errors.push('提醒时间格式不正确');
         }
+    }
 
-        if (todoData.cycle_type && !['long_term', 'custom'].includes(todoData.cycle_type)) {
+    // 验证周期设置
+    static _validateCycleSettings(todoData, errors) {
+        if (todoData.cycle_type && !this._isValidCycleType(todoData.cycle_type)) {
             errors.push('重复周期类型值不正确');
         }
 
         if (todoData.cycle_type === 'custom') {
-            if (!todoData.cycle_duration || todoData.cycle_duration < 1 || todoData.cycle_duration > 365) {
-                errors.push('重复周期时长必须在1-365之间');
-            }
-            if (todoData.cycle_unit && !['days', 'weeks', 'months'].includes(todoData.cycle_unit)) {
-                errors.push('重复周期单位值不正确');
-            }
+            this._validateCustomCycle(todoData, errors);
         }
+    }
 
-        return errors;
+    // 验证自定义周期
+    static _validateCustomCycle(todoData, errors) {
+        if (!todoData.cycle_duration || !this._isValidInterval(todoData.cycle_duration)) {
+            errors.push('重复周期时长必须在1-365之间');
+        }
+        
+        if (todoData.cycle_unit && !this._isValidCycleUnit(todoData.cycle_unit)) {
+            errors.push('重复周期单位值不正确');
+        }
+    }
+
+    // 辅助验证方法
+    static _isValidPriority(priority) {
+        return ['low', 'medium', 'high'].includes(priority);
+    }
+
+    static _isValidRepeatType(repeatType) {
+        return ['none', 'daily', 'every_other_day', 'weekly', 'monthly', 'yearly', 'custom'].includes(repeatType);
+    }
+
+    static _isValidInterval(interval) {
+        return interval >= 1 && interval <= 365;
+    }
+
+    static _isValidReminderTime(reminderTime) {
+        return reminderTime === 'all_day' || /^([01]?[0-9]|2[0-3]):[0-5][0-9]$/.test(reminderTime);
+    }
+
+    static _isValidCycleType(cycleType) {
+        return ['long_term', 'custom'].includes(cycleType);
+    }
+
+    static _isValidCycleUnit(cycleUnit) {
+        return ['days', 'weeks', 'months'].includes(cycleUnit);
     }
 
     // 转换为JSON对象

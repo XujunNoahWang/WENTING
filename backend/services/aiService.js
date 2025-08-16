@@ -143,54 +143,96 @@ class AIService {
      * @returns {string} 构建的提示词
      */
     buildWeatherBasedPrompt(title, description, precautions, weatherData, userLocation = null) {
-        // 获取完整的日期和时间信息
         const now = new Date();
         const dateInfo = this.buildDetailedDateInfo(now);
-        
-        // 构建详细的位置信息
         const locationInfo = this.buildDetailedLocationInfo(userLocation);
 
+        this._logPromptBuildingInfo(dateInfo, locationInfo, weatherData);
+
+        // 构建完整提示词
+        return this._assemblePrompt(title, description, precautions, dateInfo, locationInfo, weatherData);
+    }
+
+    // 记录提示词构建信息
+    _logPromptBuildingInfo(dateInfo, locationInfo, weatherData) {
         console.log('📅 构建的日期信息:', dateInfo);
         console.log('📍 构建的位置信息:', locationInfo);
         console.log('🌤️ 使用的天气数据:', weatherData);
+    }
 
-        // 构建优化的提示词
-        let prompt = `【健康建议生成任务】基于真实天气数据的个性化健康建议
+    // 组装完整提示词
+    _assemblePrompt(title, description, precautions, dateInfo, locationInfo, weatherData) {
+        let prompt = this._buildPromptHeader(title, description, precautions);
+        prompt += this._buildTimeSection(dateInfo);
+        prompt += this._buildLocationSection(locationInfo);
+        prompt += this._buildWeatherSection(weatherData, locationInfo, dateInfo);
+        prompt += this._buildAnalysisRequirements(dateInfo, locationInfo);
+        prompt += this._buildDiseaseSpecificSection(title);
+        prompt += this._buildRecommendationsSection();
+        prompt += this._buildOutputFormat();
+        
+        return prompt;
+    }
+
+    // 构建提示词头部
+    _buildPromptHeader(title, description, precautions) {
+        let header = `【健康建议生成任务】基于真实天气数据的个性化健康建议
 
 【用户健康信息】
 健康状况：${title}`;
 
         if (description) {
-            prompt += `\n详细描述：${description}`;
+            header += `\n详细描述：${description}`;
         }
 
         if (precautions) {
-            prompt += `\n医嘱/注意事项：${precautions}`;
+            header += `\n医嘱/注意事项：${precautions}`;
         }
 
-        // 添加详细的时间信息
-        prompt += `
+        return header;
+    }
+
+    // 构建时间信息部分
+    _buildTimeSection(dateInfo) {
+        return `
 
 【当前时间信息】
 完整日期：${dateInfo.dateWithWeekday}
 当前季节：${dateInfo.season}
 时间段：${dateInfo.timeOfDay}`;
+    }
 
-        // 添加详细的位置信息
-        if (locationInfo.hasLocation) {
-            prompt += `
+    // 构建位置信息部分
+    _buildLocationSection(locationInfo) {
+        if (!locationInfo.hasLocation) return '';
+
+        let section = `
 
 【用户位置信息】
 具体位置：${locationInfo.formattedLocation}`;
-            
-            if (locationInfo.climate) {
-                prompt += `\n气候特征：${locationInfo.climate}`;
-            }
+        
+        if (locationInfo.climate) {
+            section += `\n气候特征：${locationInfo.climate}`;
         }
 
-        // 添加真实天气数据
+        return section;
+    }
+
+    // 构建天气信息部分
+    _buildWeatherSection(weatherData, locationInfo, dateInfo) {
         if (weatherData && !weatherData.isError) {
-            prompt += `
+            return this._buildRealWeatherSection(weatherData);
+        } else {
+            return this._buildFallbackWeatherSection(locationInfo, dateInfo);
+        }
+    }
+
+    // 构建真实天气数据部分
+    _buildRealWeatherSection(weatherData) {
+        const updateTime = weatherData.lastUpdated ? 
+            new Date(weatherData.lastUpdated).toLocaleString('zh-CN') : '刚刚';
+
+        return `
 
 【实时天气数据】
 位置：${weatherData.location || '当前位置'}
@@ -198,15 +240,20 @@ class AIService {
 温度：${weatherData.temperature}
 湿度：${weatherData.humidity.value}
 风力：${weatherData.wind.level}
-数据更新时间：${weatherData.lastUpdated ? new Date(weatherData.lastUpdated).toLocaleString('zh-CN') : '刚刚'}`;
-        } else {
-            prompt += `
+数据更新时间：${updateTime}`;
+    }
+
+    // 构建备用天气信息部分
+    _buildFallbackWeatherSection(locationInfo, dateInfo) {
+        return `
 
 【天气信息】
 抱歉，当前无法获取准确的天气数据。请基于${locationInfo.climate || '当地气候'}和${dateInfo.season}季节特点给出通用建议。`;
-        }
+    }
 
-        prompt += `
+    // 构建分析要求部分
+    _buildAnalysisRequirements(dateInfo, locationInfo) {
+        return `
 
 【个性化分析要求】
 1. 🎯 **天气影响分析**
@@ -215,54 +262,108 @@ class AIService {
    - 基于${locationInfo.climate || '当地气候'}特征评估风险
 
 2. 📊 **疾病特定关注点**`;
+    }
 
-        // 根据疾病类型添加特定关注点
-        if (title.includes('关节') || title.includes('骨折') || title.includes('风湿')) {
-            prompt += `
-   - 关节疾病重点：温湿度变化、气压影响、保暖防潮措施`;
-        }
-        if (title.includes('呼吸') || title.includes('咳嗽') || title.includes('哮喘')) {
-            prompt += `
-   - 呼吸疾病重点：空气质量、温差变化、湿度影响`;
-        }
-        if (title.includes('心血管') || title.includes('高血压') || title.includes('心脏')) {
-            prompt += `
-   - 心血管疾病重点：气压变化、温度波动、运动建议`;
-        }
-        if (title.includes('皮肤') || title.includes('湿疹') || title.includes('过敏')) {
-            prompt += `
-   - 皮肤疾病重点：湿度影响、紫外线防护、${dateInfo.season}季护理`;
-        }
+    // 构建疾病特定部分
+    _buildDiseaseSpecificSection(title) {
+        const diseaseTypes = this._identifyDiseaseType(title);
+        let section = '';
 
-        prompt += `
+        diseaseTypes.forEach(type => {
+            section += this._getDiseaseSpecificAdvice(type);
+        });
 
-【健康建议格式】
-请按以下格式提供3-5个具体可行的建议：
+        return section;
+    }
 
-🌡️ **天气适应建议**
-- 根据当前${weatherData?.temperature || '温度'}和${weatherData?.condition || '天气状况'}的具体建议
+    // 识别疾病类型
+    _identifyDiseaseType(title) {
+        const types = [];
+        
+        if (this._isJointRelated(title)) types.push('joint');
+        if (this._isRespiratoryRelated(title)) types.push('respiratory');
+        if (this._isCardiovascularRelated(title)) types.push('cardiovascular');
+        if (this._isSkinRelated(title)) types.push('skin');
+        if (this._isDigestiveRelated(title)) types.push('digestive');
+        
+        return types.length > 0 ? types : ['general'];
+    }
 
-💧 **湿度风力应对**
-- 针对${weatherData?.humidity?.value || '当前湿度'}和${weatherData?.wind?.level || '风力条件'}的措施
+    // 疾病类型判断方法
+    _isJointRelated(title) {
+        return title.includes('关节') || title.includes('骨折') || title.includes('风湿');
+    }
 
-🏠 **日常生活调整**
-- 结合${dateInfo.timeOfDay}时段和健康状况的生活建议
+    _isRespiratoryRelated(title) {
+        return title.includes('咳嗽') || title.includes('哮喘') || title.includes('肺') || title.includes('呼吸');
+    }
 
-⚠️ **特别注意事项**
-- 基于病情和天气的重要提醒
+    _isCardiovascularRelated(title) {
+        return title.includes('心脏') || title.includes('血压') || title.includes('心血管');
+    }
 
-📋 **监测要点**
-- 需要特别关注的身体指标和症状变化
+    _isSkinRelated(title) {
+        return title.includes('皮肤') || title.includes('湿疹') || title.includes('过敏');
+    }
+
+    _isDigestiveRelated(title) {
+        return title.includes('胃') || title.includes('肠') || title.includes('消化');
+    }
+
+    // 获取疾病特定建议
+    _getDiseaseSpecificAdvice(type) {
+        const adviceMap = {
+            joint: `
+   - 关节疾病：重点关注湿度、气压变化对关节的影响
+   - 温度骤变可能加重疼痛，需要保暖措施`,
+            respiratory: `
+   - 呼吸系统：关注空气质量、湿度对呼吸道的影响
+   - 温差变化可能诱发症状加重`,
+            cardiovascular: `
+   - 心血管系统：注意气温变化对血压、心率的影响
+   - 极端天气可能增加心血管负担`,
+            skin: `
+   - 皮肤问题：关注湿度、紫外线对皮肤的影响
+   - 干燥或潮湿环境可能加重症状`,
+            digestive: `
+   - 消化系统：注意温度变化对肠胃功能的影响
+   - 季节变化可能影响食欲和消化`,
+            general: `
+   - 综合考虑天气对整体健康状况的影响`
+        };
+
+        return adviceMap[type] || adviceMap.general;
+    }
+
+    // 构建建议部分
+    _buildRecommendationsSection() {
+        return `
+
+3. 💡 **具体建议内容**
+   - 日常护理要点（结合天气条件）
+   - 饮食调理建议（考虑季节特点）
+   - 运动锻炼指导（适应天气状况）
+   - 用药注意事项（如有相关）
+   - 生活起居调整
+
+4. ⚠️ **风险提醒**
+   - 当前天气条件下需要特别注意的事项
+   - 可能加重症状的环境因素
+   - 紧急情况的识别和处理`;
+    }
+
+    // 构建输出格式部分
+    _buildOutputFormat() {
+        return `
 
 【输出要求】
-✅ 语言自然专业，易于理解
-✅ 建议具体可行，有实际指导意义
-✅ 充分结合天气数据和健康状况
-✅ 避免过于宽泛的通用建议
+- 语言：简洁明了的中文
+- 结构：分点列出，便于阅读
+- 长度：200-400字
+- 语气：专业但温和，避免过于医学化的术语
+- 重点：实用性强，可操作性高的建议
 
-请立即生成个性化健康建议：`;
-
-        return prompt;
+请基于以上信息生成个性化的健康建议。`;
     }
 
     /**

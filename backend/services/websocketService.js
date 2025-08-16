@@ -83,147 +83,181 @@ class WebSocketService {
         console.log('📨 收到WebSocket消息:', { type, deviceId, userId, appUserId });
 
         // 注册连接
+        this._registerConnectionIfValid(ws, deviceId, userId, appUserId);
+
+        try {
+            const response = await this._processMessageByType(type, data, userId, deviceId, appUserId);
+            
+            // 发送响应
+            this._sendSuccessResponse(ws, type, response);
+
+            // 处理广播
+            this._handleBroadcasting(type, userId, deviceId, response);
+
+        } catch (error) {
+            console.error(`❌ 处理${type}操作失败:`, error);
+            console.error('错误详情:', error.stack);
+            this.sendError(ws, type, error.message);
+        }
+    }
+
+    // 注册连接（如果有效）
+    _registerConnectionIfValid(ws, deviceId, userId, appUserId) {
         if (deviceId && (userId || appUserId)) {
             console.log(`📝 [WebSocket] 注册连接: deviceId=${deviceId}, userId=${userId}, appUserId=${appUserId}`);
             this.registerConnection(ws, deviceId, userId, appUserId);
         } else {
             console.log(`⚠️ [WebSocket] 连接信息不完整: deviceId=${deviceId}, userId=${userId}, appUserId=${appUserId}`);
         }
+    }
 
-        try {
-            let response;
+    // 根据消息类型处理消息
+    async _processMessageByType(type, data, userId, deviceId, appUserId) {
+        // TODO相关操作
+        if (type.startsWith('TODO_')) {
+            return await this._handleTodoOperations(type, data, userId);
+        }
+        
+        // Notes相关操作
+        if (type.startsWith('NOTES_')) {
+            return await this._handleNotesOperations(type, data, userId);
+        }
+        
+        // Link相关操作
+        if (type.startsWith('LINK_')) {
+            return await this._handleLinkOperations(type, data, userId, deviceId);
+        }
+        
+        // 连接管理操作
+        return await this._handleConnectionOperations(type, data, userId, deviceId, appUserId);
+    }
 
-            switch (type) {
-                // TODO相关操作
-                case 'TODO_GET_TODAY':
-                    response = await this.handleTodoGetToday(userId);
-                    break;
-                case 'TODO_GET_BY_DATE':
-                    response = await this.handleTodoGetByDate(userId, data.date);
-                    break;
-                case 'TODO_CREATE':
-                    response = await this.handleTodoCreate(data);
-                    break;
-                case 'TODO_UPDATE':
-                    response = await this.handleTodoUpdate(data.todoId, data.updateData);
-                    break;
-                case 'TODO_DELETE':
-                    response = await this.handleTodoDelete(data.todoId, data.deletionType, data.deletionDate);
-                    break;
-                case 'TODO_COMPLETE':
-                    response = await this.handleTodoComplete(data.todoId, data.userId, data.date);
-                    break;
-                case 'TODO_UNCOMPLETE':
-                    response = await this.handleTodoUncomplete(data.todoId, data.date, data.userId);
-                    break;
+    // 处理TODO相关操作
+    async _handleTodoOperations(type, data, userId) {
+        switch (type) {
+            case 'TODO_GET_TODAY':
+                return await this.handleTodoGetToday(userId);
+            case 'TODO_GET_BY_DATE':
+                return await this.handleTodoGetByDate(userId, data.date);
+            case 'TODO_CREATE':
+                return await this.handleTodoCreate(data);
+            case 'TODO_UPDATE':
+                return await this.handleTodoUpdate(data.todoId, data.updateData);
+            case 'TODO_DELETE':
+                return await this.handleTodoDelete(data.todoId, data.deletionType, data.deletionDate);
+            case 'TODO_COMPLETE':
+                return await this.handleTodoComplete(data.todoId, data.userId, data.date);
+            case 'TODO_UNCOMPLETE':
+                return await this.handleTodoUncomplete(data.todoId, data.date, data.userId);
+            default:
+                throw new Error(`未知的TODO操作类型: ${type}`);
+        }
+    }
 
-                // Notes相关操作
-                case 'NOTES_GET_BY_USER':
-                    response = await this.handleNotesGetByUser(userId);
-                    break;
-                case 'NOTES_CREATE':
-                    response = await this.handleNotesCreate(data);
-                    break;
-                case 'NOTES_UPDATE':
-                    response = await this.handleNotesUpdate(data.noteId, data.updateData);
-                    break;
-                case 'NOTES_DELETE':
-                    response = await this.handleNotesDelete(data.noteId);
-                    break;
-                case 'NOTES_AI_SUGGESTIONS':
-                    response = await this.handleNotesAISuggestions(data.noteId, data.userLocation, data.weatherData);
-                    break;
+    // 处理Notes相关操作
+    async _handleNotesOperations(type, data, userId) {
+        switch (type) {
+            case 'NOTES_GET_BY_USER':
+                return await this.handleNotesGetByUser(userId);
+            case 'NOTES_CREATE':
+                return await this.handleNotesCreate(data);
+            case 'NOTES_UPDATE':
+                return await this.handleNotesUpdate(data.noteId, data.updateData);
+            case 'NOTES_DELETE':
+                return await this.handleNotesDelete(data.noteId);
+            case 'NOTES_AI_SUGGESTIONS':
+                return await this.handleNotesAISuggestions(data.noteId, data.userLocation, data.weatherData);
+            default:
+                throw new Error(`未知的Notes操作类型: ${type}`);
+        }
+    }
 
-                // Link相关操作
-                case 'LINK_CHECK_STATUS':
-                    response = await this.handleLinkCheckStatus(data.appUser);
-                    break;
-                case 'LINK_CREATE_REQUEST':
-                    response = await this.handleLinkCreateRequest(data);
-                    break;
-                case 'LINK_GET_PENDING_REQUESTS':
-                    response = await this.handleLinkGetPendingRequests(userId);
-                    break;
-                case 'LINK_HANDLE_REQUEST':
-                    response = await this.handleLinkHandleRequest(data);
-                    break;
-                case 'LINK_GET_USER_LINKS':
-                    response = await this.handleLinkGetUserLinks(userId);
-                    break;
-                case 'LINK_SEND_INVITATION':
-                    response = await this.handleLinkSendInvitation(data, deviceId);
-                    break;
-                case 'LINK_ACCEPT_INVITATION':
-                    response = await this.handleLinkAcceptInvitation(data, deviceId);
-                    break;
-                case 'LINK_REJECT_INVITATION':
-                    response = await this.handleLinkRejectInvitation(data, deviceId);
-                    break;
-                case 'LINK_CANCEL':
-                    response = await this.handleLinkCancel(data, deviceId);
-                    break;
-                    
-                // 在线状态检测
-                case 'LINK_CHECK_USER_ONLINE':
-                    response = await this.handleCheckUserOnline(data.appUserId);
-                    break;
-                case 'LINK_INVITATION_RESPONSE':
-                    response = await this.handleLinkInvitationResponse(data);
-                    break;
+    // 处理Link相关操作
+    async _handleLinkOperations(type, data, userId, deviceId) {
+        switch (type) {
+            case 'LINK_CHECK_STATUS':
+                return await this.handleLinkCheckStatus(data.appUser);
+            case 'LINK_CREATE_REQUEST':
+                return await this.handleLinkCreateRequest(data);
+            case 'LINK_GET_PENDING_REQUESTS':
+                return await this.handleLinkGetPendingRequests(userId);
+            case 'LINK_HANDLE_REQUEST':
+                return await this.handleLinkHandleRequest(data);
+            case 'LINK_GET_USER_LINKS':
+                return await this.handleLinkGetUserLinks(userId);
+            case 'LINK_SEND_INVITATION':
+                return await this.handleLinkSendInvitation(data, deviceId);
+            case 'LINK_ACCEPT_INVITATION':
+                return await this.handleLinkAcceptInvitation(data, deviceId);
+            case 'LINK_REJECT_INVITATION':
+                return await this.handleLinkRejectInvitation(data, deviceId);
+            case 'LINK_CANCEL':
+                return await this.handleLinkCancel(data, deviceId);
+            case 'LINK_CHECK_USER_ONLINE':
+                return await this.handleCheckUserOnline(data.appUserId);
+            case 'LINK_INVITATION_RESPONSE':
+                return await this.handleLinkInvitationResponse(data);
+            default:
+                throw new Error(`未知的Link操作类型: ${type}`);
+        }
+    }
 
-                // 连接管理
-                case 'USER_REGISTRATION':
-                    response = await this.handleUserRegistration(deviceId, userId, appUserId);
-                    break;
-                case 'PING':
-                    response = await this.handlePing(userId, appUserId);
-                    break;
+    // 处理连接管理操作
+    async _handleConnectionOperations(type, data, userId, deviceId, appUserId) {
+        switch (type) {
+            case 'USER_REGISTRATION':
+                return await this.handleUserRegistration(deviceId, userId, appUserId);
+            case 'PING':
+                return await this.handlePing(userId);
+            default:
+                throw new Error(`未知的消息类型: ${type}`);
+        }
+    }
 
-                default:
-                    throw new Error(`未知的消息类型: ${type}`);
-            }
+    // 发送成功响应
+    _sendSuccessResponse(ws, type, response) {
+        this.sendMessage(ws, {
+            type: `${type}_RESPONSE`,
+            success: true,
+            data: response,
+            timestamp: Date.now()
+        });
+    }
 
-            // 发送响应
-            this.sendMessage(ws, {
-                type: `${type}_RESPONSE`,
-                success: true,
-                data: response,
-                timestamp: Date.now()
-            });
+    // 处理广播
+    _handleBroadcasting(type, userId, deviceId, response) {
+        if (!this.isModifyOperation(type)) return;
 
-            // 如果是修改操作，广播给该用户的其他设备
-            if (this.isModifyOperation(type)) {
-                this.broadcastToUserDevices(userId, deviceId, {
-                    type: `${type}_BROADCAST`,
-                    success: true,
-                    data: response,
-                    timestamp: Date.now()
-                });
-                
-                // 如果是TODO或Notes修改操作，也要广播给关联用户
-                if (this.isDataModifyOperation(type) && userId) {
-                    const tableMap = {
-                        'TODO_CREATE': 'todos',
-                        'TODO_UPDATE': 'todos', 
-                        'TODO_DELETE': 'todos',
-                        'TODO_COMPLETE': 'todos',
-                        'TODO_UNCOMPLETE': 'todos',
-                        'NOTES_CREATE': 'notes',
-                        'NOTES_UPDATE': 'notes',
-                        'NOTES_DELETE': 'notes'
-                    };
-                    
-                    const table = tableMap[type];
-                    if (table) {
-                        this.broadcastDataSyncToLinkedUsers(userId, type, table, response);
-                    }
-                }
-            }
+        // 广播给该用户的其他设备
+        this.broadcastToUserDevices(userId, deviceId, {
+            type: `${type}_BROADCAST`,
+            success: true,
+            data: response,
+            timestamp: Date.now()
+        });
+        
+        // 广播给关联用户
+        this._broadcastToLinkedUsersIfNeeded(type, userId, response);
+    }
 
-        } catch (error) {
-            console.error(`❌ 处理${type}操作失败:`, error);
-            console.error('错误详情:', error.stack);
-            this.sendError(ws, type, error.message);
+    // 如果需要，广播给关联用户
+    _broadcastToLinkedUsersIfNeeded(type, userId, response) {
+        if (!this.isDataModifyOperation(type) || !userId) return;
+
+        const tableMap = {
+            'TODO_CREATE': 'todos',
+            'TODO_UPDATE': 'todos', 
+            'TODO_DELETE': 'todos',
+            'TODO_COMPLETE': 'todos',
+            'TODO_UNCOMPLETE': 'todos',
+            'NOTES_CREATE': 'notes',
+            'NOTES_UPDATE': 'notes',
+            'NOTES_DELETE': 'notes'
+        };
+        
+        const table = tableMap[type];
+        if (table) {
+            this.broadcastDataSyncToLinkedUsers(userId, type, table, response);
         }
     }
 

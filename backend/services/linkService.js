@@ -854,155 +854,192 @@ class LinkService {
     static async syncTodoOperation(operation, data, targetUserIds) {
         try {
             for (const targetUserId of targetUserIds) {
-                switch (operation) {
-                    case 'CREATE':
-                        await query(`
-                            INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, 
-                                             repeat_interval, start_date, end_date, cycle_type, cycle_duration, 
-                                             cycle_unit, sort_order, is_completed_today, is_active, created_at)
-                            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                        `, [
-                            targetUserId, 
-                            data.title, 
-                            data.description || '', 
-                            data.reminder_time || 'all_day', 
-                            typeof data.priority === 'number' ? 
-                                (data.priority === 1 ? 'high' : data.priority === 2 ? 'medium' : 'low') : 
-                                (data.priority || 'medium'),
-                            data.repeat_type || 'none', 
-                            data.repeat_interval || 1, 
-                            data.start_date || new Date().toISOString().split('T')[0], 
-                            data.end_date,
-                            data.cycle_type || 'long_term', 
-                            data.cycle_duration, 
-                            data.cycle_unit || 'days', 
-                            data.sort_order || 0,
-                            data.is_completed_today || false, 
-                            data.is_active !== false, 
-                            data.created_at || new Date().toISOString()
-                        ]);
-                        break;
-                        
-                    case 'UPDATE':
-                        // 根据title和description匹配（因为没有共享的唯一标识符）
-                        await query(`
-                            UPDATE todos 
-                            SET title = ?, description = ?, reminder_time = ?, priority = ?, 
-                                is_completed_today = ?, updated_at = CURRENT_TIMESTAMP
-                            WHERE user_id = ? AND title = ? AND description = ?
-                        `, [
-                            data.title, data.description, data.reminder_time, data.priority,
-                            data.is_completed_today, targetUserId, data.original_title || data.title, 
-                            data.original_description || data.description
-                        ]);
-                        break;
-                        
-                    case 'DELETE': {
-                        // 找到目标todo（基于标题匹配）
-                        const targetTodosDelete = await query(`
-                            SELECT id FROM todos 
-                            WHERE user_id = ? AND title = ? AND is_active = 1
-                            ORDER BY created_at DESC LIMIT 1
-                        `, [targetUserId, data.title]);
-                        
-                        if (targetTodosDelete.length > 0) {
-                            const targetTodoId = targetTodosDelete[0].id;
-                            
-                            // 根据删除类型处理
-                            if (data.deletionType === 'single' && data.deletionDate) {
-                                // 单个实例删除：插入删除记录
-                                await query(`
-                                    INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
-                                    VALUES (?, ?, 'single')
-                                `, [targetTodoId, data.deletionDate]);
-                                
-                                console.log(`✅ 已同步TODO单个实例删除到用户${targetUserId}, TODO ID ${targetTodoId}, 日期 ${data.deletionDate}`);
-                            } else if (data.deletionType === 'from_date' && data.deletionDate) {
-                                // 从指定日期开始删除：插入删除记录
-                                await query(`
-                                    INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
-                                    VALUES (?, ?, 'from_date')
-                                `, [targetTodoId, data.deletionDate]);
-                                
-                                console.log(`✅ 已同步TODO从日期删除到用户${targetUserId}, TODO ID ${targetTodoId}, 从日期 ${data.deletionDate}`);
-                            } else {
-                                // 全部删除：标记为不活跃
-                                await query(`
-                                    UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP
-                                    WHERE id = ?
-                                `, [targetTodoId]);
-                                
-                                console.log(`✅ 已同步TODO完全删除到用户${targetUserId}, TODO ID ${targetTodoId}`);
-                            }
-                        } else {
-                            console.log(`⚠️ 未找到要删除的目标TODO (用户${targetUserId}, 标题: "${data.title}")`);
-                        }
-                        break;
-                    }
-                        
-                    case 'COMPLETE': {
-                        // 找到目标todo
-                        const targetTodos = await query(`
-                            SELECT id FROM todos 
-                            WHERE user_id = ? AND title = ? AND is_active = 1
-                            ORDER BY created_at DESC LIMIT 1
-                        `, [targetUserId, data.title]);
-                        
-                        if (targetTodos.length > 0) {
-                            const targetTodoId = targetTodos[0].id;
-                            
-                            // 插入完成记录到todo_completions表
-                            await query(`
-                                INSERT OR REPLACE INTO todo_completions (todo_id, user_id, completion_date, notes)
-                                VALUES (?, ?, ?, ?)
-                            `, [targetTodoId, targetUserId, data.date || new Date().toISOString().split('T')[0], data.notes || '']);
-                            
-                            // 更新todos表中的完成状态
-                            await query(`
-                                UPDATE todos 
-                                SET is_completed_today = 1, updated_at = CURRENT_TIMESTAMP
-                                WHERE id = ?
-                            `, [targetTodoId]);
-                            
-                            console.log(`✅ 已同步TODO完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
-                        }
-                        break;
-                    }
-                        
-                    case 'UNCOMPLETE': {
-                        // 找到目标todo
-                        const targetTodosUncomplete = await query(`
-                            SELECT id FROM todos 
-                            WHERE user_id = ? AND title = ? AND is_active = 1
-                            ORDER BY created_at DESC LIMIT 1
-                        `, [targetUserId, data.title]);
-                        
-                        if (targetTodosUncomplete.length > 0) {
-                            const targetTodoId = targetTodosUncomplete[0].id;
-                            
-                            // 删除完成记录
-                            await query(`
-                                DELETE FROM todo_completions 
-                                WHERE todo_id = ? AND completion_date = ?
-                            `, [targetTodoId, data.date || new Date().toISOString().split('T')[0]]);
-                            
-                            // 更新todos表中的完成状态
-                            await query(`
-                                UPDATE todos 
-                                SET is_completed_today = 0, updated_at = CURRENT_TIMESTAMP
-                                WHERE id = ?
-                            `, [targetTodoId]);
-                            
-                            console.log(`✅ 已同步TODO取消完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
-                        }
-                        break;
-                    }
-                }
+                await this._executeTodoOperation(operation, data, targetUserId);
             }
         } catch (error) {
             console.error('❌ 同步Todo操作失败:', error);
             throw error;
         }
+    }
+
+    // 执行单个用户的TODO操作
+    static async _executeTodoOperation(operation, data, targetUserId) {
+        switch (operation) {
+            case 'CREATE':
+                await this._createTodo(data, targetUserId);
+                break;
+            case 'UPDATE':
+                await this._updateTodo(data, targetUserId);
+                break;
+            case 'DELETE':
+                await this._deleteTodo(data, targetUserId);
+                break;
+            case 'COMPLETE':
+                await this._completeTodo(data, targetUserId);
+                break;
+            case 'UNCOMPLETE':
+                await this._uncompleteTodo(data, targetUserId);
+                break;
+        }
+    }
+
+    // 创建TODO
+    static async _createTodo(data, targetUserId) {
+        const priority = this._normalizePriority(data.priority);
+        
+        await query(`
+            INSERT INTO todos (user_id, title, description, reminder_time, priority, repeat_type, 
+                             repeat_interval, start_date, end_date, cycle_type, cycle_duration, 
+                             cycle_unit, sort_order, is_completed_today, is_active, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `, [
+            targetUserId, 
+            data.title, 
+            data.description || '', 
+            data.reminder_time || 'all_day', 
+            priority,
+            data.repeat_type || 'none', 
+            data.repeat_interval || 1, 
+            data.start_date || new Date().toISOString().split('T')[0], 
+            data.end_date,
+            data.cycle_type || 'long_term', 
+            data.cycle_duration, 
+            data.cycle_unit || 'days', 
+            data.sort_order || 0,
+            data.is_completed_today || false, 
+            data.is_active !== false, 
+            data.created_at || new Date().toISOString()
+        ]);
+    }
+
+    // 更新TODO
+    static async _updateTodo(data, targetUserId) {
+        await query(`
+            UPDATE todos 
+            SET title = ?, description = ?, reminder_time = ?, priority = ?, 
+                is_completed_today = ?, updated_at = CURRENT_TIMESTAMP
+            WHERE user_id = ? AND title = ? AND description = ?
+        `, [
+            data.title, data.description, data.reminder_time, data.priority,
+            data.is_completed_today, targetUserId, data.original_title || data.title, 
+            data.original_description || data.description
+        ]);
+    }
+
+    // 删除TODO
+    static async _deleteTodo(data, targetUserId) {
+        const targetTodo = await this._findTodoByTitle(targetUserId, data.title);
+        if (!targetTodo) {
+            console.log(`⚠️ 未找到要删除的目标TODO (用户${targetUserId}, 标题: "${data.title}")`);
+            return;
+        }
+
+        const targetTodoId = targetTodo.id;
+        
+        if (data.deletionType === 'single' && data.deletionDate) {
+            await this._deleteSingleTodoInstance(targetTodoId, data.deletionDate, targetUserId);
+        } else if (data.deletionType === 'from_date' && data.deletionDate) {
+            await this._deleteTodoFromDate(targetTodoId, data.deletionDate, targetUserId);
+        } else {
+            await this._deleteAllTodo(targetTodoId, targetUserId);
+        }
+    }
+
+    // 完成TODO
+    static async _completeTodo(data, targetUserId) {
+        const targetTodo = await this._findTodoByTitle(targetUserId, data.title);
+        if (!targetTodo) return;
+
+        const targetTodoId = targetTodo.id;
+        const completionDate = data.date || new Date().toISOString().split('T')[0];
+
+        // 插入完成记录
+        await query(`
+            INSERT OR REPLACE INTO todo_completions (todo_id, user_id, completion_date, notes)
+            VALUES (?, ?, ?, ?)
+        `, [targetTodoId, targetUserId, completionDate, data.notes || '']);
+
+        // 更新完成状态
+        await query(`
+            UPDATE todos 
+            SET is_completed_today = 1, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [targetTodoId]);
+
+        console.log(`✅ 已同步TODO完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
+    }
+
+    // 取消完成TODO
+    static async _uncompleteTodo(data, targetUserId) {
+        const targetTodo = await this._findTodoByTitle(targetUserId, data.title);
+        if (!targetTodo) return;
+
+        const targetTodoId = targetTodo.id;
+        const completionDate = data.date || new Date().toISOString().split('T')[0];
+
+        // 删除完成记录
+        await query(`
+            DELETE FROM todo_completions 
+            WHERE todo_id = ? AND completion_date = ?
+        `, [targetTodoId, completionDate]);
+
+        // 更新完成状态
+        await query(`
+            UPDATE todos 
+            SET is_completed_today = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [targetTodoId]);
+
+        console.log(`✅ 已同步TODO取消完成状态到用户${targetUserId}, TODO ID ${targetTodoId}`);
+    }
+
+    // 辅助方法：查找TODO
+    static async _findTodoByTitle(userId, title) {
+        const todos = await query(`
+            SELECT id FROM todos 
+            WHERE user_id = ? AND title = ? AND is_active = 1
+            ORDER BY created_at DESC LIMIT 1
+        `, [userId, title]);
+        
+        return todos.length > 0 ? todos[0] : null;
+    }
+
+    // 辅助方法：标准化优先级
+    static _normalizePriority(priority) {
+        if (typeof priority === 'number') {
+            return priority === 1 ? 'high' : priority === 2 ? 'medium' : 'low';
+        }
+        return priority || 'medium';
+    }
+
+    // 辅助方法：删除单个实例
+    static async _deleteSingleTodoInstance(todoId, deletionDate, userId) {
+        await query(`
+            INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
+            VALUES (?, ?, 'single')
+        `, [todoId, deletionDate]);
+        
+        console.log(`✅ 已同步TODO单个实例删除到用户${userId}, TODO ID ${todoId}, 日期 ${deletionDate}`);
+    }
+
+    // 辅助方法：从日期开始删除
+    static async _deleteTodoFromDate(todoId, deletionDate, userId) {
+        await query(`
+            INSERT OR REPLACE INTO todo_deletions (todo_id, deletion_date, deletion_type)
+            VALUES (?, ?, 'from_date')
+        `, [todoId, deletionDate]);
+        
+        console.log(`✅ 已同步TODO从日期删除到用户${userId}, TODO ID ${todoId}, 从日期 ${deletionDate}`);
+    }
+
+    // 辅助方法：完全删除
+    static async _deleteAllTodo(todoId, userId) {
+        await query(`
+            UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP
+            WHERE id = ?
+        `, [todoId]);
+        
+        console.log(`✅ 已同步TODO完全删除到用户${userId}, TODO ID ${todoId}`);
     }
     
     // 同步Note操作
