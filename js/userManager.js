@@ -172,19 +172,39 @@ const UserManager = {
     async handleAddUser(event) {
         event.preventDefault();
         
-        // 防止重复提交
+        const submitButton = this._handleFormSubmission(event);
+        if (!submitButton) return;
+        
+        const userData = this._extractUserData(event.target);
+        this._logUserData(userData);
+
+        try {
+            const newUser = await this._createUserOnServer(userData);
+            await this._handleUserCreationSuccess(newUser);
+        } catch (error) {
+            this._handleUserCreationError(error);
+        } finally {
+            this._restoreSubmitButton(submitButton);
+        }
+    },
+
+    // 处理表单提交状态
+    _handleFormSubmission(event) {
         const submitButton = event.target.querySelector('button[type="submit"]');
         if (submitButton.disabled) {
             console.log('⚠️ 表单正在提交中，忽略重复提交');
-            return;
+            return null;
         }
         
-        // 禁用提交按钮
         submitButton.disabled = true;
         submitButton.textContent = '提交中...';
-        
-        const formData = new FormData(event.target);
-        const userData = {
+        return submitButton;
+    },
+
+    // 提取用户数据
+    _extractUserData(form) {
+        const formData = new FormData(form);
+        return {
             username: formData.get('username'),
             display_name: formData.get('display_name'),
             email: formData.get('email') || null,
@@ -193,93 +213,110 @@ const UserManager = {
             birthday: formData.get('birthday') || null,
             avatar_color: formData.get('avatar_color') || '#1d9bf0'
         };
+    },
 
+    // 记录用户数据
+    _logUserData(userData) {
         console.log('📤 准备创建用户:', userData);
         console.log('📋 用户数据详情:');
         Object.keys(userData).forEach(key => {
             console.log(`  ${key}: "${userData[key]}" (类型: ${typeof userData[key]}, 长度: ${userData[key]?.length || 'N/A'})`);
         });
+    },
 
-        try {
-            // 在服务器创建用户
-            console.log('🔄 正在调用API创建用户...');
-            const response = await ApiClient.users.create(userData);
-            console.log('📥 API响应:', response);
-            
-            if (response && response.success) {
-                const newUser = response.data;
-                console.log('✅ 在服务器创建用户成功:', newUser);
-                
-                // 添加到本地用户列表
-                this.users.push(newUser);
-                console.log('📝 已添加到本地用户列表，当前用户数:', this.users.length);
-                
-                // 切换到新创建的用户
-                if (window.TodoManager) {
-                    window.TodoManager.currentUser = newUser.id;
-                    console.log('🎯 已切换TodoManager到新用户:', newUser.id, newUser.username);
-                }
-                
-                // 同步到全局状态管理器
-                if (window.GlobalUserState) {
-                    GlobalUserState.setCurrentUser(newUser.id);
-                    console.log('🎯 已同步GlobalUserState到新用户:', newUser.id, newUser.username);
-                }
-                
-                // 重新渲染用户标签（会显示新用户为活跃状态）
-                this.renderUserTabs();
-                console.log('🎨 已重新渲染用户标签');
-                
-                // 关闭表单
-                this.closeAddUserForm();
-                
-                // 显示成功消息
-                this.showMessage('用户添加成功！', 'success');
-                
-                // 加载并显示新用户的TODO列表
-                if (window.TodoManager && typeof window.TodoManager.loadTodosFromAPI === 'function') {
-                    try {
-                        // 为新用户初始化空的TODO数组
-                        window.TodoManager.todos[newUser.id] = [];
-                        
-                        // 重新加载所有用户的TODO数据（包括新用户）
-                        await window.TodoManager.loadTodosFromAPI();
-                        
-                        // 渲染新用户的TODO面板
-                        window.TodoManager.renderTodoPanel(newUser.id);
-                        console.log('✅ 已加载并显示新用户的TODO列表');
-                    } catch (todoError) {
-                        console.warn('重新加载TODO数据失败:', todoError);
-                        // 即使加载失败，也要显示新用户的空TODO面板
-                        window.TodoManager.renderTodoPanel(newUser.id);
-                    }
-                }
-                
-            } else {
-                console.error('❌ API返回失败响应:', response);
-                throw new Error(response?.message || '创建用户失败');
+    // 在服务器创建用户
+    async _createUserOnServer(userData) {
+        console.log('🔄 正在调用API创建用户...');
+        const response = await ApiClient.users.create(userData);
+        console.log('📥 API响应:', response);
+        
+        if (response && response.success) {
+            console.log('✅ 在服务器创建用户成功:', response.data);
+            return response.data;
+        } else {
+            console.error('❌ API返回失败响应:', response);
+            throw new Error(response?.message || '创建用户失败');
+        }
+    },
+
+    // 处理用户创建成功
+    async _handleUserCreationSuccess(newUser) {
+        this._addUserToLocalList(newUser);
+        this._switchToNewUser(newUser);
+        this._updateUserInterface();
+        await this._loadNewUserTodos(newUser);
+    },
+
+    // 添加用户到本地列表
+    _addUserToLocalList(newUser) {
+        this.users.push(newUser);
+        console.log('📝 已添加到本地用户列表，当前用户数:', this.users.length);
+    },
+
+    // 切换到新用户
+    _switchToNewUser(newUser) {
+        if (window.TodoManager) {
+            window.TodoManager.currentUser = newUser.id;
+            console.log('🎯 已切换TodoManager到新用户:', newUser.id, newUser.username);
+        }
+        
+        if (window.GlobalUserState) {
+            GlobalUserState.setCurrentUser(newUser.id);
+            console.log('🎯 已同步GlobalUserState到新用户:', newUser.id, newUser.username);
+        }
+    },
+
+    // 更新用户界面
+    _updateUserInterface() {
+        this.renderUserTabs();
+        console.log('🎨 已重新渲染用户标签');
+        
+        this.closeAddUserForm();
+        this.showMessage('用户添加成功！', 'success');
+    },
+
+    // 为新用户加载TODO列表
+    async _loadNewUserTodos(newUser) {
+        if (window.TodoManager && typeof window.TodoManager.loadTodosFromAPI === 'function') {
+            try {
+                window.TodoManager.todos[newUser.id] = [];
+                await window.TodoManager.loadTodosFromAPI();
+                window.TodoManager.renderTodoPanel(newUser.id);
+                console.log('✅ 已加载并显示新用户的TODO列表');
+            } catch (todoError) {
+                console.warn('重新加载TODO数据失败:', todoError);
+                window.TodoManager.renderTodoPanel(newUser.id);
             }
-            
-        } catch (error) {
-            console.error('❌ 添加用户失败:', error);
-            console.error('错误详情:', {
-                message: error.message,
-                stack: error.stack,
-                response: error.response
-            });
-            
-            // 检查是否是网络错误
-            if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
-                this.showMessage('网络连接失败，请检查服务器状态', 'error');
-            } else {
-                this.showMessage('添加用户失败: ' + error.message, 'error');
-            }
-        } finally {
-            // 恢复提交按钮状态
-            if (submitButton) {
-                submitButton.disabled = false;
-                submitButton.textContent = '添加用户';
-            }
+        }
+    },
+
+    // 处理用户创建错误
+    _handleUserCreationError(error) {
+        console.error('❌ 添加用户失败:', error);
+        console.error('错误详情:', {
+            message: error.message,
+            stack: error.stack,
+            response: error.response
+        });
+        
+        const errorMessage = this._getErrorMessage(error);
+        this.showMessage(errorMessage, 'error');
+    },
+
+    // 获取错误消息
+    _getErrorMessage(error) {
+        if (error.message.includes('fetch') || error.message.includes('NetworkError')) {
+            return '网络连接失败，请检查服务器状态';
+        } else {
+            return '添加用户失败: ' + error.message;
+        }
+    },
+
+    // 恢复提交按钮状态
+    _restoreSubmitButton(submitButton) {
+        if (submitButton) {
+            submitButton.disabled = false;
+            submitButton.textContent = '添加用户';
         }
     },
 

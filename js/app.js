@@ -854,96 +854,132 @@ const App = {
         try {
             console.log('🔗 [SPA Link] 加载用户关联功能:', user.id);
             
-            const linkContentEl = document.getElementById(`linkContent-${user.id}`);
-            if (!linkContentEl) {
-                console.error('❌ [SPA Link] 找不到关联内容容器');
-                return;
-            }
+            const linkContentEl = this._getLinkContentElement(user.id);
+            if (!linkContentEl) return;
             
-            // 检查用户的关联状态
-            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
+            const currentAppUser = this._getCurrentAppUser();
             if (!currentAppUser) {
                 linkContentEl.innerHTML = '<div class="link-error">用户未登录</div>';
                 return;
             }
             
-            // 检查用户的现有关联关系
-            try {
-                console.log('🔍 [SPA Link] 正在检查用户关联状态...');
-                
-                // 使用WebSocketClient检查当前用户的关联状态，如果WebSocket未连接则降级到HTTP
-                let response;
-                if (window.WebSocketClient && window.WebSocketClient.isConnected) {
-                    response = await window.WebSocketClient.links.checkLinkStatus(currentAppUser);
-                } else {
-                    // HTTP降级模式 - 直接调用API检查当前用户的关联状态
-                    const apiResponse = await fetch(`/api/links/user/${currentAppUser}/status`, {
-                        method: 'GET',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
-                        }
-                    });
-                    
-                    if (!apiResponse.ok) {
-                        throw new Error(`HTTP ${apiResponse.status}: ${apiResponse.statusText}`);
-                    }
-                    
-                    const data = await apiResponse.json();
-                    response = { success: true, data: data };
-                }
-                
-                console.log('🔗 [SPA Link] 用户关联状态:', response);
-                console.log('🔍 [Debug] response.success:', response.success);
-                console.log('🔍 [Debug] response.data:', response.data);
-                console.log('🔍 [Debug] response.data.links:', response.data?.links);
-                console.log('🔍 [Debug] links array length:', response.data?.links?.length);
-                
-                // 🔥 兼容处理：支持新旧两种数据格式
-                let allLinks = [];
-                if (response.data?.links) {
-                    if (Array.isArray(response.data.links)) {
-                        // 新格式：直接是数组
-                        allLinks = response.data.links;
-                        console.log('🔍 [Debug] 使用新格式数组:', allLinks.length);
-                    } else if (response.data.links.asManager || response.data.links.asLinked) {
-                        // 旧格式：是对象包含asManager和asLinked
-                        if (response.data.links.asManager) {
-                            allLinks.push(...response.data.links.asManager);
-                        }
-                        if (response.data.links.asLinked) {
-                            allLinks.push(...response.data.links.asLinked);
-                        }
-                        console.log('🔍 [Debug] 使用旧格式对象，合并后数组长度:', allLinks.length);
-                    }
-                }
-                
-                console.log('🔍 [Debug] 最终合并的links数组:', allLinks);
-                
-                if (response.success && allLinks.length > 0) {
-                    // 用户已有关联关系，显示关联信息和unlink按钮
-                    this.renderLinkedUserInterface(user, allLinks, linkContentEl);
-                } else {
-                    // 用户没有关联关系，显示关联输入界面
-                    this.renderLinkInputInterface(user, linkContentEl);
-                }
-                
-            } catch (error) {
-                console.error('❌ [SPA Link] 检查关联状态失败:', error);
-                console.error('❌ [Debug] 错误详情:', error.message);
-                console.error('❌ [Debug] 当前用户:', currentAppUser);
-                console.error('❌ [Debug] 被选中用户:', user);
-                // 出错时显示输入界面作为降级处理
-                this.renderLinkInputInterface(user, linkContentEl);
-            }
-            
+            await this._loadAndRenderLinkStatus(user, currentAppUser, linkContentEl);
             console.log('✅ [SPA Link] 关联功能界面已加载');
         } catch (error) {
             console.error('❌ [SPA Link] 加载关联功能失败:', error);
-            const linkContentEl = document.getElementById(`linkContent-${user.id}`);
-            if (linkContentEl) {
-                linkContentEl.innerHTML = '<div class="link-error">加载关联功能失败</div>';
+            this._renderErrorState(user.id, '加载关联功能失败');
+        }
+    },
+
+    // 获取关联内容元素
+    _getLinkContentElement(userId) {
+        const linkContentEl = document.getElementById(`linkContent-${userId}`);
+        if (!linkContentEl) {
+            console.error('❌ [SPA Link] 找不到关联内容容器');
+            return null;
+        }
+        return linkContentEl;
+    },
+
+    // 获取当前应用用户
+    _getCurrentAppUser() {
+        return window.GlobalUserState ? 
+               window.GlobalUserState.getAppUserId() : 
+               localStorage.getItem('wenting_current_app_user');
+    },
+
+    // 加载并渲染关联状态
+    async _loadAndRenderLinkStatus(user, currentAppUser, linkContentEl) {
+        try {
+            console.log('🔍 [SPA Link] 正在检查用户关联状态...');
+            
+            const response = await this._fetchLinkStatus(currentAppUser);
+            const allLinks = this._parseLinkResponse(response);
+            
+            if (response.success && allLinks.length > 0) {
+                this.renderLinkedUserInterface(user, allLinks, linkContentEl);
+            } else {
+                this.renderLinkInputInterface(user, linkContentEl);
             }
+        } catch (error) {
+            console.error('❌ [SPA Link] 检查关联状态失败:', error);
+            this._logLinkStatusError(error, currentAppUser, user);
+            this.renderLinkInputInterface(user, linkContentEl);
+        }
+    },
+
+    // 获取关联状态
+    async _fetchLinkStatus(currentAppUser) {
+        if (window.WebSocketClient && window.WebSocketClient.isConnected) {
+            return await window.WebSocketClient.links.checkLinkStatus(currentAppUser);
+        } else {
+            return await this._fetchLinkStatusViaHTTP(currentAppUser);
+        }
+    },
+
+    // 通过HTTP获取关联状态
+    async _fetchLinkStatusViaHTTP(currentAppUser) {
+        const apiResponse = await fetch(`/api/links/user/${currentAppUser}/status`, {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
+            }
+        });
+        
+        if (!apiResponse.ok) {
+            throw new Error(`HTTP ${apiResponse.status}: ${apiResponse.statusText}`);
+        }
+        
+        const data = await apiResponse.json();
+        return { success: true, data: data };
+    },
+
+    // 解析关联响应数据
+    _parseLinkResponse(response) {
+        console.log('🔗 [SPA Link] 用户关联状态:', response);
+        
+        let allLinks = [];
+        if (response.data?.links) {
+            if (Array.isArray(response.data.links)) {
+                // 新格式：直接是数组
+                allLinks = response.data.links;
+                console.log('🔍 [Debug] 使用新格式数组:', allLinks.length);
+            } else if (response.data.links.asManager || response.data.links.asLinked) {
+                // 旧格式：合并asManager和asLinked
+                allLinks = this._mergeLegacyLinkFormats(response.data.links);
+            }
+        }
+        
+        console.log('🔍 [Debug] 最终合并的links数组:', allLinks);
+        return allLinks;
+    },
+
+    // 合并旧格式的关联数据
+    _mergeLegacyLinkFormats(links) {
+        const allLinks = [];
+        if (links.asManager) {
+            allLinks.push(...links.asManager);
+        }
+        if (links.asLinked) {
+            allLinks.push(...links.asLinked);
+        }
+        console.log('🔍 [Debug] 使用旧格式对象，合并后数组长度:', allLinks.length);
+        return allLinks;
+    },
+
+    // 记录关联状态错误日志
+    _logLinkStatusError(error, currentAppUser, user) {
+        console.error('❌ [Debug] 错误详情:', error.message);
+        console.error('❌ [Debug] 当前用户:', currentAppUser);
+        console.error('❌ [Debug] 被选中用户:', user);
+    },
+
+    // 渲染错误状态
+    _renderErrorState(userId, errorMessage) {
+        const linkContentEl = document.getElementById(`linkContent-${userId}`);
+        if (linkContentEl) {
+            linkContentEl.innerHTML = `<div class="link-error">${errorMessage}</div>`;
         }
     },
     
@@ -1025,113 +1061,177 @@ const App = {
         `;
     },
     
-    // 发送关联请求
+    // 发送关联请求（主入口）
     async sendLinkRequest(supervisedUserId) {
         try {
             console.log('🔗 [SPA Link] 发送关联请求，被监管用户ID:', supervisedUserId);
             
-            const inputEl = document.getElementById(`linkUserInput-${supervisedUserId}`);
-            const btnEl = document.getElementById(`linkUserBtn-${supervisedUserId}`);
+            // 获取并验证表单元素
+            const elements = this._getLinkRequestElements(supervisedUserId);
+            if (!elements) return;
             
-            if (!inputEl || !btnEl) {
-                console.error('❌ [SPA Link] 找不到输入元素');
-                return;
-            }
+            // 验证输入并获取目标用户名
+            const targetUsername = this._validateLinkInput(elements.inputEl);
+            if (!targetUsername) return;
             
-            const targetUsername = inputEl.value.trim();
-            if (!targetUsername) {
-                this.showLinkNotification('error', '请输入要关联的用户名');
-                return;
-            }
+            // 获取并验证被监管用户信息
+            const supervisedUser = this._getSupervisedUser(supervisedUserId);
+            if (!supervisedUser) return;
             
-            // 验证用户名格式
-            if (!/^[a-z0-9]{1,10}$/.test(targetUsername)) {
-                this.showLinkNotification('error', '用户名格式不正确，只能包含小写字母和数字，长度1-10字符');
-                return;
-            }
-            
-            // 检查是否尝试关联自己
-            const currentAppUser = window.GlobalUserState ? window.GlobalUserState.getAppUserId() : localStorage.getItem('wenting_current_app_user');
-            if (targetUsername === currentAppUser) {
-                this.showLinkNotification('error', '不能关联自己');
-                return;
-            }
-            
-            // 获取被监管用户信息
-            const supervisedUser = window.UserManager?.users?.find(u => u.id === supervisedUserId);
-            if (!supervisedUser) {
-                this.showLinkNotification('error', '找不到被监管用户信息');
-                return;
-            }
-            
-            // 禁用按钮，显示加载状态
-            btnEl.disabled = true;
-            btnEl.textContent = '检查用户...';
-            
-            // 发送关联邀请
-            try {
-                btnEl.textContent = '发送邀请...';
-                
-                let invitationResponse;
-                if (window.WebSocketClient && window.WebSocketClient.isConnected) {
-                    invitationResponse = await window.WebSocketClient.links.sendInvitation(
-                        targetUsername,
-                        supervisedUserId,
-                        `${currentAppUser} 想要与您关联 ${supervisedUser.display_name} 的健康数据`
-                    );
-                } else {
-                    // HTTP降级模式
-                    const apiResponse = await fetch('/api/links/requests', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json',
-                            'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
-                        },
-                        body: JSON.stringify({
-                            toAppUser: targetUsername,
-                            supervisedUserId: supervisedUserId,
-                            message: `${currentAppUser} 想要与您关联 ${supervisedUser.display_name} 的健康数据`
-                        })
-                    });
-                    invitationResponse = { success: apiResponse.ok, data: await apiResponse.json() };
-                }
-                
-                console.log('📨 [SPA Link] 邀请发送结果:', invitationResponse);
-                
-                if (invitationResponse.success) {
-                    const message = invitationResponse.isOverride 
-                        ? `邀请已更新并重新发送给 ${targetUsername}` 
-                        : `关联邀请已发送给 ${targetUsername}`;
-                    this.showLinkNotification('success', message);
-                    inputEl.value = '';
-                } else {
-                    // 处理不同类型的错误
-                    if (invitationResponse.error === 'TARGET_USER_OFFLINE') {
-                        this.showLinkNotification('warning', `${targetUsername} 当前不在线，请稍后再试或通过其他方式联系对方`);
-                    } else {
-                        this.showLinkNotification('error', invitationResponse.message || invitationResponse.error || '发送邀请失败');
-                    }
-                }
-                
-            } catch (error) {
-                console.error('❌ [SPA Link] WebSocket请求失败:', error);
-                this.showLinkNotification('error', error.message || '发送请求失败');
-            }
-            
-            // 重置按钮
-            btnEl.disabled = false;
-            btnEl.textContent = '发送关联';
+            // 发送邀请
+            await this._sendInvitation(elements, targetUsername, supervisedUserId, supervisedUser);
             
         } catch (error) {
             console.error('❌ [SPA Link] 发送关联请求失败:', error);
             this.showLinkNotification('error', '发送关联请求失败');
+            this._resetButtonState(supervisedUserId);
+        }
+    },
+
+    // 获取关联请求相关DOM元素
+    _getLinkRequestElements(supervisedUserId) {
+        const inputEl = document.getElementById(`linkUserInput-${supervisedUserId}`);
+        const btnEl = document.getElementById(`linkUserBtn-${supervisedUserId}`);
+        
+        if (!inputEl || !btnEl) {
+            console.error('❌ [SPA Link] 找不到输入元素');
+            return null;
+        }
+        
+        return { inputEl, btnEl };
+    },
+
+    // 验证关联输入
+    _validateLinkInput(inputEl) {
+        const targetUsername = inputEl.value.trim();
+        
+        if (!targetUsername) {
+            this.showLinkNotification('error', '请输入要关联的用户名');
+            return null;
+        }
+        
+        // 验证用户名格式
+        if (!/^[a-z0-9]{1,10}$/.test(targetUsername)) {
+            this.showLinkNotification('error', '用户名格式不正确，只能包含小写字母和数字，长度1-10字符');
+            return null;
+        }
+        
+        // 检查是否尝试关联自己
+        const currentAppUser = this._getCurrentAppUser();
+        if (targetUsername === currentAppUser) {
+            this.showLinkNotification('error', '不能关联自己');
+            return null;
+        }
+        
+        return targetUsername;
+    },
+
+
+    // 获取被监管用户信息
+    _getSupervisedUser(supervisedUserId) {
+        const supervisedUser = window.UserManager?.users?.find(u => u.id === supervisedUserId);
+        if (!supervisedUser) {
+            this.showLinkNotification('error', '找不到被监管用户信息');
+            return null;
+        }
+        return supervisedUser;
+    },
+
+    // 发送邀请
+    async _sendInvitation(elements, targetUsername, supervisedUserId, supervisedUser) {
+        const { inputEl, btnEl } = elements;
+        
+        // 设置加载状态
+        this._setButtonLoading(btnEl, '检查用户...');
+        
+        try {
+            btnEl.textContent = '发送邀请...';
             
-            // 重置按钮状态
-            const btnEl = document.getElementById(`linkUserBtn-${supervisedUserId}`);
-            if (btnEl) {
-                btnEl.disabled = false;
-                btnEl.textContent = '发送关联';
-            }
+            // 发送邀请
+            const invitationResponse = await this._sendInvitationRequest(targetUsername, supervisedUserId, supervisedUser);
+            console.log('📨 [SPA Link] 邀请发送结果:', invitationResponse);
+            
+            // 处理响应
+            this._handleInvitationResponse(invitationResponse, targetUsername, inputEl);
+            
+        } catch (error) {
+            console.error('❌ [SPA Link] WebSocket请求失败:', error);
+            this.showLinkNotification('error', error.message || '发送请求失败');
+        } finally {
+            // 重置按钮
+            this._resetButton(btnEl);
+        }
+    },
+
+    // 发送邀请请求
+    async _sendInvitationRequest(targetUsername, supervisedUserId, supervisedUser) {
+        const currentAppUser = this._getCurrentAppUser();
+        const message = `${currentAppUser} 想要与您关联 ${supervisedUser.display_name} 的健康数据`;
+        
+        if (window.WebSocketClient && window.WebSocketClient.isConnected) {
+            return await window.WebSocketClient.links.sendInvitation(targetUsername, supervisedUserId, message);
+        } else {
+            return await this._sendInvitationViaHTTP(targetUsername, supervisedUserId, message);
+        }
+    },
+
+    // 通过HTTP发送邀请
+    async _sendInvitationViaHTTP(targetUsername, supervisedUserId, message) {
+        const apiResponse = await fetch('/api/links/requests', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-Device-ID': window.DeviceManager?.getCurrentDeviceId() || 'unknown'
+            },
+            body: JSON.stringify({
+                toAppUser: targetUsername,
+                supervisedUserId: supervisedUserId,
+                message: message
+            })
+        });
+        
+        return { success: apiResponse.ok, data: await apiResponse.json() };
+    },
+
+    // 处理邀请响应
+    _handleInvitationResponse(invitationResponse, targetUsername, inputEl) {
+        if (invitationResponse.success) {
+            const message = invitationResponse.isOverride 
+                ? `邀请已更新并重新发送给 ${targetUsername}` 
+                : `关联邀请已发送给 ${targetUsername}`;
+            this.showLinkNotification('success', message);
+            inputEl.value = '';
+        } else {
+            this._handleInvitationError(invitationResponse, targetUsername);
+        }
+    },
+
+    // 处理邀请错误
+    _handleInvitationError(invitationResponse, targetUsername) {
+        if (invitationResponse.error === 'TARGET_USER_OFFLINE') {
+            this.showLinkNotification('warning', `${targetUsername} 当前不在线，请稍后再试或通过其他方式联系对方`);
+        } else {
+            this.showLinkNotification('error', invitationResponse.message || invitationResponse.error || '发送邀请失败');
+        }
+    },
+
+    // 设置按钮加载状态
+    _setButtonLoading(btnEl, text) {
+        btnEl.disabled = true;
+        btnEl.textContent = text;
+    },
+
+    // 重置按钮状态
+    _resetButton(btnEl) {
+        btnEl.disabled = false;
+        btnEl.textContent = '发送关联';
+    },
+
+    // 重置按钮状态（通过ID查找）
+    _resetButtonState(supervisedUserId) {
+        const btnEl = document.getElementById(`linkUserBtn-${supervisedUserId}`);
+        if (btnEl) {
+            this._resetButton(btnEl);
         }
     },
     
@@ -1375,100 +1475,141 @@ const App = {
     
     // Link成功后刷新应用数据
     async refreshApplicationAfterLink() {
-        // 🔥 修复：防止重复调用
-        if (this._refreshingAfterLink) {
-            console.log('⚠️ [Link] 数据刷新已在进行中，跳过重复调用');
-            return;
-        }
+        if (this._isDuplicateRefreshCall()) return;
         
         this._refreshingAfterLink = true;
         
         try {
             console.log('🔄 [Link] 开始刷新应用数据...');
             
-            // 1. 重新加载用户数据
-            if (window.UserManager && typeof UserManager.loadUsersFromAPI === 'function') {
-                console.log('🔄 [Link] 重新加载用户数据...');
-                await UserManager.loadUsersFromAPI();
-                console.log('✅ [Link] 用户数据重新加载完成，用户数量:', UserManager.users?.length || 0);
-                
-                // 调试：显示加载的用户数据
-                if (UserManager.users && UserManager.users.length > 0) {
-                    console.log('🔍 [Link] 加载的用户数据:', UserManager.users.map(u => ({ id: u.id, username: u.username, app_user_id: u.app_user_id })));
-                }
-            }
+            await this._refreshUserData();
+            await this._refreshApplicationData();
+            await this._navigateToLinkPage();
+            await this._ensureDefaultUser();
             
-            // 2. 重新渲染用户标签
-            if (window.UserManager && typeof UserManager.renderUserTabs === 'function') {
-                console.log('🔄 [Link] 重新渲染用户标签...');
-                UserManager.renderUserTabs();
-                console.log('✅ [Link] 用户标签重新渲染完成');
-            }
-            
-            // 3. 更新全局用户状态
-            if (window.GlobalUserState) {
-                console.log('🔄 [Link] 更新全局用户状态...');
-                GlobalUserState.updateUserSelectorUI();
-                console.log('✅ [Link] 全局用户状态更新完成');
-            }
-            
-            // 4. 重新加载TODO和Notes数据
-            if (window.TodoManager) {
-                console.log('🔄 [Link] 重新加载TODO数据...');
-                await TodoManager.loadTodosFromAPI();
-                console.log('✅ [Link] TODO数据重新加载完成');
-            }
-            
-            if (window.NotesManager) {
-                console.log('🔄 [Link] 重新加载Notes数据...');
-                await NotesManager.loadNotesFromAPI();
-                console.log('✅ [Link] Notes数据重新加载完成');
-            }
-            
-            // 5. 自动跳转到Link页面显示连接状态
-            console.log('🔄 [Link] 自动跳转到Link页面...');
-            await this.showLinkPage();
-            
-            // 6. 设置默认用户（确保有用户被选中）
-            if (UserManager.users && UserManager.users.length > 0 && window.GlobalUserState) {
-                let currentUser = GlobalUserState.getCurrentUser();
-                
-                // 如果没有当前用户，或者当前用户不在用户列表中，设置第一个用户为默认用户
-                const userExists = UserManager.users.find(u => u.id === currentUser);
-                if (!currentUser || !userExists) {
-                    const firstUser = UserManager.users[0];
-                    console.log('🔄 [Link] 设置默认用户:', firstUser.username, 'ID:', firstUser.id);
-                    GlobalUserState.setCurrentUser(firstUser.id);
-                    
-                    // 确保用户标签也被正确选中
-                    setTimeout(() => {
-                        const userTab = document.querySelector(`[data-user-id="${firstUser.id}"]`);
-                        if (userTab) {
-                            // 移除其他用户的选中状态
-                            document.querySelectorAll('.user-tab').forEach(tab => {
-                                tab.classList.remove('active');
-                            });
-                            // 设置当前用户为选中状态
-                            userTab.classList.add('active');
-                            console.log('✅ [Link] 用户标签已选中:', firstUser.username);
-                        }
-                    }, 500);
-                } else {
-                    console.log('✅ [Link] 当前用户有效:', currentUser);
-                }
-            }
-            
-            // 7. 显示成功通知
             this.showLinkNotification('success', '关联建立成功！已自动跳转到Link页面查看连接状态');
-            
             console.log('✅ [Link] 应用数据刷新完成');
             
         } catch (error) {
             console.error('❌ [Link] 刷新应用数据失败:', error);
             this.showLinkNotification('error', '数据刷新失败，请手动刷新页面');
         } finally {
-            // 🔥 修复：重置标志，允许下次调用
             this._refreshingAfterLink = false;
+        }
+    },
+
+    // 检查是否为重复刷新调用
+    _isDuplicateRefreshCall() {
+        if (this._refreshingAfterLink) {
+            console.log('⚠️ [Link] 数据刷新已在进行中，跳过重复调用');
+            return true;
+        }
+        return false;
+    },
+
+    // 刷新用户数据
+    async _refreshUserData() {
+        if (window.UserManager && typeof UserManager.loadUsersFromAPI === 'function') {
+            console.log('🔄 [Link] 重新加载用户数据...');
+            await UserManager.loadUsersFromAPI();
+            console.log('✅ [Link] 用户数据重新加载完成，用户数量:', UserManager.users?.length || 0);
+            
+            this._logLoadedUserData();
+        }
+        
+        this._updateUserInterface();
+    },
+
+    // 记录加载的用户数据
+    _logLoadedUserData() {
+        if (UserManager.users && UserManager.users.length > 0) {
+            console.log('🔍 [Link] 加载的用户数据:', UserManager.users.map(u => ({ 
+                id: u.id, 
+                username: u.username, 
+                app_user_id: u.app_user_id 
+            })));
+        }
+    },
+
+    // 更新用户界面
+    _updateUserInterface() {
+        if (window.UserManager && typeof UserManager.renderUserTabs === 'function') {
+            console.log('🔄 [Link] 重新渲染用户标签...');
+            UserManager.renderUserTabs();
+            console.log('✅ [Link] 用户标签重新渲染完成');
+        }
+        
+        if (window.GlobalUserState) {
+            console.log('🔄 [Link] 更新全局用户状态...');
+            GlobalUserState.updateUserSelectorUI();
+            console.log('✅ [Link] 全局用户状态更新完成');
+        }
+    },
+
+    // 刷新应用数据
+    async _refreshApplicationData() {
+        await this._refreshTodoData();
+        await this._refreshNotesData();
+    },
+
+    // 刷新TODO数据
+    async _refreshTodoData() {
+        if (window.TodoManager) {
+            console.log('🔄 [Link] 重新加载TODO数据...');
+            await TodoManager.loadTodosFromAPI();
+            console.log('✅ [Link] TODO数据重新加载完成');
+        }
+    },
+
+    // 刷新Notes数据
+    async _refreshNotesData() {
+        if (window.NotesManager) {
+            console.log('🔄 [Link] 重新加载Notes数据...');
+            await NotesManager.loadNotesFromAPI();
+            console.log('✅ [Link] Notes数据重新加载完成');
+        }
+    },
+
+    // 导航到Link页面
+    async _navigateToLinkPage() {
+        console.log('🔄 [Link] 自动跳转到Link页面...');
+        await this.showLinkPage();
+    },
+
+    // 确保有默认用户
+    async _ensureDefaultUser() {
+        if (UserManager.users && UserManager.users.length > 0 && window.GlobalUserState) {
+            const currentUser = GlobalUserState.getCurrentUser();
+            const userExists = UserManager.users.find(u => u.id === currentUser);
+            
+            if (!currentUser || !userExists) {
+                this._setDefaultUser();
+            } else {
+                console.log('✅ [Link] 当前用户有效:', currentUser);
+            }
+        }
+    },
+
+    // 设置默认用户
+    _setDefaultUser() {
+        const firstUser = UserManager.users[0];
+        console.log('🔄 [Link] 设置默认用户:', firstUser.username, 'ID:', firstUser.id);
+        GlobalUserState.setCurrentUser(firstUser.id);
+        
+        setTimeout(() => {
+            this._activateUserTab(firstUser);
+        }, 500);
+    },
+
+    // 激活用户标签
+    _activateUserTab(user) {
+        const userTab = document.querySelector(`[data-user-id="${user.id}"]`);
+        if (userTab) {
+            document.querySelectorAll('.user-tab').forEach(tab => {
+                tab.classList.remove('active');
+            });
+            userTab.classList.add('active');
+            console.log('✅ [Link] 用户标签已选中:', user.username);
         }
     },
     

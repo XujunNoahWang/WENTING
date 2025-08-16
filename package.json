@@ -5,6 +5,7 @@
   "main": "index.html",
   "scripts": {
     "lint": "eslint js/ backend/ --ext .js",
+    "lint:check": "eslint js/ backend/ --ext .js",
     "lint:fix": "eslint js/ backend/ --ext .js --fix",
     "dev": "cd backend && npm run dev",
     "start": "cd backend && npm start",

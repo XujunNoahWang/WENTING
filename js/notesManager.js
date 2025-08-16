@@ -97,85 +97,135 @@ const NotesManager = {
         try {
             console.log('🔄 [Notes] 开始加载Notes数据...', autoRender ? '(自动渲染)' : '', 'targetUserId:', targetUserId);
             
-            // 🔥 关键修复：只加载指定用户的数据，而不是所有用户
             if (targetUserId) {
-                const cacheKey = `notes_${targetUserId}`;
-                
-                // 检查缓存
-                if (this.notesCache.has(cacheKey) && Date.now() - this.notesCache.get(cacheKey).timestamp < 30000) {
-                    console.log(`📦 [Notes] 使用缓存数据，用户: ${targetUserId}`);
-                    this.notes[targetUserId] = this.notesCache.get(cacheKey).data;
-                } else {
-                    console.log(`📥 [Notes] 从API加载用户 ${targetUserId} 的Notes...`);
-                    const response = await ApiClient.notes.getByUserId(targetUserId);
-                    
-                    if (response.success) {
-                        this.notes[targetUserId] = response.data || [];
-                        // 更新缓存
-                        this.notesCache.set(cacheKey, {
-                            data: this.notes[targetUserId],
-                            timestamp: Date.now()
-                        });
-                        console.log(`✅ [Notes] 用户 ${targetUserId} 的Notes加载完成: ${this.notes[targetUserId].length} 条`);
-                    } else {
-                        console.warn(`⚠️ [Notes] 加载用户 ${targetUserId} 的Notes失败:`, response.message);
-                        this.notes[targetUserId] = [];
-                    }
-                }
+                await this._loadSingleUserNotes(targetUserId);
             } else {
-                // 如果没有指定用户，加载所有用户（初始化时使用）
-                for (const user of UserManager.users) {
-                    console.log(`📥 [Notes] 初始化加载用户 ${user.username} 的Notes...`);
-                    const response = await ApiClient.notes.getByUserId(user.id);
-                    
-                    if (response.success) {
-                        this.notes[user.id] = response.data || [];
-                        // 更新缓存
-                        const cacheKey = `notes_${user.id}`;
-                        this.notesCache.set(cacheKey, {
-                            data: this.notes[user.id],
-                            timestamp: Date.now()
-                        });
-                        console.log(`✅ [Notes] 用户 ${user.username} 的Notes加载完成: ${this.notes[user.id].length} 条`);
-                    } else {
-                        console.warn(`⚠️ [Notes] 加载用户 ${user.username} 的Notes失败:`, response.message);
-                        this.notes[user.id] = [];
-                    }
-                }
+                await this._loadAllUsersNotes();
             }
             
-            // 🔥 修复：自动渲染逻辑
-            if (autoRender) {
-                const renderUserId = targetUserId || this.currentUser;
-                if (renderUserId) {
-                    console.log('🎨 [Notes] 数据加载完成，渲染指定用户界面:', renderUserId);
-                    console.log('🔍 [Notes] 用户数据:', this.notes[renderUserId] ? this.notes[renderUserId].length : 'undefined');
-                    
-                    // 🔥 关键修复：直接渲染指定用户，不要自动切换用户
-                    this.renderNotesPanel(renderUserId);
-                }
-            }
+            this._handleAutoRender(autoRender, targetUserId);
             
         } catch (error) {
-            console.error('❌ [Notes] 加载Notes数据失败:', error);
-            this.showMessage('加载笔记数据失败: ' + error.message, 'error');
-            
-            // 🔥 修复：只初始化指定用户的空数据
-            if (targetUserId) {
-                this.notes[targetUserId] = [];
-            } else {
-                UserManager.users.forEach(user => {
-                    this.notes[user.id] = [];
-                });
+            this._handleNotesLoadError(error, autoRender, targetUserId);
+        }
+    },
+
+    // 加载单个用户的笔记
+    async _loadSingleUserNotes(userId) {
+        const cacheKey = `notes_${userId}`;
+        
+        if (this._isNotesDataCached(cacheKey)) {
+            this._loadNotesFromCache(userId, cacheKey);
+        } else {
+            await this._loadNotesFromAPI(userId, cacheKey);
+        }
+    },
+
+    // 检查笔记数据是否已缓存
+    _isNotesDataCached(cacheKey) {
+        return this.notesCache.has(cacheKey) && 
+               Date.now() - this.notesCache.get(cacheKey).timestamp < 30000;
+    },
+
+    // 从缓存加载笔记数据
+    _loadNotesFromCache(userId, cacheKey) {
+        console.log(`📦 [Notes] 使用缓存数据，用户: ${userId}`);
+        this.notes[userId] = this.notesCache.get(cacheKey).data;
+    },
+
+    // 从API加载笔记数据
+    async _loadNotesFromAPI(userId, cacheKey) {
+        console.log(`📥 [Notes] 从API加载用户 ${userId} 的Notes...`);
+        const response = await ApiClient.notes.getByUserId(userId);
+        
+        if (response.success) {
+            this.notes[userId] = response.data || [];
+            this._updateNotesCache(cacheKey, userId);
+            console.log(`✅ [Notes] 用户 ${userId} 的Notes加载完成: ${this.notes[userId].length} 条`);
+        } else {
+            console.warn(`⚠️ [Notes] 加载用户 ${userId} 的Notes失败:`, response.message);
+            this.notes[userId] = [];
+        }
+    },
+
+    // 更新笔记缓存
+    _updateNotesCache(cacheKey, userId) {
+        this.notesCache.set(cacheKey, {
+            data: this.notes[userId],
+            timestamp: Date.now()
+        });
+    },
+
+    // 加载所有用户的笔记
+    async _loadAllUsersNotes() {
+        for (const user of UserManager.users) {
+            console.log(`📥 [Notes] 初始化加载用户 ${user.username} 的Notes...`);
+            await this._loadUserNotesData(user);
+        }
+    },
+
+    // 加载用户笔记数据
+    async _loadUserNotesData(user) {
+        const response = await ApiClient.notes.getByUserId(user.id);
+        
+        if (response.success) {
+            this.notes[user.id] = response.data || [];
+            this._updateUserNotesCache(user);
+            console.log(`✅ [Notes] 用户 ${user.username} 的Notes加载完成: ${this.notes[user.id].length} 条`);
+        } else {
+            console.warn(`⚠️ [Notes] 加载用户 ${user.username} 的Notes失败:`, response.message);
+            this.notes[user.id] = [];
+        }
+    },
+
+    // 更新用户笔记缓存
+    _updateUserNotesCache(user) {
+        const cacheKey = `notes_${user.id}`;
+        this.notesCache.set(cacheKey, {
+            data: this.notes[user.id],
+            timestamp: Date.now()
+        });
+    },
+
+    // 处理自动渲染
+    _handleAutoRender(autoRender, targetUserId) {
+        if (autoRender) {
+            const renderUserId = targetUserId || this.currentUser;
+            if (renderUserId) {
+                console.log('🎨 [Notes] 数据加载完成，渲染指定用户界面:', renderUserId);
+                console.log('🔍 [Notes] 用户数据:', this.notes[renderUserId] ? this.notes[renderUserId].length : 'undefined');
+                this.renderNotesPanel(renderUserId);
             }
-            
-            // 即使出错也要渲染，避免空白页面
-            if (autoRender) {
-                const renderUserId = targetUserId || this.currentUser;
-                if (renderUserId) {
-                    console.log('🎨 [Notes] 数据加载失败，仍然渲染界面避免空白，用户:', renderUserId);
-                    this.renderNotesPanel(renderUserId);
-                }
+        }
+    },
+
+    // 处理笔记加载错误
+    _handleNotesLoadError(error, autoRender, targetUserId) {
+        console.error('❌ [Notes] 加载Notes数据失败:', error);
+        this.showMessage('加载笔记数据失败: ' + error.message, 'error');
+        
+        this._initializeEmptyNotesData(targetUserId);
+        this._renderOnError(autoRender, targetUserId);
+    },
+
+    // 初始化空的笔记数据
+    _initializeEmptyNotesData(targetUserId) {
+        if (targetUserId) {
+            this.notes[targetUserId] = [];
+        } else {
+            UserManager.users.forEach(user => {
+                this.notes[user.id] = [];
+            });
+        }
+    },
+
+    // 错误时渲染界面
+    _renderOnError(autoRender, targetUserId) {
+        if (autoRender) {
+            const renderUserId = targetUserId || this.currentUser;
+            if (renderUserId) {
+                console.log('🎨 [Notes] 数据加载失败，仍然渲染界面避免空白，用户:', renderUserId);
+                this.renderNotesPanel(renderUserId);
             }
         }
     },

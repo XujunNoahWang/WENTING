@@ -86,9 +86,20 @@ class ErrorHandlingService {
         }
     }
     
-    // 分析错误
+    // 分析错误（主入口）
     static analyzeError(error, context) {
-        const errorInfo = {
+        // 创建基础错误信息
+        const errorInfo = this._createBaseErrorInfo(error, context);
+        
+        // 分析错误类型并设置属性
+        this._classifyError(error, errorInfo);
+        
+        return errorInfo;
+    }
+
+    // 创建基础错误信息
+    static _createBaseErrorInfo(error, context) {
+        return {
             timestamp: new Date().toISOString(),
             message: error.message || '未知错误',
             stack: error.stack,
@@ -99,43 +110,110 @@ class ErrorHandlingService {
             canAutoRecover: false,
             retryCount: context.retryCount || 0
         };
-        
-        // 根据错误消息和类型进行分类
-        if (error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND') {
-            errorInfo.type = this.ERROR_TYPES.NETWORK;
-            errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
-            errorInfo.canAutoRecover = true;
-        } else if (error.message.includes('validation') || error.message.includes('参数')) {
-            errorInfo.type = this.ERROR_TYPES.VALIDATION;
-            errorInfo.severity = this.SEVERITY_LEVELS.LOW;
-            errorInfo.canAutoRecover = false;
-        } else if (error.message.includes('sync') || error.message.includes('同步')) {
-            errorInfo.type = this.ERROR_TYPES.SYNC;
-            errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
-            errorInfo.canAutoRecover = true;
-        } else if (error.message.includes('permission') || error.message.includes('权限')) {
-            errorInfo.type = this.ERROR_TYPES.PERMISSION;
-            errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
-            errorInfo.canAutoRecover = false;
-        } else if (error.code === 'SQLITE_BUSY' || error.message.includes('database')) {
-            errorInfo.type = this.ERROR_TYPES.DATABASE;
-            errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
-            errorInfo.canAutoRecover = true;
-        } else if (error.message.includes('websocket') || error.message.includes('WebSocket')) {
-            errorInfo.type = this.ERROR_TYPES.WEBSOCKET;
-            errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
-            errorInfo.canAutoRecover = true;
-        } else if (error.message.includes('rate limit') || error.message.includes('频率限制')) {
-            errorInfo.type = this.ERROR_TYPES.RATE_LIMIT;
-            errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
-            errorInfo.canAutoRecover = false;
-        } else if (error.code === 'ETIMEDOUT' || error.message.includes('timeout')) {
-            errorInfo.type = this.ERROR_TYPES.TIMEOUT;
-            errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
-            errorInfo.canAutoRecover = true;
+    }
+
+    // 分类错误类型
+    static _classifyError(error, errorInfo) {
+        // 按优先级检查错误类型
+        if (this._isNetworkError(error)) {
+            this._setNetworkError(errorInfo);
+        } else if (this._isValidationError(error)) {
+            this._setValidationError(errorInfo);
+        } else if (this._isSyncError(error)) {
+            this._setSyncError(errorInfo);
+        } else if (this._isPermissionError(error)) {
+            this._setPermissionError(errorInfo);
+        } else if (this._isDatabaseError(error)) {
+            this._setDatabaseError(errorInfo);
+        } else if (this._isWebSocketError(error)) {
+            this._setWebSocketError(errorInfo);
+        } else if (this._isRateLimitError(error)) {
+            this._setRateLimitError(errorInfo);
+        } else if (this._isTimeoutError(error)) {
+            this._setTimeoutError(errorInfo);
         }
-        
-        return errorInfo;
+    }
+
+    // 错误类型检查方法
+    static _isNetworkError(error) {
+        return error.code === 'ECONNREFUSED' || error.code === 'ENOTFOUND';
+    }
+
+    static _isValidationError(error) {
+        return error.message.includes('validation') || error.message.includes('参数');
+    }
+
+    static _isSyncError(error) {
+        return error.message.includes('sync') || error.message.includes('同步');
+    }
+
+    static _isPermissionError(error) {
+        return error.message.includes('permission') || error.message.includes('权限');
+    }
+
+    static _isDatabaseError(error) {
+        return error.code === 'SQLITE_BUSY' || error.message.includes('database');
+    }
+
+    static _isWebSocketError(error) {
+        return error.message.includes('websocket') || error.message.includes('WebSocket');
+    }
+
+    static _isRateLimitError(error) {
+        return error.message.includes('rate limit') || error.message.includes('频率限制');
+    }
+
+    static _isTimeoutError(error) {
+        return error.code === 'ETIMEDOUT' || error.message.includes('timeout');
+    }
+
+    // 错误属性设置方法
+    static _setNetworkError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.NETWORK;
+        errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setValidationError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.VALIDATION;
+        errorInfo.severity = this.SEVERITY_LEVELS.LOW;
+        errorInfo.canAutoRecover = false;
+    }
+
+    static _setSyncError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.SYNC;
+        errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setPermissionError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.PERMISSION;
+        errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
+        errorInfo.canAutoRecover = false;
+    }
+
+    static _setDatabaseError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.DATABASE;
+        errorInfo.severity = this.SEVERITY_LEVELS.HIGH;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setWebSocketError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.WEBSOCKET;
+        errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
+        errorInfo.canAutoRecover = true;
+    }
+
+    static _setRateLimitError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.RATE_LIMIT;
+        errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
+        errorInfo.canAutoRecover = false;
+    }
+
+    static _setTimeoutError(errorInfo) {
+        errorInfo.type = this.ERROR_TYPES.TIMEOUT;
+        errorInfo.severity = this.SEVERITY_LEVELS.MEDIUM;
+        errorInfo.canAutoRecover = true;
     }
     
     // 记录错误
