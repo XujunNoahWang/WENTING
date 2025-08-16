@@ -12,6 +12,33 @@ module.exports = {
     ecmaVersion: 12,
     sourceType: 'script'
   },
+  globals: {
+    // 前端全局变量
+    'Utils': 'readonly',
+    'GlobalUserState': 'readonly',
+    'TodoManager': 'readonly',
+    'ApiClient': 'readonly',
+    'APP_CONFIG': 'readonly',
+    'ProfileManager': 'readonly',
+    'UserManager': 'readonly',
+    'WeatherManager': 'readonly',
+    'NotesManager': 'readonly',
+    'DateManager': 'readonly',
+    'DeviceManager': 'readonly',
+    'ErrorHandler': 'readonly',
+    'WebSocketClient': 'readonly',
+    'LoadingManager': 'readonly',
+    // 第三方库
+    'html2canvas': 'readonly',
+    // 浏览器DOM全局变量
+    'document': 'readonly',
+    'window': 'readonly',
+    'navigator': 'readonly',
+    'localStorage': 'readonly',
+    'sessionStorage': 'readonly',
+    'fetch': 'readonly',
+    'console': 'readonly'
+  },
   rules: {
     // 代码质量和性能相关
     'no-unused-vars': 'error',

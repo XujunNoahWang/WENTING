@@ -499,7 +499,7 @@ const TodoManager = {
     },
 
     // 检查是否有待处理的关联请求
-    hasPendingLinkRequest(userId) {
+    hasPendingLinkRequest() {
         // 这个方法可以通过全局状态或API调用来实现
         // 暂时返回false，后续可以集成
         return false;
@@ -751,7 +751,7 @@ const TodoManager = {
                 response = await WebSocketClient.todos.create(todoData);
                 // WebSocket返回格式调整
                 if (response.data && response.data.todo) {
-                    const newTodo = this.convertApiTodoToLocal(response.data.todo);
+                    this.convertApiTodoToLocal(response.data.todo);
                     console.log('✅ 通过WebSocket创建TODO成功');
                 } else {
                     throw new Error('WebSocket响应格式错误');
@@ -759,7 +759,7 @@ const TodoManager = {
             } else {
                 response = await ApiClient.todos.create(todoData);
                 if (response.success) {
-                    const newTodo = this.convertApiTodoToLocal(response.data);
+                    this.convertApiTodoToLocal(response.data);
                     console.log('✅ 通过HTTP创建TODO成功');
                 } else {
                     throw new Error(response.message || '创建TODO失败');
@@ -919,7 +919,8 @@ const TodoManager = {
     },
 
     // 处理编辑TODO表单提交
-    async handleEditTodo(event, todoId, userId) {
+    // eslint-disable-next-line no-unused-vars
+    async handleEditTodo(event, todoId, _userId) {
         event.preventDefault();
         
         const formData = new FormData(event.target);

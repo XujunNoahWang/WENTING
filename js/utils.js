@@ -73,7 +73,7 @@ const Utils = {
         if (typeof obj === 'object') {
             const clonedObj = {};
             for (const key in obj) {
-                if (obj.hasOwnProperty(key)) {
+                if (Object.prototype.hasOwnProperty.call(obj, key)) {
                     clonedObj[key] = Utils.deepClone(obj[key]);
                 }
             }

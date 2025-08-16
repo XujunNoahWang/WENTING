@@ -192,9 +192,10 @@ class Todo {
             case 'yearly':
                 return target.getDate() === startDate.getDate() && 
                        target.getMonth() === startDate.getMonth();
-            case 'custom':
+            case 'custom': {
                 const interval = todo.repeat_interval || 1;
                 return daysDiff % interval === 0;
+            }
             default:
                 return false;
         }
@@ -243,9 +244,10 @@ class Todo {
             case 'yearly':
                 return target.getDate() === startDate.getDate() && 
                        target.getMonth() === startDate.getMonth();
-            case 'custom':
+            case 'custom': {
                 const interval = todo.repeat_interval || 1;
                 return daysDiff % interval === 0;
+            }
             default:
                 return false;
         }
@@ -319,9 +321,10 @@ class Todo {
                 return target.getDate() === startDate.getDate() && 
                        target.getMonth() === startDate.getMonth();
                        
-            case 'custom':
+            case 'custom': {
                 const interval = todo.repeat_interval || 1;
                 return daysDiff % interval === 0;
+            }
                 
             default:
                 return false;
@@ -472,7 +475,7 @@ class Todo {
                     console.log('✅ TODO单个实例删除成功');
                     return true;
 
-                case 'from_date':
+                case 'from_date': {
                     // 删除从某日期开始的所有实例
                     if (!deletionDate) {
                         throw new Error('删除从某日期开始的实例时必须提供日期');
@@ -483,13 +486,15 @@ class Todo {
                     await query(sql, [endDate.toISOString().split('T')[0], id]);
                     console.log('✅ TODO从指定日期开始删除成功');
                     return true;
+                }
 
                 case 'all':
-                default:
+                default: {
                     // 删除整个TODO（包括所有重复实例）
                     const result = await query('UPDATE todos SET is_active = 0, updated_at = CURRENT_TIMESTAMP WHERE id = ?', [id]);
                     console.log('✅ TODO完全删除成功');
                     return result.affectedRows > 0;
+                }
             }
         } catch (error) {
             console.error('删除TODO失败:', error);

@@ -765,7 +765,7 @@ class LinkService {
             console.log(`🔄 执行数据同步: ${operation} ${table} between ${managerUser} and ${linkedUser}`);
             
             // 获取关联的目标用户ID们
-            const targetUserIds = await this.getLinkedUserIds(supervisedUserId, managerUser, linkedUser);
+            const targetUserIds = await this.getLinkedUserIds(supervisedUserId);
             
             if (targetUserIds.length === 0) {
                 console.log('ℹ️ 没有找到需要同步的目标用户');
@@ -788,7 +788,7 @@ class LinkService {
     }
     
     // 获取需要同步的目标用户ID列表
-    static async getLinkedUserIds(supervisedUserId, managerUser, linkedUser) {
+    static async getLinkedUserIds(supervisedUserId) {
         try {
             // 获取原始被监管用户信息
             const originalUser = await query('SELECT username, app_user_id FROM users WHERE id = ?', [supervisedUserId]);

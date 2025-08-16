@@ -350,22 +350,6 @@ const DateManager = {
     }
 };
 
-// 全局函数（保持向后兼容）
-function changeDate(direction) {
-    DateManager.changeDate(direction);
-}
-
-function goToToday() {
-    DateManager.goToToday();
-}
-
-function toggleDatePicker() {
-    DateManager.toggleDatePicker();
-}
-
-function changeMonth(direction) {
-    DateManager.changeMonth(direction);
-}
 
 // 将DateManager暴露到全局
 window.DateManager = DateManager;

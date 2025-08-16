@@ -237,7 +237,7 @@ const WebSocketClient = {
 
     // 🔥 新增：统一的同步消息处理方法
     handleSyncMessage(message) {
-        const { type, operation, data, sync } = message;
+        const { type, operation, sync } = message;
         const currentModule = window.GlobalUserState ? window.GlobalUserState.getCurrentModule() : 'unknown';
         
         console.log(`🔄 [SYNC] 处理同步消息:`, {

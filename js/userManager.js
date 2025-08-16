@@ -473,7 +473,3 @@ const UserManager = {
 // 导出到全局
 window.UserManager = UserManager;
 
-// 全局函数（保持向后兼容）
-function addNewUser() {
-    UserManager.addUser();
-}

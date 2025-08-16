@@ -1,5 +1,5 @@
 // 应用配置
-const APP_CONFIG = {
+window.APP_CONFIG = {
 
     // 天气配置 - 初始状态，等待真实数据
     weather: {

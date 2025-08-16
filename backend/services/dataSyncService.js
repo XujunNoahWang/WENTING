@@ -288,7 +288,7 @@ class DataSyncService {
     
     // 同步TODO更新
     static async syncTodoUpdate(todoData, targetUserId) {
-        const { originalTodoId, updateData } = todoData;
+        const { updateData } = todoData;
         
         // 查找对应的TODO（基于标题和创建时间匹配）
         const targetTodos = await query(`
@@ -319,7 +319,7 @@ class DataSyncService {
     
     // 同步TODO删除
     static async syncTodoDelete(todoData, targetUserId) {
-        const { originalTodoId, deletionType, deletionDate } = todoData;
+        const { deletionType, deletionDate } = todoData;
         
         // 查找对应的TODO
         const targetTodos = await query(`
@@ -344,7 +344,7 @@ class DataSyncService {
     
     // 同步TODO完成状态
     static async syncTodoComplete(todoData, targetUserId) {
-        const { originalTodoId, date, notes } = todoData;
+        const { date, notes } = todoData;
         
         const targetTodos = await query(`
             SELECT id FROM todos 
@@ -364,7 +364,7 @@ class DataSyncService {
     
     // 同步TODO取消完成
     static async syncTodoUncomplete(todoData, targetUserId) {
-        const { originalTodoId, date } = todoData;
+        const { date } = todoData;
         
         const targetTodos = await query(`
             SELECT id FROM todos 
@@ -472,7 +472,7 @@ class DataSyncService {
     
     // 同步Notes更新
     static async syncNotesUpdate(notesData, targetUserId) {
-        const { originalNoteId, updateData } = notesData;
+        const { updateData } = notesData;
         
         // 查找对应的Note
         const targetNotes = await query(`
@@ -504,7 +504,7 @@ class DataSyncService {
     
     // 同步Notes删除
     static async syncNotesDelete(notesData, targetUserId) {
-        const { originalNoteId, title } = notesData;
+        const { title } = notesData;
         
         // 查找对应的Note
         const targetNotes = await query(`

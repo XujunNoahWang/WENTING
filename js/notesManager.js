@@ -509,7 +509,8 @@ const NotesManager = {
     },
 
     // 渲染笔记卡片
-    renderNoteCard(note, userId) {
+    // eslint-disable-next-line no-unused-vars
+    renderNoteCard(note, _userId) {
         const shortDescription = note.description.length > 50 
             ? note.description.substring(0, 50) + '...' 
             : note.description;
