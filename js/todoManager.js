@@ -1228,7 +1228,9 @@ const TodoManager = {
             this.showDeleteOptionsDialog(todoId, userId, todo);
         } else {
             // 一次性任务，直接确认删除
-            if (confirm('确定要删除这个TODO吗？')) {
+            /* global DialogUtils */
+            const confirmed = await DialogUtils.showDeleteConfirm('这个TODO');
+            if (confirmed) {
                 await this.performDelete(todoId, userId, 'all');
             }
         }

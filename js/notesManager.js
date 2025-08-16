@@ -1141,7 +1141,9 @@ const NotesManager = {
 
     // 删除笔记
     async deleteNote(noteId) {
-        if (!confirm('确定要删除这条健康笔记吗？此操作无法撤销。')) {
+        /* global DialogUtils */
+        const confirmed = await DialogUtils.showDeleteConfirm('这条健康笔记');
+        if (!confirmed) {
             return;
         }
         

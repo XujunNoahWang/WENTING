@@ -384,7 +384,8 @@ const ProfileManager = {
             
         } catch (error) {
             console.error('❌ 登出操作失败:', error);
-            alert('登出失败，请刷新页面重试');
+            /* global DialogUtils */
+            DialogUtils.showError('登出失败，请刷新页面重试', '登出错误');
         }
     },
 

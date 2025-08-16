@@ -79,7 +79,13 @@ class ErrorHandler {
             console.error('❌ 错误处理器失败:', handlingError);
             // 简单地显示错误消息，不调用其他可能出错的方法
             try {
-                alert('系统错误处理失败，请刷新页面重试: ' + handlingError.message);
+                // 使用更友好的错误对话框，但要确保DialogUtils可用
+                if (typeof DialogUtils !== 'undefined') {
+                    /* global DialogUtils */
+                    DialogUtils.showError('系统错误处理失败，请刷新页面重试: ' + handlingError.message, '系统错误');
+                } else {
+                    alert('系统错误处理失败，请刷新页面重试: ' + handlingError.message);
+                }
             } catch (e) {
                 console.error('无法显示错误消息:', e);
             }

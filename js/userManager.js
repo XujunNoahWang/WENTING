@@ -322,7 +322,17 @@ const UserManager = {
 
     // 删除用户
     async removeUser(userId) {
-        if (!confirm('确定要删除这个用户吗？这将删除该用户的所有TODO数据。')) {
+        /* global DialogUtils */
+        const confirmed = await DialogUtils.showConfirm(
+            '确定要删除这个用户吗？这将删除该用户的所有TODO数据。',
+            '确认删除用户',
+            {
+                confirmText: '删除',
+                cancelText: '取消',
+                type: 'danger'
+            }
+        );
+        if (!confirmed) {
             return;
         }
 

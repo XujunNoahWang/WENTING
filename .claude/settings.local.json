@@ -103,7 +103,8 @@
       "Bash(del \"C:\\Users\\vitow\\Desktop\\Personal Projects\\WENTING1.0\\backend\\debug-whiteblade-sync.js\")",
       "Bash(start \"雯婷后端服务 - Notes同步修复完成测试\" npm run dev)",
       "Bash(npx eslint:*)",
-      "Bash(git rm:*)"
+      "Bash(git rm:*)",
+      "Bash(npm run lint)"
     ],
     "deny": [],
     "defaultMode": "acceptEdits"

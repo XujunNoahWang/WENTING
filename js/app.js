@@ -1,3 +1,4 @@
+/* global DialogUtils */
 // 主应用程序
 const App = {
     // 防重复调用标志
@@ -2055,7 +2056,7 @@ const App = {
 
     // 重置应用
     reset() {
-        alert('重置功能已禁用，应用完全依赖服务器数据。');
+        DialogUtils.showWarning('重置功能已禁用，应用完全依赖服务器数据。', '功能提示');
     },
 
     // 导出数据
@@ -2099,13 +2100,14 @@ const App = {
                     UserManager.saveUsers();
                     WeatherManager.saveWeatherData();
                     
-                    alert('数据导入成功！页面将刷新。');
-                    location.reload();
+                    DialogUtils.showSuccess('数据导入成功！页面将刷新。').then(() => {
+                        location.reload();
+                    });
                 } else {
-                    alert('无效的备份文件格式');
+                    DialogUtils.showError('无效的备份文件格式', '导入失败');
                 }
             } catch (error) {
-                alert('导入失败：' + error.message);
+                DialogUtils.showError('导入失败：' + error.message, '导入失败');
             }
         };
         reader.readAsText(file);
