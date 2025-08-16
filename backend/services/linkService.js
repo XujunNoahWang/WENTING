@@ -1,7 +1,5 @@
 // Link服务 - 用户关联功能核心逻辑
 const { query, transaction } = require('../config/sqlite');
-const User = require('../models/User');
-const Todo = require('../models/Todo');
 
 class LinkService {
     

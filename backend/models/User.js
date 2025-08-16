@@ -1,5 +1,4 @@
-const { query, transaction } = require('../config/database');
-const bcrypt = require('bcryptjs');
+const { query } = require('../config/database');
 
 class User {
     constructor(data) {
@@ -40,20 +39,20 @@ class User {
             }
 
             // 设备ID现在是可选的，如果没有提供则使用默认值
+            const finalDeviceId = device_id || 'default_device';
             if (!device_id) {
-                device_id = 'default_device';
-                console.log('⚠️ 设备ID未提供，使用默认值:', device_id);
+                console.log('⚠️ 设备ID未提供，使用默认值:', finalDeviceId);
             }
 
             // 检查同一注册用户和设备上用户名是否已存在
-            const existingUser = await User.findByUsernameAndAppUserAndDevice(username, app_user_id, device_id);
+            const existingUser = await User.findByUsernameAndAppUserAndDevice(username, app_user_id, finalDeviceId);
             if (existingUser) {
                 throw new Error('该用户名已存在');
             }
 
             // 检查邮箱是否已存在（如果提供了邮箱）
             if (email) {
-                const existingEmail = await User.findByEmailAndAppUserAndDevice(email, app_user_id, device_id);
+                const existingEmail = await User.findByEmailAndAppUserAndDevice(email, app_user_id, finalDeviceId);
                 if (existingEmail) {
                     throw new Error('该邮箱已被使用');
                 }
@@ -65,7 +64,7 @@ class User {
             `;
             
             const result = await query(sql, [
-                app_user_id, username, display_name, email, phone, gender, birthday, avatar_color, timezone, device_id
+                app_user_id, username, display_name, email, phone, gender, birthday, avatar_color, timezone, finalDeviceId
             ]);
 
             // 获取新创建的用户
@@ -151,12 +150,6 @@ class User {
         return users.map(user => new User(user));
     }
 
-    // 根据注册用户ID获取所有活跃用户（设备ID容错）
-    static async findAllByAppUser(appUserId) {
-        const sql = 'SELECT * FROM users WHERE app_user_id = ? AND is_active = TRUE ORDER BY created_at DESC';
-        const users = await query(sql, [appUserId]);
-        return users.map(user => new User(user));
-    }
 
     // 根据设备ID获取所有活跃用户（兼容旧版）
     static async findAllByDevice(deviceId) {

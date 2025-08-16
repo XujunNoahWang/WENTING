@@ -1,5 +1,5 @@
 // 数据同步服务
-const { query, transaction } = require('../config/sqlite');
+const { query } = require('../config/sqlite');
 const websocketService = require('./websocketService');
 
 class DataSyncService {

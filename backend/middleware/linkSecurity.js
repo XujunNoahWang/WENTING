@@ -9,7 +9,7 @@ class LinkSecurity {
     // 验证用户权限
     static async validateUserPermission(req, res, next) {
         try {
-            const { fromAppUser, toAppUser, supervisedUserId } = req.body;
+            const { fromAppUser, supervisedUserId } = req.body;
             const userFromHeader = req.headers['x-app-user'] || req.body.appUser;
             
             // 验证请求用户身份
