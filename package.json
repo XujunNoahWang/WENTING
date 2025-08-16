@@ -1,0 +1,27 @@
+{
+  "name": "wenting-app",
+  "version": "1.0.0",
+  "description": "雯婷家庭管理应用",
+  "main": "index.html",
+  "scripts": {
+    "lint": "eslint js/ backend/ --ext .js",
+    "lint:fix": "eslint js/ backend/ --ext .js --fix",
+    "dev": "cd backend && npm run dev",
+    "start": "cd backend && npm start",
+    "test": "cd backend && npm test"
+  },
+  "keywords": [
+    "family",
+    "todo",
+    "notes",
+    "weather",
+    "management"
+  ],
+  "author": "Wenting Team",
+  "license": "MIT",
+  "devDependencies": {
+    "eslint": "^8.57.1",
+    "eslint-config-airbnb-base": "^15.0.0",
+    "eslint-plugin-import": "^2.32.0"
+  }
+}
